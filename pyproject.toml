@@ -1,0 +1,25 @@
+[project]
+name = "multi-agent-travel"
+version = "0.1.0"
+description = "Multi-agent travel agency demo showcasing scratchpad memory patterns"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "azure-identity>=1.19.0",
+    "openai>=1.58.0",
+    "agent-framework-core @ git+https://github.com/microsoft/agent-framework.git@main#subdirectory=python/packages/core",
+    "agent-framework-azure-ai @ git+https://github.com/microsoft/agent-framework.git@main#subdirectory=python/packages/azure-ai",
+    "azure-ai-projects>=1.0.0",
+    "azure-ai-agents>=1.0.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+]

@@ -1,0 +1,19 @@
+# Flights specialist agent
+# Delegates flight-related queries to the Foundry Prompt Agent
+
+name: flights_tool
+display_name: Flights Agent
+avatar: ✈️
+role: Flight Specialist
+model: gpt-4o (Foundry)
+
+description: >
+  Delegate a flight planning task to the flights specialist agent.
+  Use this tool when the user asks about flights, routes, airlines,
+  departure times, layovers, or flight pricing.
+
+task_description: >
+  A detailed flight planning request including origin city,
+  destination city, travel dates, and budget constraints.
+
+foundry_agent_name: flight-agent-v2

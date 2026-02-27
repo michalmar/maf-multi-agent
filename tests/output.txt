@@ -1,0 +1,324 @@
+🧳 Query: I'm in Prague and want a 3-day trip to London next month. Find reasonable flights and a mid-range hotel near good public transport.
+
+📋 Mode: scratchpad
+
+⏳ Running...
+
+13:31:37 [src.scratchpad.dispatcher] INFO: 📂 Dispatch tool created: call_flights_tool
+13:31:37 [src.scratchpad.dispatcher] INFO: 📂 Dispatch tool created: call_hotels_tool
+13:31:37 [src.scratchpad.workflow] INFO: Using Azure OpenAI deployment: gpt-5.1
+13:31:37 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:37 [src.scratchpad.workflow] INFO: 🎯 SCRATCHPAD WORKFLOW STARTED
+13:31:37 [src.scratchpad.workflow] INFO:    Tools: create_tasks, get_plan_status, read_document, consolidate_section, read_document_clean, call_flights_tool, call_hotels_tool
+13:31:37 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:37 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:37 [src.scratchpad.workflow] INFO: 📨 USER QUERY → FACILITATOR
+13:31:37 [src.scratchpad.workflow] INFO:    Query: I'm in Prague and want a 3-day trip to London next month. Find reasonable flights and a mid-range hotel near good public transport.
+13:31:37 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:37 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:37 [src.orchestrator] INFO: 🔄 LLM CALL #1
+13:31:37 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:31:43 [agent_framework] INFO: Function name: create_tasks
+13:31:43 [src.scratchpad.taskboard] INFO: 📋 TaskBoard: created 5 tasks (IDs [1, 2, 3, 4, 5])
+13:31:43 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (0/5 done) ───
+13:31:43 [src.scratchpad.taskboard] INFO: │ ⏳ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:31:43 [src.scratchpad.taskboard] INFO: │ ⏳ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:31:43 [src.scratchpad.taskboard] INFO: │ ⏳ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:31:43 [src.scratchpad.taskboard] INFO: │ ⏳ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:31:43 [src.scratchpad.taskboard] INFO: │ ⏳ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:31:43 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:31:43 [agent_framework] INFO: Function create_tasks succeeded.
+13:31:46 [agent_framework] INFO: Function name: call_flights_tool
+13:31:46 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:46 [src.scratchpad.dispatcher] INFO: 📤 DISPATCH: FLIGHTS-AGENT (tasks: [1, 2, 5])
+13:31:46 [src.scratchpad.dispatcher] INFO: 💬 Message: Work on these Prague–London flight and travel logistics tasks for next month; focus on reasonable, convenient options for a 3-day trip.
+13:31:46 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:46 [src.foundry_client] INFO: ──────────────────────────────────────────────────
+13:31:46 [src.foundry_client] INFO: 🚀 FOUNDRY AGENT CALL  │ agent=flight-agent-v2
+13:31:46 [src.foundry_client] INFO: 📝 TASK                │ Work on these Prague–London flight and travel logistics tasks for next month; focus on reasonable, convenient options for a 3-day trip.
+
+Your assigned tasks:
+- Task 1: Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+-... (652 chars total)
+13:31:46 [src.foundry_client] INFO: ⏳ AGENT RUN STARTED
+13:31:48 [src.foundry_client] INFO: 📎 AGENT RESOLVED      │ name=flight-agent-v2  id=flight-agent-v2  version=3
+13:31:49 [src.foundry_client] INFO: 💬 CONVERSATION        │ id=conv_d29b3fffb765129a007M4p7fzxdCmUWyckXIll34pBbxVzhC5A
+13:31:57 [src.foundry_client] INFO: ✅ AGENT RUN COMPLETED │ length=3907 chars  (11.4s)
+13:31:57 [src.foundry_client] INFO: 📥 RESPONSE PREVIEW    │ Certainly! Here's a comprehensive plan for your Prague–London 3-day trip next month, covering flights, optimal dates, and practical travel considerations.
+
+---
+
+### **Task 1: Round-Trip Flights (Prague to London)**
+
+#### **Option 1: Budget Friendly & Convenient**
+- **Airline:** Ryanair or easyJet
+- ... (3907 chars total)
+13:31:57 [src.foundry_client] INFO: ──────────────────────────────────────────────────
+13:31:57 [src.scratchpad.shared_document] INFO: 📝 SharedDocument: [flights_tool] wrote to day=0 slot=general (v1)
+13:31:57 [src.scratchpad.taskboard] INFO: ✅ TaskBoard: task 1 completed
+13:31:57 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (1/5 done) ───
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:31:57 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:31:57 [src.scratchpad.taskboard] INFO: ✅ TaskBoard: task 2 completed
+13:31:57 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (2/5 done) ───
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:31:57 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:31:57 [src.scratchpad.taskboard] INFO: ✅ TaskBoard: task 5 completed
+13:31:57 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (3/5 done) ───
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ⏳ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:31:57 [src.scratchpad.taskboard] INFO: │ ✅ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:31:57 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:31:57 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:57 [src.scratchpad.dispatcher] INFO: 📥 FLIGHTS-AGENT → FACILITATOR (11.4s)
+13:31:57 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:57 [agent_framework] INFO: Function call_flights_tool succeeded.
+13:31:57 [agent_framework] INFO: Function name: call_hotels_tool
+13:31:57 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:57 [src.scratchpad.dispatcher] INFO: 📤 DISPATCH: HOTELS-AGENT (tasks: [3, 4])
+13:31:57 [src.scratchpad.dispatcher] INFO: 💬 Message: Handle these London hotel and neighborhood recommendation tasks for a 3-day trip next month, mid-range and near strong public transport.
+13:31:57 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:31:57 [src.foundry_client] INFO: ──────────────────────────────────────────────────
+13:31:57 [src.foundry_client] INFO: 🚀 FOUNDRY AGENT CALL  │ agent=hotel-agent-v2
+13:31:57 [src.foundry_client] INFO: 📝 TASK                │ Handle these London hotel and neighborhood recommendation tasks for a 3-day trip next month, mid-range and near strong public transport.
+
+Your assigned tasks:
+- Task 3: List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+- Task 4: Recomm... (528 chars total)
+13:31:57 [src.foundry_client] INFO: ⏳ AGENT RUN STARTED
+13:31:59 [src.foundry_client] INFO: 📎 AGENT RESOLVED      │ name=hotel-agent-v2  id=hotel-agent-v2  version=3
+13:32:01 [src.foundry_client] INFO: 💬 CONVERSATION        │ id=conv_4b764926da648d8700OhmcCdmHNWvqnUIjeNEYzsKnVDqxGYZe
+13:32:07 [src.foundry_client] INFO: ✅ AGENT RUN COMPLETED │ length=5380 chars  (10.3s)
+13:32:07 [src.foundry_client] INFO: 📥 RESPONSE PREVIEW    │ Certainly! I'll provide detailed recommendations for Task 3 and Task 4 based on your criteria. 
+
+**Assumptions for your trip:**  
+- Dates: Next month (e.g., mid-April)  
+- Budget: Mid-range (typically £150–£250 per night)  
+- Focus: Good public transport connectivity, convenient for a first-time vis... (5380 chars total)
+13:32:07 [src.foundry_client] INFO: ──────────────────────────────────────────────────
+13:32:07 [src.scratchpad.shared_document] INFO: 📝 SharedDocument: [hotels_tool] wrote to day=0 slot=general (v2)
+13:32:07 [src.scratchpad.taskboard] INFO: ✅ TaskBoard: task 3 completed
+13:32:07 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (4/5 done) ───
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ⏳ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:32:07 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:32:07 [src.scratchpad.taskboard] INFO: ✅ TaskBoard: task 4 completed
+13:32:07 [src.scratchpad.taskboard] INFO: ┌─── TaskBoard Status (5/5 done) ───
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [1] (flights_tool): Find round-trip flights between Prague and London for a 3-day trip next month, focusing on reasonable prices and convenient times.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [2] (flights_tool): Identify the best 3-day date windows next month balancing price and convenience for Prague–London travel.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [3] (hotels_tool): List 4–6 mid-range hotels in London with good public transport access, including pricing estimates for next month.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [4] (hotels_tool): Recommend London neighborhoods that are convenient for a 3-day first-time visit, with strong public transport links.
+13:32:07 [src.scratchpad.taskboard] INFO: │ ✅ [5] (flights_tool): Summarize visa/entry, airport transfer, and luggage considerations for a 3-day Prague–London trip next month.
+13:32:07 [src.scratchpad.taskboard] INFO: └────────────────────────────────────────
+13:32:07 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:32:07 [src.scratchpad.dispatcher] INFO: 📥 HOTELS-AGENT → FACILITATOR (10.3s)
+13:32:07 [src.scratchpad.dispatcher] INFO: ════════════════════════════════════════════════════════════
+13:32:07 [agent_framework] INFO: Function call_hotels_tool succeeded.
+13:32:09 [agent_framework] INFO: Function name: get_plan_status
+13:32:09 [agent_framework] INFO: Function get_plan_status succeeded.
+13:32:11 [agent_framework] INFO: Function name: read_document
+13:32:11 [agent_framework] INFO: Function read_document succeeded.
+13:32:35 [agent_framework] INFO: Function name: consolidate_section
+13:32:35 [src.scratchpad.shared_document] INFO: 🔀 SharedDocument: consolidated day=0 slot=general (v3)
+13:32:35 [agent_framework] INFO: Function consolidate_section succeeded.
+13:32:37 [agent_framework] INFO: Function name: read_document_clean
+13:32:37 [agent_framework] INFO: Function read_document_clean succeeded.
+13:32:58 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:32:58 [src.orchestrator] INFO: 🧠 REASONING PHASE (call #1)
+13:32:58 [src.orchestrator] INFO:    💭 **Creating tools workflow**
+
+I need to establish a workflow using tools. First, I’ll create tasks — aiming for 3 to 10 tasks — and assign them to the "flights_tool" or "hotels_tool." Then, it’s important to dispatch these tasks using multi_tool_use.parallel for both flights and hotels. After that, I’ll check the plan status to keep everything on track. So, I’m focusing on using the tools effectively here!
+13:32:58 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: create_tasks({"tasks":"[{\"text\":\"Find round-trip flights between Prague and London for a 3-day trip next month... (830 chars total))
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: call_flights_tool({"task_ids":"[1,2,5]","message":"Work on these Prague–London flight and travel logistics tasks for n... (170 chars total))
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: call_hotels_tool({"task_ids":"[3,4]","message":"Handle these London hotel and neighborhood recommendation tasks for a... (169 chars total))
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: get_plan_status({})
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: read_document({})
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: consolidate_section({"day":0,"time_slot":"general","content":"Here is a concise, 3-day Prague–London trip outline with f... (6685 chars total))
+13:32:58 [src.orchestrator] INFO: 🔧 TOOL CALL: read_document_clean({})
+13:32:58 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:32:58 [src.orchestrator] INFO: 📝 OUTPUT PHASE (call #1)
+13:32:58 [src.orchestrator] INFO:    📄 Here’s a focused 3‑day London plan from Prague with reasonable flights and mid‑range hotels by great public transport.
+
+---
+
+## 1) Flights PRG → London (next month)
+
+**Airports**
+
+- From: **Prague Václav Havel (PRG)**
+- To (recommended):
+  - **Heathrow (LHR)** – best for comfort and easy Tube access... (6192 chars total)
+13:32:58 [src.orchestrator] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:32:58 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13:32:58 [src.scratchpad.workflow] INFO: ✅ WORKFLOW COMPLETE (81.0s)
+13:32:58 [src.scratchpad.workflow] INFO:    Tasks: 5/5 tasks completed.
+13:32:58 [src.scratchpad.workflow] INFO:    Document version: 3
+13:32:58 [src.scratchpad.workflow] INFO:    Response length: 6192 chars
+13:32:58 [src.scratchpad.workflow] INFO: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+============================================================
+✅ Travel Plan
+============================================================
+Here’s a focused 3‑day London plan from Prague with reasonable flights and mid‑range hotels by great public transport.
+
+---
+
+## 1) Flights PRG → London (next month)
+
+**Airports**
+
+- From: **Prague Václav Havel (PRG)**
+- To (recommended):
+  - **Heathrow (LHR)** – best for comfort and easy Tube access  
+  - **Stansted (STN)** – cheaper low‑cost flights, longer transfer
+
+### Option A – Cheapest reasonable
+
+- Airlines: **Ryanair, easyJet** (usually to **Stansted** or sometimes **Gatwick**)
+- Typical price next month: **~€80–€120 round‑trip** (with hand luggage only, booked in advance)
+- Flight time: **~2 hours**, direct
+- Trade‑offs:
+  - Extra fees for checked baggage
+  - Stricter cabin bag rules
+  - **Stansted → central London**: coach/bus ~**£10–£15**, about **1–1.5 hours**
+
+### Option B – More comfortable & convenient
+
+- Airlines: **British Airways** (often to/from **Heathrow**) or similar full‑service carrier
+- Typical price next month: **~€150–€250 round‑trip**
+- Benefits:
+  - More comfortable cabin, often a snack/drink
+  - Usually a **checked bag included (~23 kg)** or at least generous hand luggage
+  - **Heathrow → central London**:
+    - Take the **Piccadilly line (Tube)** directly into the city in ~45 minutes for **£3–£6** with Oyster/contactless
+
+### When to go (3‑day window)
+
+For price + convenience:
+
+- Aim for **mid‑week**:  
+  - e.g. **Wed–Sat** or **Thu–Sun**
+- Prefer **first or second week of the month** for better fares than peak periods and fewer weekend crowds.
+
+If you tell me:
+- the exact month, and  
+- whether you prefer **cheapest possible** or **more comfort via Heathrow**,  
+I can propose 2–3 specific date combos with time ranges to search and airline suggestions.
+
+---
+
+## 2) Best areas to stay (3 days, first‑time visit)
+
+You’ll want somewhere central with fast Tube access so you don’t waste time commuting.
+
+**Top picks for you:**
+
+1. **Covent Garden / Soho / Holborn (West End)**
+   - Why: Extremely central; walkable to many sights, lots of restaurants, pubs, theatres.
+   - Transport:
+     - **Covent Garden (Piccadilly)** – direct from Heathrow
+     - **Holborn (Central & Piccadilly)**
+     - **Leicester Square (Northern)**
+     - **Tottenham Court Road (Elizabeth & Central)**
+   - Good if you like being in the heart of things and can tolerate some noise.
+
+2. **South Kensington / Kensington / near Hyde Park**
+   - Why: Elegant, slightly quieter but still very central; near major museums and parks.
+   - Transport:
+     - **South Kensington, Gloucester Road, Earl’s Court, High Street Kensington, Notting Hill Gate**  
+       (Piccadilly, District, Circle, Central lines)
+   - Particularly convenient if you fly into **Heathrow** (direct Piccadilly line).
+
+3. **South Bank / Waterloo**
+   - Why: Great for walking the Thames, London Eye, Tate Modern; easy to reach many areas.
+   - Transport:
+     - **Waterloo** (Jubilee, Northern, Bakerloo, Waterloo & City)  
+   - Very practical, though not quite as “classic London” residential as South Kensington.
+
+For your short trip, I’d choose either:
+- **Covent Garden/Soho/Holborn** (most central, lively), or  
+- **South Kensington** (more relaxed, still very well connected).
+
+---
+
+## 3) Mid‑range hotel options near excellent public transport
+
+Prices are rough for next month and for 2 people; they move a lot by date and how early you book.
+
+### In/near Soho & West End
+
+**1. The Resident Soho (Soho)**  
+- Category: Stylish mid‑range boutique  
+- Approx. price: **£180–£210/night**  
+- Transport:  
+  - **Tottenham Court Road** (Central & Elizabeth) – a few minutes’ walk  
+  - **Oxford Circus** (Bakerloo, Central, Victoria) – also walkable  
+- Great if: You want to be in a vibrant area close to restaurants, bars, and theatres, and have fantastic Tube options.
+
+### Central, walkable to Covent Garden/South Bank
+
+**2. The Z Hotel City**  
+- Category: Compact, modern, good value for central London  
+- Approx. price: **£150–£200/night**  
+- Transport:  
+  - Walkable to **Temple** / **Blackfriars** / **City Thameslink**, plus numerous buses  
+- Great if: You want easy access to the City and South Bank while still being close to Covent Garden.
+
+### South Kensington / Kensington area
+
+**3. Ibis Styles London Kensington (or similar Ibis/Premier Inn around Earl’s Court/Gloucester Road)**  
+- Category: Reliable mid‑range chain  
+- Approx. price: **£160–£220/night**  
+- Transport:  
+  - Near **Earl’s Court** or **Gloucester Road** (Piccadilly, District, Circle) – direct from Heathrow, great for getting across London  
+- Great if: You value straightforward comfort, a good breakfast option, and direct Tube from Heathrow.
+
+**4. The Queen’s Gate Hotel (South Kensington)**  
+- Category: Elegant mid‑range  
+- Approx. price: **£180–£240/night**  
+- Transport:  
+  - Close to **South Kensington** and **Gloucester Road** – multiple lines, fast to most attractions  
+- Great if: You like a slightly more upscale feel in a classic London neighbourhood near Hyde Park and museums.
+
+Any of these will give you a **mid‑range standard** with **excellent public transport access**.
+
+---
+
+## 4) Simple 3‑day structure
+
+- **Day 1:**  
+  - Fly PRG → London (late morning/early afternoon).  
+  - Check into your hotel (Soho/Covent Garden or South Kensington).  
+  - Evening: Explore the neighbourhood and walk along the Thames (e.g. Soho → Leicester Square → Trafalgar Square → Embankment/South Bank).
+
+- **Day 2:**  
+  - Morning: Westminster (Big Ben, Westminster Abbey, Houses of Parliament).  
+  - Afternoon: Walk the South Bank (London Eye → Tate Modern).  
+  - Night: West End show or dinner in Soho/Covent Garden.
+
+- **Day 3:**  
+  - Morning: Museum (British Museum or V&A/Natural History Museum) or a park (Hyde Park).  
+  - Early afternoon: Lunch and last wander/quick shopping.  
+  - Then Tube or bus/train back to your airport for evening flight to Prague.
+
+---
+
+If you tell me:
+- the **exact month and rough dates you prefer**, and  
+- whether you want **budget (Stansted + low‑cost)** or **more comfort (Heathrow + BA)**,  
+
+I can narrow this to: 1–2 **specific hotels to book** plus a couple of **concrete flight options (with times and airlines)** that fit your 3‑day window.
+

@@ -1,0 +1,20 @@
+# Hotels specialist agent
+# Delegates hotel/accommodation queries to the Foundry Prompt Agent
+
+name: hotels_tool
+display_name: Hotels Agent
+avatar: 🏨
+role: Accommodation Specialist
+model: gpt-4o (Foundry)
+
+description: >
+  Delegate a hotel planning task to the hotels specialist agent.
+  Use this tool when the user asks about accommodation, hotels,
+  neighborhoods, areas to stay, or lodging options.
+
+task_description: >
+  A detailed hotel/accommodation request including city,
+  dates, budget, and preferences such as proximity to
+  public transport or quiet neighborhoods.
+
+foundry_agent_name: hotel-agent-v2
