@@ -23,7 +23,6 @@ frontend/dist-ssr
 *.sln
 *.sw?
 
-.env.*
 .env
 
 frontend/test
