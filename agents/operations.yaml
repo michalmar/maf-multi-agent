@@ -1,0 +1,17 @@
+# Operations engineering specialist agent
+# Delegates search queries to the Underlying Foundry IQ
+
+name: kb_tool
+display_name: KB Agent
+avatar: 🧠
+role: Operations Engineering Specialist
+model: gpt-4.1-mini (Foundry)
+
+description: >
+  Delegate a knowledge base query to Offshore Compression System Predictive Maintenance Guidance Handbook through the underlying Foundry IQ.
+  Use this tool when you need to search for actual, current information in the knowledge base.
+
+task_description: >
+  A detailed knowledge base query in plain language, including the topic, specific questions, and any relevant context or constraints.
+
+foundry_agent_name: OperationsEngineering

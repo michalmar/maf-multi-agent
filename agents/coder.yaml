@@ -1,0 +1,19 @@
+# Coder specialist agent
+# Delegates coding and code execution tasks to the Foundry Prompt Agent
+
+name: coder_tool
+display_name: Coder Agent
+avatar: 💻
+role: Software Engineer
+model: gpt-4.1-mini (Foundry)
+
+description: >
+  Delegate a coding or code execution task to the coder specialist agent.
+  Use this tool when you need to write, review, debug, or execute code
+  in any programming language, generate scripts, or solve technical problems.
+
+task_description: >
+  A detailed coding request including the programming language, desired
+  functionality, input/output expectations, and any constraints or libraries to use.
+
+foundry_agent_name: Coder

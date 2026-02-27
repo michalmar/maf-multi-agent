@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Sequence
 
 import yaml
+from jinja2 import Environment, FileSystemLoader
 from agent_framework import FunctionTool
 from pydantic import BaseModel, Field
 
@@ -174,28 +175,18 @@ def list_agent_definitions(agents_dir: Path | str | None = None) -> list[AgentDe
     return definitions
 
 
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+
 def generate_orchestrator_instructions(tools: Sequence[FunctionTool]) -> str:
     """Generate orchestrator system instructions from loaded tools.
 
-    Builds the instructions dynamically so adding a new YAML agent
-    automatically updates the orchestrator's knowledge of available tools.
+    Builds the instructions dynamically from a Jinja2 template so adding
+    a new YAML agent automatically updates the orchestrator's knowledge
+    of available tools.
     """
-    tool_lines = []
-    for t in tools:
-        tool_lines.append(f"   - Use '{t.name}' — {t.description}")
-
-    tool_section = "\n".join(tool_lines)
-
-    return f"""\
-You are a travel planning orchestrator.
-
-Your job:
-1. Understand the user's travel request.
-2. Break it into sub-tasks and delegate to specialist tools:
-{tool_section}
-3. You may call multiple tools if the request spans several domains.
-4. After receiving tool results, synthesize a cohesive plan that
-   combines all recommendations into clear, actionable advice.
-5. Be concise but informative. Include key details like prices, times, and locations.
-6. Format your response with clear sections per domain.
-"""
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATES_DIR),
+        keep_trailing_newline=True,
+    )
+    template = env.get_template("orchestrator_instructions.jinja2")
+    return template.render(tools=tools)

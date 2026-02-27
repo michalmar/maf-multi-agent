@@ -26,6 +26,9 @@
   --agent-hotels: #FB7185;
   --agent-websearch: #22D3EE;
   --agent-writer: #34D399;
+  --agent-coder: #34D399;
+  --agent-data-analyst: #A78BFA;
+  --agent-kb: #FB923C;
 
   /* Semantic — toned down */
   --color-active: #3B82F6;
@@ -63,6 +66,9 @@
   --agent-hotels: #E11D48;
   --agent-websearch: #0891B2;
   --agent-writer: #059669;
+  --agent-coder: #059669;
+  --agent-data-analyst: #7C3AED;
+  --agent-kb: #EA580C;
 
   --color-active: #2563EB;
   --color-success: #059669;
