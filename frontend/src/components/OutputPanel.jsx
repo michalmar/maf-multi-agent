@@ -90,12 +90,11 @@ function DocumentContent({ documents }) {
               <button
                 key={i}
                 onClick={() => { setActiveVersion(i); setShowDiff(false); }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 border ${
-                  isActive ? 'border-blue-500/30 text-white' : 'border-transparent hover:bg-white/5'
-                }`}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-150 border"
                 style={{
-                  background: isActive ? 'color-mix(in srgb, var(--color-active) 15%, transparent)' : 'transparent',
-                  color: isActive ? 'white' : 'var(--text-muted)',
+                  background: isActive ? 'color-mix(in srgb, var(--color-active) 10%, transparent)' : 'transparent',
+                  color: isActive ? 'var(--text-primary)' : 'var(--text-muted)',
+                  borderColor: isActive ? 'color-mix(in srgb, var(--color-active) 25%, transparent)' : 'transparent',
                 }}
               >
                 {label}
@@ -107,13 +106,14 @@ function DocumentContent({ documents }) {
         {prevDoc && (
           <button
             onClick={() => setShowDiff(!showDiff)}
-            className={`p-1.5 rounded-md transition-colors ${showDiff ? 'bg-white/10' : 'hover:bg-white/5'}`}
+            className="p-1.5 rounded-md transition-colors"
+            style={{ background: showDiff ? 'var(--bg-surface-hover)' : 'transparent' }}
             title="Toggle diff view"
           >
             <GitCompare size={13} style={{ color: showDiff ? 'var(--color-info)' : 'var(--text-muted)' }} />
           </button>
         )}
-        <button onClick={handleCopy} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Copy">
+        <button onClick={handleCopy} className="p-1.5 rounded-md transition-colors" style={{ background: 'transparent' }} title="Copy">
           {copied ? <Check size={13} style={{ color: 'var(--color-success)' }} /> : <Copy size={13} style={{ color: 'var(--text-muted)' }} />}
         </button>
       </div>
@@ -176,10 +176,10 @@ function ResultContent({ result }) {
     <>
       {/* Toolbar */}
       <div className="flex items-center justify-end gap-1.5 mb-3">
-        <button onClick={handleCopy} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Copy">
+        <button onClick={handleCopy} className="p-1.5 rounded-md transition-colors" style={{ background: 'transparent' }} title="Copy">
           {copied ? <Check size={13} style={{ color: 'var(--color-success)' }} /> : <Copy size={13} style={{ color: 'var(--text-muted)' }} />}
         </button>
-        <button onClick={handleDownload} className="p-1.5 rounded-md hover:bg-white/5 transition-colors" title="Download">
+        <button onClick={handleDownload} className="p-1.5 rounded-md transition-colors" style={{ background: 'transparent' }} title="Download">
           <Download size={13} style={{ color: 'var(--text-muted)' }} />
         </button>
       </div>
@@ -187,7 +187,7 @@ function ResultContent({ result }) {
       {/* Rendered markdown */}
       <div
         className="rounded-lg overflow-y-auto px-8 py-6"
-        style={{ background: 'var(--bg-surface)' }}
+        style={{ background: 'var(--bg-base)' }}
       >
         <div className="md-result max-w-none">
           <ReactMarkdown>{result}</ReactMarkdown>
@@ -231,7 +231,7 @@ export default function OutputPanel({ documents, result, status, tabOverride }) 
   ];
 
   return (
-    <div className="glass rounded-2xl p-5">
+    <div className="panel rounded-xl p-5">
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
         {tabs.map((t) => {

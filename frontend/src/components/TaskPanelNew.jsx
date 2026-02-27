@@ -39,16 +39,16 @@ export default function TaskPanel({ tasks, onTaskClick, highlightedTask }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="glass rounded-2xl p-5 h-full overflow-y-auto">
+    <div className="panel rounded-xl p-5 h-full overflow-y-auto">
       {/* Header with progress ring */}
       <div className="flex items-center gap-3 mb-4">
         <ProgressRing progress={pct} />
         <div>
-          <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <ListChecks size={15} />
+          <h2 className="text-xs font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <ListChecks size={14} />
             Tasks
           </h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {done} of {total} completed
           </p>
         </div>

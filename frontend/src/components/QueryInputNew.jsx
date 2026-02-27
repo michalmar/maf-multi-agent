@@ -18,8 +18,8 @@ export default function QueryInput({ onRun, disabled }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="glass rounded-2xl p-4 mb-5">
-      <label className="block text-xs font-medium mb-2 uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+    <form onSubmit={handleSubmit} className="panel rounded-xl p-4 mb-4">
+      <label className="block text-[11px] font-medium mb-2 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
         Describe your travel plan
       </label>
       <div className="flex gap-3 items-stretch">
@@ -28,11 +28,11 @@ export default function QueryInput({ onRun, disabled }) {
           onChange={(e) => setQuery(e.target.value)}
           disabled={disabled}
           rows={2}
-          className="flex-1 rounded-xl px-4 py-3 text-sm resize-none transition-all duration-200
-                     placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-blue-500/30
+          className="flex-1 rounded-lg px-4 py-3 text-sm resize-none transition-all duration-150
+                     placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-active)]/25
                      disabled:opacity-40"
           style={{
-            background: 'var(--bg-surface)',
+            background: 'var(--bg-base)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border-subtle)',
           }}
@@ -41,16 +41,15 @@ export default function QueryInput({ onRun, disabled }) {
         <motion.button
           type="submit"
           disabled={disabled || !query.trim()}
-          whileHover={{ scale: 1.02 }}
+          whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
-          className="px-5 rounded-xl text-sm font-medium transition-all duration-200
+          className="px-6 rounded-lg text-sm font-medium transition-all duration-150
                      disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
           style={{
             background: disabled
-              ? 'var(--border-subtle)'
-              : 'linear-gradient(135deg, #3B82F6, #818CF8)',
+              ? 'var(--bg-elevated)'
+              : 'var(--color-active)',
             color: 'white',
-            boxShadow: disabled ? 'none' : '0 0 20px rgba(59, 130, 246, 0.15)',
           }}
         >
           {disabled ? (

@@ -97,17 +97,17 @@ function EventCard({ evt, highlightedTask }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -12 }}
+      initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25 }}
-      className={`group relative pl-10 ${isTaskRelated ? 'ring-1 ring-blue-500/30 rounded-lg' : ''}`}
+      transition={{ duration: 0.2 }}
+      className={`group relative pl-10 ${isTaskRelated ? 'ring-1 ring-[var(--color-active)]/20 rounded-lg' : ''}`}
     >
       {/* Timeline dot */}
       <div
-        className="absolute left-0 top-3 w-6 h-6 rounded-full flex items-center justify-center text-xs border-2"
+        className="absolute left-0 top-3 w-6 h-6 rounded-full flex items-center justify-center text-xs"
         style={{
-          borderColor: cfg.color,
           background: `color-mix(in srgb, ${cfg.color} 10%, var(--bg-surface))`,
+          border: `1.5px solid color-mix(in srgb, ${cfg.color} 25%, transparent)`,
         }}
       >
         <span className="text-sm">{cfg.icon}</span>
@@ -115,7 +115,7 @@ function EventCard({ evt, highlightedTask }) {
 
       {/* Card */}
       <div
-        className="rounded-lg border transition-all duration-200 hover:border-opacity-60"
+        className="rounded-lg border transition-all duration-150"
         style={{
           background: 'var(--bg-surface)',
           borderColor: 'var(--border-subtle)',
@@ -125,18 +125,19 @@ function EventCard({ evt, highlightedTask }) {
       >
         <button
           onClick={() => setOpen(!open)}
-          className="w-full px-3 py-2.5 flex items-center gap-2.5 text-left hover:bg-white/[0.02] transition-colors rounded-lg"
+          className="w-full px-3 py-2.5 flex items-center gap-2.5 text-left transition-colors rounded-lg"
+          style={{ background: 'transparent' }}
         >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs">
-              <span style={{ color: 'var(--text-muted)' }}>{formatTime(evt.timestamp)}</span>
+              <span style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{formatTime(evt.timestamp)}</span>
               <span
                 className="font-medium px-1.5 py-0.5 rounded"
                 style={{ color: cfg.color, background: `color-mix(in srgb, ${cfg.color} 8%, transparent)` }}
               >
                 {cfg.name}
               </span>
-              <span className="opacity-60" style={{ color: 'var(--text-muted)' }}>
+              <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
                 {TYPE_LABELS[evt.event_type] || evt.event_type}
               </span>
             </div>
@@ -146,7 +147,7 @@ function EventCard({ evt, highlightedTask }) {
           </div>
           <ChevronDown
             size={14}
-            className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            className={`shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
             style={{ color: 'var(--text-muted)' }}
           />
         </button>
@@ -157,7 +158,7 @@ function EventCard({ evt, highlightedTask }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               className="overflow-hidden"
             >
               <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -199,18 +200,19 @@ export default function EventStream({ events, running, activeAgent, highlightedT
   }, [events]);
 
   return (
-    <div className={embedded ? 'flex flex-col' : 'glass rounded-2xl p-5 flex flex-col'} style={{ minHeight: embedded ? '350px' : '400px' }}>
+    <div className={embedded ? 'flex flex-col' : 'panel rounded-xl p-5 flex flex-col'} style={{ minHeight: embedded ? '350px' : '400px' }}>
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        {!embedded && <Radio size={16} style={{ color: 'var(--color-active)' }} />}
-        {!embedded && <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Activity Stream</h2>}
+      <div className="flex items-center gap-2 mb-3">
+        {!embedded && <Radio size={14} style={{ color: 'var(--color-active)' }} />}
+        {!embedded && <h2 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Activity Stream</h2>}
         {running && (
-          <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-active)' }} />
+          <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-active)' }} />
         )}
-        <span className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}>{displayed.length} events</span>
+        <span className="ml-auto text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{displayed.length} events</span>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`p-1.5 rounded-md transition-colors ${showFilters ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          className={`p-1.5 rounded-md transition-colors ${showFilters ? '' : ''}`}
+          style={{ background: showFilters ? 'var(--bg-surface-hover)' : 'transparent' }}
         >
           <Filter size={13} style={{ color: 'var(--text-muted)' }} />
         </button>
@@ -228,8 +230,12 @@ export default function EventStream({ events, running, activeAgent, highlightedT
             <div className="flex flex-wrap gap-1.5 pb-2">
               <button
                 onClick={() => setTypeFilter(null)}
-                className={`text-xs px-2 py-1 rounded-md transition-colors ${!typeFilter ? 'bg-white/10 text-white' : 'bg-white/5 hover:bg-white/8'}`}
-                style={typeFilter ? { color: 'var(--text-muted)' } : {}}
+                className="text-xs px-2.5 py-1 rounded-md transition-colors"
+                style={{
+                  background: !typeFilter ? 'var(--bg-surface-hover)' : 'transparent',
+                  color: !typeFilter ? 'var(--text-primary)' : 'var(--text-muted)',
+                  border: `1px solid ${!typeFilter ? 'var(--border-accent)' : 'transparent'}`,
+                }}
               >
                 All
               </button>
@@ -237,8 +243,12 @@ export default function EventStream({ events, running, activeAgent, highlightedT
                 <button
                   key={t}
                   onClick={() => setTypeFilter(typeFilter === t ? null : t)}
-                  className={`text-xs px-2 py-1 rounded-md transition-colors ${typeFilter === t ? 'bg-white/10 text-white' : 'bg-white/5 hover:bg-white/8'}`}
-                  style={typeFilter !== t ? { color: 'var(--text-muted)' } : {}}
+                  className="text-xs px-2.5 py-1 rounded-md transition-colors"
+                  style={{
+                    background: typeFilter === t ? 'var(--bg-surface-hover)' : 'transparent',
+                    color: typeFilter === t ? 'var(--text-primary)' : 'var(--text-muted)',
+                    border: `1px solid ${typeFilter === t ? 'var(--border-accent)' : 'transparent'}`,
+                  }}
                 >
                   {TYPE_LABELS[t] || t}
                 </button>
@@ -277,7 +287,7 @@ export default function EventStream({ events, running, activeAgent, highlightedT
       {/* Paused indicator */}
       {isPaused && running && displayed.length > 0 && (
         <div className="text-center mt-2">
-          <span className="text-xs px-2 py-1 rounded-md bg-white/5" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-[10px] px-2 py-1 rounded-md" style={{ color: 'var(--text-muted)', background: 'var(--bg-surface-hover)' }}>
             Auto-scroll paused · hover out to resume
           </span>
         </div>

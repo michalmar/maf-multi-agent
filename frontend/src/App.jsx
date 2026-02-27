@@ -10,10 +10,10 @@ import OutputPanel from './components/OutputPanel';
 const STATUS = { IDLE: 'idle', RUNNING: 'running', DONE: 'done', ERROR: 'error' };
 
 const STATUS_CONFIG = {
-  [STATUS.IDLE]:    { label: 'Ready',          color: 'var(--text-muted)',     bg: 'var(--bg-surface)' },
-  [STATUS.RUNNING]: { label: '● Processing…',  color: 'var(--color-active)',   bg: 'color-mix(in srgb, var(--color-active) 12%, transparent)' },
-  [STATUS.DONE]:    { label: '✓ Complete',      color: 'var(--color-success)',  bg: 'color-mix(in srgb, var(--color-success) 12%, transparent)' },
-  [STATUS.ERROR]:   { label: '✕ Error',         color: 'var(--color-error)',    bg: 'color-mix(in srgb, var(--color-error) 12%, transparent)' },
+  [STATUS.IDLE]:    { label: 'Ready',          dot: 'var(--text-muted)' },
+  [STATUS.RUNNING]: { label: 'Processing…',    dot: 'var(--color-active)' },
+  [STATUS.DONE]:    { label: 'Complete',        dot: 'var(--color-success)' },
+  [STATUS.ERROR]:   { label: 'Error',           dot: 'var(--color-error)' },
 };
 
 function useTheme() {
@@ -152,40 +152,55 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen noise-overlay relative" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* ── Header ──────────────────────────────────── */}
       <header className="glass-strong sticky top-0 z-50">
         <div className="gradient-line" />
-        <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center gap-3">
-          <Plane size={20} style={{ color: 'var(--agent-orchestrator)' }} />
-          <h1 className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-            Multi-Agent Travel Planner
-          </h1>
-          <motion.span
-            key={status}
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`ml-auto px-3 py-1 rounded-full text-xs font-medium ${status === STATUS.RUNNING ? 'animate-pulse' : ''}`}
-            style={{ color: sc.color, background: sc.bg }}
-          >
-            {sc.label}
-          </motion.span>
+        <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'color-mix(in srgb, var(--agent-orchestrator) 15%, transparent)' }}>
+              <Plane size={16} style={{ color: 'var(--agent-orchestrator)' }} />
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold tracking-tight leading-none" style={{ color: 'var(--text-primary)' }}>
+                Multi-Agent Travel Planner
+              </h1>
+              <p className="text-[10px] mt-0.5 leading-none" style={{ color: 'var(--text-muted)' }}>
+                Powered by MAF + Azure AI Foundry
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Status indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: 'color-mix(in srgb, var(--bg-surface) 80%, transparent)' }}>
+            <span className={`w-2 h-2 rounded-full ${status === STATUS.RUNNING ? 'animate-pulse' : ''}`}
+              style={{ background: sc.dot }} />
+            <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {sc.label}
+            </span>
+          </div>
+
           {/* Theme toggle */}
           <button
             onClick={toggleTheme}
-            className="p-2 rounded-lg transition-colors hover:bg-white/5"
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
+            style={{ background: 'transparent', border: '1px solid var(--border-subtle)' }}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
           >
             {theme === 'dark'
-              ? <Sun size={16} style={{ color: 'var(--text-muted)' }} />
-              : <Moon size={16} style={{ color: 'var(--text-muted)' }} />}
+              ? <Sun size={14} style={{ color: 'var(--text-muted)' }} />
+              : <Moon size={14} style={{ color: 'var(--text-muted)' }} />}
           </button>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-6 py-5 relative z-10 flex flex-col" style={{ minHeight: 'calc(100vh - 52px)' }}>
+      <main className="max-w-[1440px] mx-auto px-6 py-6 flex flex-col" style={{ minHeight: 'calc(100vh - 58px)' }}>
         {/* ── Top panel: Agent Flow (left) + Tasks (right) ── */}
-        <div className="grid grid-cols-2 gap-5 mb-5" style={{ alignItems: 'stretch' }}>
+        <div className="grid grid-cols-2 gap-4 mb-4" style={{ alignItems: 'stretch' }}>
           <div className="min-w-0">
             <AgentFlowGraph
               agents={agents}
@@ -203,7 +218,7 @@ export default function App() {
                 highlightedTask={highlightedTask}
               />
             ) : (
-              <div className="glass rounded-2xl p-5 h-full flex items-center justify-center">
+              <div className="panel rounded-xl p-5 h-full flex items-center justify-center">
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   Tasks will appear here once planning starts
                 </p>
@@ -222,10 +237,10 @@ export default function App() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mb-5 p-3 rounded-xl flex items-center gap-2 text-sm"
+              className="mb-4 p-3 rounded-lg flex items-center gap-2 text-sm"
               style={{
-                background: 'color-mix(in srgb, var(--color-error) 10%, var(--bg-surface))',
-                border: '1px solid color-mix(in srgb, var(--color-error) 25%, transparent)',
+                background: 'color-mix(in srgb, var(--color-error) 8%, var(--bg-surface))',
+                border: '1px solid color-mix(in srgb, var(--color-error) 20%, transparent)',
                 color: '#F87171',
               }}
             >
@@ -239,13 +254,13 @@ export default function App() {
         <AnimatePresence>
           {(events.length > 0 || status !== STATUS.IDLE) && (
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="glass rounded-2xl p-5 flex-1 flex flex-col"
+              transition={{ duration: 0.25 }}
+              className="panel rounded-xl flex-1 flex flex-col overflow-hidden"
             >
               {/* Tab bar */}
-              <div className="flex items-center gap-1 mb-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+              <div className="flex items-center gap-0 px-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
                 {mainTabs.map((t) => {
                   const Icon = t.icon;
                   const active = mainTab === t.id;
@@ -253,23 +268,17 @@ export default function App() {
                     <button
                       key={t.id}
                       onClick={() => setMainTab(t.id)}
-                      className="relative px-3 py-2 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                      className="relative px-4 h-11 text-xs font-medium flex items-center gap-2 transition-colors"
                       style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}
                     >
-                      <Icon
-                        size={13}
-                        style={{ color: active
-                          ? (t.id === 'result' ? 'var(--color-success)' : t.id === 'document' ? 'var(--color-info)' : 'var(--color-active)')
-                          : 'var(--text-muted)'
-                        }}
-                      />
+                      <Icon size={14} style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }} />
                       {t.label}
                       {t.badge > 0 && !active && (
                         <span
-                          className="ml-1 min-w-4 h-4 px-1 rounded-full text-[10px] flex items-center justify-center font-bold"
+                          className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] flex items-center justify-center font-semibold"
                           style={{
-                            background: t.id === 'result' ? 'var(--color-success)' : t.id === 'document' ? 'var(--color-info)' : 'var(--color-active)',
-                            color: 'white',
+                            background: 'color-mix(in srgb, var(--color-active) 15%, transparent)',
+                            color: 'var(--color-active)',
                           }}
                         >
                           {t.badge > 99 ? '99+' : t.badge}
@@ -278,10 +287,8 @@ export default function App() {
                       {active && (
                         <motion.div
                           layoutId="main-tab-underline"
-                          className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                          style={{
-                            background: t.id === 'result' ? 'var(--color-success)' : t.id === 'document' ? 'var(--color-info)' : 'var(--color-active)',
-                          }}
+                          className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                          style={{ background: 'var(--color-active)' }}
                         />
                       )}
                     </button>
@@ -293,11 +300,11 @@ export default function App() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={mainTab}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.15 }}
-                  className="flex-1 flex flex-col min-h-0"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12 }}
+                  className="flex-1 flex flex-col min-h-0 p-4"
                 >
                   {mainTab === 'activity' && (
                     <EventStream
