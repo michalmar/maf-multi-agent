@@ -2,10 +2,12 @@
 
 import logging
 import time
+from pathlib import Path
 from typing import Optional
 
 from agent_framework.azure import AzureOpenAIResponsesClient
 from azure.identity import AzureCliCredential
+from jinja2 import Environment, FileSystemLoader
 
 from src.config import load_config
 from src.events import AgentEvent, EventCallback, EventType
@@ -17,49 +19,14 @@ from src.scratchpad.dispatcher import create_dispatch_tools
 
 logger = logging.getLogger(__name__)
 
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
-FACILITATOR_SYSTEM_PROMPT = """\
-You are a Travel Planning Facilitator. You coordinate a team of specialist agents to build a comprehensive travel plan.
 
-## Your Team
-You have specialist agents available as tools (call_flights_tool, call_hotels_tool, etc.). Each specialist is an expert in their domain.
-
-## Your Workflow (follow these steps IN ORDER)
-
-### Step 1: PLAN
-Analyze the user's request and decompose it into specific tasks using the `create_tasks` tool.
-- Each task should have a clear `text` description and an `assigned_to` field matching a specialist name
-- The `assigned_to` value must match the agent name without the "call_" prefix and without "_tool" suffix (e.g., assign to "flights_tool" for call_flights_tool)
-- Create 3-10 tasks total. Don't over-decompose.
-- Examples of assigned_to values: "flights_tool", "hotels_tool"
-
-### Step 2: DISPATCH
-Call specialist agents to work on their assigned tasks:
-- Use `call_flights_tool` for flight-related tasks
-- Use `call_hotels_tool` for hotel-related tasks
-- Pass the task_ids as a JSON array and a short message
-- You can call multiple specialists — they work independently
-
-### Step 3: CHECK
-After dispatching, call `get_plan_status` to verify all tasks are completed.
-- If tasks are still pending, dispatch more agents or re-dispatch
-- If all tasks are done, proceed to review
-
-### Step 4: REVIEW & CONSOLIDATE
-- Call `read_document` to see all specialist contributions (with agent tags)
-- Call `consolidate_section` to merge overlapping entries into clean sections
-- If you find gaps, create follow-up tasks (back to Step 1) and dispatch again
-
-### Step 5: FINAL ANSWER
-- Call `read_document_clean` for the final version without agent tags
-- Present the consolidated travel plan to the user as your final response
-- Add your own synthesis, tips, and recommendations on top
-
-## Important Rules
-- Keep messages to specialists SHORT — reference task IDs, the details are on the TaskBoard
-- Match the user's language in your final response
-- Be concise but informative in the final plan
-"""
+def _build_facilitator_prompt(dispatch_tools) -> str:
+    """Render the facilitator system prompt from Jinja2 template."""
+    env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), keep_trailing_newline=True)
+    template = env.get_template("facilitator_prompt.jinja2")
+    return template.render(dispatch_tools=dispatch_tools)
 
 
 async def run_scratchpad_workflow(
@@ -104,6 +71,9 @@ async def run_scratchpad_workflow(
     if not dispatch_tools:
         raise RuntimeError("No dispatch tools created. Check agents/ directory.")
 
+    # Build dynamic facilitator prompt from template
+    facilitator_prompt = _build_facilitator_prompt(dispatch_tools)
+
     # Create the Facilitator agent
     client = AzureOpenAIResponsesClient(
         credential=AzureCliCredential(),
@@ -122,8 +92,8 @@ async def run_scratchpad_workflow(
     logger.info("━" * 60)
 
     facilitator = client.as_agent(
-        name="travel-facilitator",
-        instructions=FACILITATOR_SYSTEM_PROMPT,
+        name="facilitator",
+        instructions=facilitator_prompt,
         tools=all_tools,
         default_options={"reasoning": {"effort": "low", "summary": "auto"}},
     )

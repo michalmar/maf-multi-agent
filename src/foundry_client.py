@@ -84,6 +84,7 @@ async def _run_agent_async(
             )
 
             full_text_parts: list[str] = []
+            usage = None
             async for event in stream:
                 etype = type(event).__name__
                 if etype == "ResponseTextDeltaEvent":
@@ -95,16 +96,30 @@ async def _run_agent_async(
                         data={"delta": delta},
                     ))
                 elif etype == "ResponseCompletedEvent":
-                    pass  # handled after loop
+                    if hasattr(event, 'response') and hasattr(event.response, 'usage') and event.response.usage:
+                        u = event.response.usage
+                        usage = {
+                            "input_tokens": getattr(u, 'input_tokens', 0),
+                            "output_tokens": getattr(u, 'output_tokens', 0),
+                            "total_tokens": getattr(u, 'total_tokens', 0),
+                        }
 
-            return "".join(full_text_parts)
+            return "".join(full_text_parts), usage
         else:
             # Non-streaming mode (backward compatible)
             response = await openai_client.responses.create(
                 conversation=conversation.id,
                 extra_body=extra_body,
             )
-            return response.output_text
+            usage = None
+            if hasattr(response, 'usage') and response.usage:
+                u = response.usage
+                usage = {
+                    "input_tokens": getattr(u, 'input_tokens', 0),
+                    "output_tokens": getattr(u, 'output_tokens', 0),
+                    "total_tokens": getattr(u, 'total_tokens', 0),
+                }
+            return response.output_text, usage
 
 
 def run_foundry_agent(
@@ -184,7 +199,7 @@ def run_foundry_agent(
                     except queue.Empty:
                         break
 
-            response_text = future.result(timeout=120)
+            response_text, usage = future.result(timeout=120)
     except FoundryAgentError:
         raise
     except Exception as e:
@@ -203,18 +218,26 @@ def run_foundry_agent(
 
     elapsed = time.perf_counter() - t0
 
+    tokens_log = ""
+    if usage:
+        tokens_log = f"  tokens={usage.get('total_tokens', '?')} (in={usage.get('input_tokens', '?')}, out={usage.get('output_tokens', '?')})"
+
     logger.info(
-        "✅ AGENT RUN COMPLETED │ length=%d chars  (%.1fs)",
-        len(response_text), elapsed,
+        "✅ AGENT RUN COMPLETED │ length=%d chars  (%.1fs)%s",
+        len(response_text), elapsed, tokens_log,
     )
     logger.info("📥 RESPONSE PREVIEW    │ %s", _truncate(response_text, 300))
     logger.info("%s", separator)
+
+    event_data = {"length": len(response_text), "elapsed": elapsed, "result": response_text}
+    if usage:
+        event_data["usage"] = usage
 
     if event_callback:
         event_callback(AgentEvent(
             event_type=EventType.AGENT_COMPLETED,
             source=source_name,
-            data={"length": len(response_text), "elapsed": elapsed},
+            data=event_data,
         ))
 
     return response_text

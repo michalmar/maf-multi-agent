@@ -46,7 +46,7 @@ function EventSummary({ evt }) {
   }
   if (t === 'tool_decision') return <span>→ <span className="font-medium">{d.tool || '?'}</span></span>;
   if (t === 'agent_started') return <span>Starting: {d.agent_name || '?'}</span>;
-  if (t === 'agent_completed') return <span>✓ {d.length || 0} chars in {(d.elapsed || 0).toFixed(1)}s</span>;
+  if (t === 'agent_completed') return <span>✓ {d.length || 0} chars in {(d.elapsed || 0).toFixed(1)}s{d.usage ? ` · ${d.usage.total_tokens} tokens (in: ${d.usage.input_tokens}, out: ${d.usage.output_tokens})` : ''}</span>;
   if (t === 'agent_error') return <span className="text-red-400">✕ {d.error || 'Unknown error'}</span>;
   if (t === 'workflow_started') return <span>Query: {(d.query || '').substring(0, 80)}</span>;
   if (t === 'workflow_completed') return <span>Done in {(d.elapsed || 0).toFixed(1)}s</span>;
@@ -78,7 +78,12 @@ function EventDetail({ evt }) {
       })}
     </div>
   );
-  if (t === 'agent_completed') return <pre className="text-sm whitespace-pre-wrap max-h-60 overflow-auto" style={{ color: 'var(--text-secondary)' }}>{d.result || `Completed: ${d.length} chars`}</pre>;
+  if (t === 'agent_completed') return (
+    <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+      {d.usage && <div className="mb-1 text-xs" style={{ color: 'var(--text-muted)' }}>Tokens: {d.usage.total_tokens} (in: {d.usage.input_tokens}, out: {d.usage.output_tokens}) · {d.length} chars · {(d.elapsed||0).toFixed(1)}s</div>}
+      <pre className="whitespace-pre-wrap max-h-60 overflow-auto">{d.result || `Completed: ${d.length} chars`}</pre>
+    </div>
+  );
   if (t === 'document_updated') return <pre className="text-sm whitespace-pre-wrap max-h-60 overflow-auto" style={{ color: 'var(--text-secondary)' }}>{d.content}</pre>;
   if (t === 'tool_decision') return <pre className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{JSON.stringify(d.arguments || d, null, 2)}</pre>;
   return <pre className="text-sm" style={{ color: 'var(--text-muted)' }}>{JSON.stringify(d, null, 2)}</pre>;

@@ -91,12 +91,14 @@ def setup_logging() -> None:
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 
-DEFAULT_QUERY = (
-    "I'm in Prague and want a 3-day trip to London next week. "
-    "Find reasonable flights and a mid-range hotel near good public transport."
-    "Also, give me a current weather forecast for London during that time, and any COVID-19 restrictions I should be aware of."
-    "Do not ask follow up questions, use best effort judgment."
-)
+# DEFAULT_QUERY = (
+#     "I'm in Prague and want a 3-day trip to London next week. "
+#     "Find reasonable flights and a mid-range hotel near good public transport."
+#     "Also, give me a current weather forecast for London during that time, and any COVID-19 restrictions I should be aware of."
+#     "Do not ask follow up questions, use best effort judgment."
+# )
+
+DEFAULT_QUERY = "What vibration RMS threshold requires a planned intervention for the offshore centrifugal compressor?"
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
 

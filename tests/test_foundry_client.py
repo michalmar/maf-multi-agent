@@ -12,12 +12,12 @@ def test_run_foundry_agent_success():
     mock_response = MagicMock()
     mock_response.output_text = "Flight options: A, B, C"
 
-    with patch("src.foundry_client._run_agent_async", new_callable=lambda: lambda *a: AsyncMock(return_value="Flight options: A, B, C")) as mock_async:
+    with patch("src.foundry_client._run_agent_async", new_callable=lambda: lambda *a: AsyncMock(return_value=("Flight options: A, B, C", None))) as mock_async:
         # Patch the entire async function to return directly
         pass
 
     # Simpler: patch at the thread level
-    with patch("src.foundry_client._run_agent_async", new=AsyncMock(return_value="Flight options: A, B, C")):
+    with patch("src.foundry_client._run_agent_async", new=AsyncMock(return_value=("Flight options: A, B, C", None))):
         result = run_foundry_agent("https://test.endpoint", "flight-agent-v2", "Find flights")
 
     assert result == "Flight options: A, B, C"
@@ -32,7 +32,7 @@ def test_run_foundry_agent_failed_run():
 
 def test_run_foundry_agent_returns_text():
     """Response text is returned as-is."""
-    with patch("src.foundry_client._run_agent_async", new=AsyncMock(return_value="Hotel B: Covent Garden")):
+    with patch("src.foundry_client._run_agent_async", new=AsyncMock(return_value=("Hotel B: Covent Garden", {"input_tokens": 50, "output_tokens": 20, "total_tokens": 70}))):
         result = run_foundry_agent("https://test.endpoint", "hotel-agent-v2", "Find hotels")
 
     assert result == "Hotel B: Covent Garden"
