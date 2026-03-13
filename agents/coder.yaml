@@ -5,12 +5,13 @@ name: coder_tool
 display_name: Coder Agent
 avatar: 💻
 role: Software Engineer
-model: gpt-4.1-mini (Foundry)
+model: gpt-5.2 (Foundry)
 
 description: >
-  Delegate a coding or code execution task to the coder specialist agent.
+  Delegate a coding or code execution task to the coder specialist agent. 
+  Perform higher level data analysis task (as anomaly detection, compex trend correlation and analysis, etc.) and generate charts for better understanding.
   Use this tool when you need to write, review, debug, or execute code
-  in any programming language, generate scripts, or solve technical problems.
+  in any programming language, generate scripts, or solve technical problems. Data needs to be obtained through different tool.
 
 task_description: >
   A detailed coding request including the programming language, desired

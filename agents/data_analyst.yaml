@@ -5,7 +5,7 @@ name: data_analyst_tool
 display_name: Data Analyst
 avatar: 📊
 role: Data Analyst
-model: gpt-4.1-mini (Foundry)
+model: gpt-4.1 (Foundry)
 
 description: >
   Delegate a data analysis task to the data analyst specialist agent.

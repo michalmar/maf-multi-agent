@@ -9,7 +9,7 @@ model: gpt-4o (Foundry)
 
 description: >
   Delegate a web search task to the web search specialist agent.
-  Use this tool when you need to search for actual, current information on the internet.
+  Use this tool when you need to search for actual, current information on the public web for external factors that could affect our gas compressor asset from Emerson incl. weather or environmental conditions in Houston Texas, supply or grid disruptions, safety notices, and industry reliability guidance. This tools doesn't download any files.
 
 task_description: >
   A detailed web search request in plain language, including the topic, specific questions, and any relevant context or constraints.

@@ -26,7 +26,7 @@ const STARTER_TASKS = [
   {
     icon: Sparkles,
     label: 'Predictive Maintenance',
-    query: "an offshore gas compression train shows rising vibration and temperature drift, so the system runs a closed operational loop - investigate and recommend next steps",
+    query: "Assess the health of Emerson gas compressor COMP-001 in Houston, Texas. Use the Fabric data sources to identify any abnormal operating patterns, check the vendor maintenance guide PDF to determine whether the behavior breaches advisory or alarm thresholds, and use external context if relevant. Then summarize the issue, likely cause, confidence level, and recommended next maintenance action.",
   },
 ];
 
