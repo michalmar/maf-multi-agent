@@ -43,3 +43,5 @@ backend/data/conversations/
 .playwright-cli
 .playwright
 output/
+
+.agents/
