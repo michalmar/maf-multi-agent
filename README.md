@@ -74,11 +74,12 @@ uv run uvicorn src.api:app --reload --port 8000
 ```bash
 cd frontend
 npm install
-npm run dev          # Dev server at http://localhost:5173
-npm run build        # Production build → dist/
+npm run dev          # Next.js dev server at http://localhost:3000
+npm run build        # Production build
+npm run start        # Run the production build
 ```
 
-The Vite dev server proxies `/api` requests to the backend at `localhost:8000`.
+The Next.js frontend rewrites `/api/*` requests to the backend at `http://localhost:8000` by default. Override the backend origin with `BACKEND_API_URL` if needed.
 
 ## Project Structure
 
@@ -96,9 +97,11 @@ src/
     taskboard.py     # Task tracking scratchpad
     shared_document.py  # Collaborative document scratchpad
 frontend/
-  src/
-    App.jsx          # Main app with SSE wiring
-    components/      # AgentFlowGraph, TaskPanel, EventStream, OutputPanel, etc.
+  app/
+    page.tsx         # Next.js App Router entry point
+    globals.css      # Global theme and layout styles
+  components/        # Query composer, roster, task board, workspace panels, etc.
+  lib/               # Typed models and UI metadata helpers
 docs/                # PRD and design documents
 tests/               # Backend test suite
 ```
@@ -106,9 +109,11 @@ tests/               # Backend test suite
 ## Usage
 
 1. Start both backend and frontend
-2. Open `http://localhost:5173`
+2. Open `http://localhost:3000`
 3. Enter a travel planning request (e.g. *"Plan a 5-day trip to Tokyo from NYC, budget $3000"*)
 4. Watch agents collaborate in real-time — tasks appear, agents activate, and a travel document is built incrementally
+
+For UI tuning without running the full backend flow, use the **Load mock replay** control in the query composer. It loads a completed maintenance-style run fixture directly in the browser so you can refine the layout, telemetry cards, long activity feed, task board, and document/result panes offline.
 
 ## License
 

@@ -45,3 +45,4 @@ backend/data/conversations/
 output/
 
 .agents/
+.next/
