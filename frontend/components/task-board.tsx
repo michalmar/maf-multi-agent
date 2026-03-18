@@ -19,7 +19,7 @@ function PlaceholderTasks({ running }: { running: boolean }) {
     <div className="space-y-3">
       {running ? (
         [...Array.from({ length: 3 })].map((_, index) => (
-          <div key={index} className="rounded-3xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
+          <div key={index} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3">
             <div className="skeleton-line h-3 w-24" />
             <div className="skeleton-line mt-3 h-4 w-full" />
             <div className="skeleton-line mt-2 h-4 w-4/5" />
@@ -41,7 +41,7 @@ export function TaskBoard({ tasks, running, highlightedTask, panelHeight, onSele
 
   if (collapsed) {
     return (
-      <section className="panel-shell flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-5">
+      <section className="panel-shell flex w-full items-center justify-between gap-3 px-3 py-3 sm:px-4">
         <div className="min-w-0">
           <p className="eyebrow">Task board</p>
           <div className="mt-2 flex min-w-0 items-center gap-3">
@@ -76,7 +76,7 @@ export function TaskBoard({ tasks, running, highlightedTask, panelHeight, onSele
 
   return (
     <section
-      className="panel-shell flex w-full flex-col overflow-hidden p-5 sm:p-6"
+      className="panel-shell flex w-full flex-col overflow-hidden p-4 sm:p-5"
       style={panelHeight ? { height: `${panelHeight}px` } : undefined}
     >
       <div className="flex items-center justify-between gap-4">
@@ -110,7 +110,7 @@ export function TaskBoard({ tasks, running, highlightedTask, panelHeight, onSele
         </div>
       </div>
 
-      <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         {tasks.length === 0 ? (
           <PlaceholderTasks running={running} />
         ) : (

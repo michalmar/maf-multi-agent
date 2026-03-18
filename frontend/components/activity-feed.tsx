@@ -87,7 +87,7 @@ function EventDetail({ event }: { event: AgentEvent }) {
     return (
       <div className="space-y-2 text-sm text-[var(--text-secondary)]">
         {data.tasks.map((task) => (
-          <div key={task.id} className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2">
+          <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2">
             <span className="font-mono text-xs text-[var(--text-muted)]">#{task.id}</span>
             <p className="mt-1 text-[var(--text-primary)]">{task.text}</p>
             <p className="mt-1 text-xs uppercase tracking-[0.22em] text-[var(--text-muted)]">{task.assigned_to}</p>

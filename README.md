@@ -1,4 +1,4 @@
-# MAF Multi-Agent Travel Planner
+# MAF & Foundry Agent Orchestration
 
 A multi-agent travel planning system that combines **Microsoft Agent Framework (MAF)** as the orchestrator with **Azure AI Foundry** specialist agents. Features a real-time web UI with SSE event streaming.
 

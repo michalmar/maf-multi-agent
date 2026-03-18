@@ -528,7 +528,7 @@ export function PlannerShell() {
     <header
       ref={missionHeaderRef}
       className={`panel-shell w-full overflow-hidden transition-[padding,box-shadow,border-radius] duration-200 ${
-        isMissionHeaderPinned ? "px-4 py-3 sm:px-5 sm:py-4" : "px-5 py-5 sm:px-6 sm:py-6"
+        isMissionHeaderPinned ? "px-3 py-2.5 sm:px-4 sm:py-3" : "px-4 py-4 sm:px-5 sm:py-5"
       }`}
     >
       <div
@@ -546,16 +546,16 @@ export function PlannerShell() {
           </div>
 
           <h1
-            className={`display-title max-w-2xl font-semibold leading-[1.04] text-[var(--text-primary)] transition-[margin-top,font-size] duration-200 ${
-              isMissionHeaderPinned ? "mt-3 text-[clamp(1.85rem,3vw,2.6rem)]" : "mt-4 text-[clamp(2.2rem,4vw,3.4rem)]"
+            className={`display-title max-w-2xl font-semibold leading-[1.08] text-[var(--text-primary)] transition-[margin-top,font-size] duration-200 ${
+              isMissionHeaderPinned ? "mt-2 text-[clamp(1.5rem,2.5vw,2rem)]" : "mt-3 text-[clamp(1.8rem,3vw,2.6rem)]"
             }`}
           >
-            Multi-Agent Travel Planner
+            MAF & Foundry Agent Orchestration
           </h1>
 
           <p
             className={`section-copy max-w-2xl transition-[margin-top,font-size,line-height] duration-200 ${
-              isMissionHeaderPinned ? "mt-2 text-[0.88rem] leading-6" : "mt-3"
+              isMissionHeaderPinned ? "mt-1.5 text-[0.82rem] leading-5" : "mt-2"
             }`}
           >
             {statusCopy.description} {sourceCopy.description}
@@ -564,7 +564,7 @@ export function PlannerShell() {
 
         <div
           className={`flex w-full max-w-[36rem] flex-col xl:items-end ${
-            isMissionHeaderPinned ? "gap-3" : "gap-4"
+            isMissionHeaderPinned ? "gap-2" : "gap-3"
           }`}
         >
           <nav className={`mission-menu ${isMissionHeaderPinned ? "mission-menu-compact" : ""}`} aria-label="Mission control">
@@ -586,7 +586,7 @@ export function PlannerShell() {
             })}
           </nav>
 
-          <div className={`flex flex-wrap xl:justify-end ${isMissionHeaderPinned ? "gap-2.5" : "gap-3"}`}>
+          <div className={`flex flex-wrap xl:justify-end ${isMissionHeaderPinned ? "gap-2" : "gap-2.5"}`}>
             {runId ? (
               <div className={`metric-inline min-w-[11rem] ${isMissionHeaderPinned ? "metric-inline-compact" : ""}`}>
                 <span className="metric-inline-label">Run ID</span>
@@ -609,14 +609,14 @@ export function PlannerShell() {
   );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-6 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
       <div
         ref={missionHeaderContainerRef}
         className="w-full"
         style={isMissionHeaderPinned && missionHeaderHeight ? { height: `${missionHeaderHeight}px` } : undefined}
       >
         {isMissionHeaderPinned ? (
-          <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-3 sm:px-6 sm:pt-4 lg:px-8">
+          <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6">
             <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
           </div>
         ) : (
@@ -651,7 +651,7 @@ export function PlannerShell() {
           query={draftQuery}
         />
 
-        <section className="grid items-stretch gap-6 xl:grid-cols-[1.35fr_0.48fr]">
+        <section className="grid items-stretch gap-4 xl:grid-cols-[1.35fr_0.48fr]">
           <div ref={rosterPanelRef} className="h-full">
             <AgentRoster
               activeAgent={activeAgent}

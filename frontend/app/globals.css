@@ -22,8 +22,8 @@
   --danger: #d14343;
   --code-bg: #0b1730;
   --code-text: #d7e7ff;
-  --shadow-panel: 0 24px 60px rgba(15, 23, 42, 0.08);
-  --shadow-elevated: 0 18px 40px rgba(99, 91, 255, 0.12);
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-elevated: 0 6px 18px rgba(99, 91, 255, 0.09);
 }
 
 [data-theme="night"] {
@@ -45,8 +45,8 @@
   --danger: #ff8c8c;
   --code-bg: #08111f;
   --code-text: #d7e7ff;
-  --shadow-panel: 0 26px 70px rgba(2, 8, 20, 0.36);
-  --shadow-elevated: 0 22px 52px rgba(99, 91, 255, 0.18);
+  --shadow-panel: 0 10px 28px rgba(2, 8, 20, 0.28);
+  --shadow-elevated: 0 8px 22px rgba(99, 91, 255, 0.14);
 }
 
 html {
@@ -135,7 +135,7 @@ textarea {
   position: relative;
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, var(--bg-panel-strong), var(--bg-panel));
-  border-radius: 30px;
+  border-radius: 12px;
   box-shadow: var(--shadow-panel);
   backdrop-filter: blur(28px);
 }
@@ -169,7 +169,7 @@ textarea {
 }
 
 .query-shell {
-  border-radius: 32px;
+  border-radius: 14px;
 }
 
 .metric-card,
@@ -187,28 +187,28 @@ textarea {
 }
 
 .metric-card {
-  border-radius: 24px;
-  padding: 1.05rem;
+  border-radius: 10px;
+  padding: 0.85rem;
 }
 
 .metric-inline {
   display: flex;
   min-width: 8rem;
   flex-direction: column;
-  gap: 0.2rem;
-  border-radius: 18px;
-  padding: 0.8rem 0.95rem;
+  gap: 0.15rem;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
 }
 
 .metric-inline-compact {
-  gap: 0.14rem;
-  border-radius: 16px;
-  padding: 0.68rem 0.85rem;
+  gap: 0.1rem;
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
 }
 
 .inspector-card {
-  border-radius: 24px;
-  padding: 1.1rem 1.15rem;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
 }
 
 .metric-inline-label,
@@ -231,14 +231,14 @@ textarea {
 }
 
 .section-title {
-  font-size: clamp(1.6rem, 2.2vw, 2.05rem);
-  line-height: 1.02;
+  font-size: clamp(1.3rem, 1.8vw, 1.65rem);
+  line-height: 1.08;
   color: var(--text-primary);
 }
 
 .section-copy {
-  font-size: 0.95rem;
-  line-height: 1.75;
+  font-size: 0.88rem;
+  line-height: 1.65;
   color: var(--text-secondary);
 }
 
@@ -247,10 +247,10 @@ textarea {
 .source-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.48rem;
+  gap: 0.4rem;
   border-radius: 999px;
-  padding: 0.48rem 0.82rem;
-  font-size: 0.67rem;
+  padding: 0.36rem 0.7rem;
+  font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -281,31 +281,31 @@ textarea {
   display: inline-flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.55rem;
+  gap: 0.35rem;
   border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 0.42rem;
+  border-radius: 10px;
+  padding: 0.3rem;
   background: rgba(255, 255, 255, 0.78);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 10px 28px rgba(15, 23, 42, 0.05);
+    0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 [data-theme="night"] .mission-menu {
   background: rgba(15, 23, 42, 0.72);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 16px 34px rgba(2, 8, 23, 0.28);
+    0 6px 16px rgba(2, 8, 23, 0.22);
 }
 
 .mission-menu-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  border-radius: 999px;
+  gap: 0.35rem;
+  border-radius: 8px;
   border: 1px solid transparent;
-  padding: 0.72rem 0.95rem;
-  font-size: 0.74rem;
+  padding: 0.52rem 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
@@ -326,7 +326,7 @@ textarea {
   border-color: rgba(99, 91, 255, 0.14);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 255, 0.92));
   color: var(--accent);
-  box-shadow: 0 12px 24px rgba(99, 91, 255, 0.1);
+  box-shadow: 0 4px 10px rgba(99, 91, 255, 0.08);
 }
 
 [data-theme="night"] .mission-menu-button-active {
@@ -335,14 +335,14 @@ textarea {
 }
 
 .mission-menu-compact {
-  gap: 0.42rem;
-  padding: 0.34rem;
+  gap: 0.28rem;
+  padding: 0.24rem;
 }
 
 .mission-menu-button-compact {
-  gap: 0.38rem;
-  padding: 0.62rem 0.82rem;
-  font-size: 0.71rem;
+  gap: 0.3rem;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.69rem;
 }
 
 .action-button,
@@ -353,8 +353,8 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
-  border-radius: 999px;
+  gap: 0.45rem;
+  border-radius: 8px;
   transition:
     transform 180ms ease,
     border-color 180ms ease,
@@ -367,8 +367,8 @@ textarea {
 .action-button {
   border: 1px solid rgba(99, 91, 255, 0.16);
   background: linear-gradient(135deg, #635bff, #0a7cff);
-  padding: 0.98rem 1.35rem;
-  font-size: 0.88rem;
+  padding: 0.72rem 1.1rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: white;
   box-shadow: var(--shadow-elevated);
@@ -394,32 +394,32 @@ textarea {
 .secondary-button,
 .filter-pill,
 .tab-pill {
-  padding: 0.74rem 1rem;
-  font-size: 0.76rem;
+  padding: 0.56rem 0.82rem;
+  font-size: 0.73rem;
   font-weight: 700;
 }
 
 .secondary-button-compact {
-  padding: 0.66rem 0.92rem;
-  font-size: 0.72rem;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.7rem;
 }
 
 .starter-pill {
   align-items: flex-start;
-  border-radius: 20px;
-  padding: 0.88rem 1rem;
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
   text-align: left;
 }
 
 .starter-pill-title {
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .starter-pill-copy {
-  font-size: 0.72rem;
-  line-height: 1.5;
+  font-size: 0.7rem;
+  line-height: 1.45;
   color: var(--text-muted);
 }
 
@@ -456,10 +456,10 @@ textarea {
 
 .field-shell {
   border: 1px solid var(--border-strong);
-  border-radius: 24px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.78);
-  padding: 1.3rem 1.35rem;
-  line-height: 1.8;
+  padding: 0.9rem 1rem;
+  line-height: 1.7;
   outline: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
   transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
@@ -482,12 +482,12 @@ textarea {
 }
 
 .query-shell-textarea {
-  min-height: 8.5rem;
-  font-size: 0.96rem;
+  min-height: 7rem;
+  font-size: 0.9rem;
 }
 
 .graph-shell {
-  border-radius: 30px;
+  border-radius: 10px;
   border: 1px solid var(--border-soft);
   background:
     radial-gradient(circle at top, rgba(99, 91, 255, 0.09), transparent 30%),
@@ -506,35 +506,35 @@ textarea {
   position: absolute;
   height: 108px;
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  padding: 0.92rem;
+  border-radius: 10px;
+  padding: 0.8rem;
   background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
 [data-theme="night"] .graph-node {
   background: rgba(13, 28, 49, 0.9);
-  box-shadow: 0 16px 36px rgba(2, 8, 20, 0.28);
+  box-shadow: 0 6px 16px rgba(2, 8, 20, 0.22);
 }
 
 .graph-node-active {
   box-shadow:
     0 0 0 1px rgba(99, 91, 255, 0.2),
-    0 18px 40px rgba(99, 91, 255, 0.16);
+    0 6px 18px rgba(99, 91, 255, 0.12);
 }
 
 .graph-avatar,
 .agent-avatar {
   display: inline-flex;
-  height: 2.8rem;
-  width: 2.8rem;
+  height: 2.4rem;
+  width: 2.4rem;
   align-items: center;
   justify-content: center;
-  border-radius: 18px;
+  border-radius: 8px;
   border: 1px solid var(--border-soft);
   background: rgba(255, 255, 255, 0.84);
-  font-size: 0.95rem;
+  font-size: 0.88rem;
 }
 
 [data-theme="night"] .graph-avatar,
@@ -626,12 +626,12 @@ textarea {
   display: flex;
   width: 100%;
   align-items: flex-start;
-  gap: 0.9rem;
+  gap: 0.7rem;
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  padding: 1rem;
+  border-radius: 10px;
+  padding: 0.75rem;
   background: var(--surface-elevated);
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -639,19 +639,19 @@ textarea {
 .timeline-row-active {
   box-shadow:
     0 0 0 1px rgba(99, 91, 255, 0.18),
-    0 18px 34px rgba(99, 91, 255, 0.08);
+    0 6px 14px rgba(99, 91, 255, 0.06);
 }
 
 .task-marker {
   display: inline-flex;
-  min-width: 2.35rem;
-  min-height: 2.35rem;
+  min-width: 2rem;
+  min-height: 2rem;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   border: 1px dashed var(--border-strong);
   font-family: var(--font-mono), monospace;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
@@ -664,23 +664,23 @@ textarea {
 
 .timeline-row {
   border: 1px solid var(--border-soft);
-  border-radius: 24px;
+  border-radius: 10px;
   background: var(--surface-elevated);
-  padding: 1rem;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+  padding: 0.75rem;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
   content-visibility: auto;
-  contain-intrinsic-size: 180px;
+  contain-intrinsic-size: 160px;
 }
 
 .timeline-agent-chip {
   display: inline-flex;
-  min-height: 2.5rem;
-  min-width: 3rem;
+  min-height: 2.2rem;
+  min-width: 2.6rem;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
   background: rgba(255, 255, 255, 0.7);
 }
 
@@ -694,21 +694,21 @@ textarea {
 }
 
 .feed-pre {
-  max-height: 16rem;
+  max-height: 14rem;
   overflow: auto;
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--code-bg);
-  padding: 1rem;
+  padding: 0.8rem;
   font-family: var(--font-mono), monospace;
-  font-size: 0.75rem;
-  line-height: 1.75;
+  font-size: 0.73rem;
+  line-height: 1.7;
   color: var(--code-text);
 }
 
 .workspace-surface {
   overflow: hidden;
   border: 1px solid var(--border-soft);
-  border-radius: 28px;
+  border-radius: 10px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 249, 252, 0.94));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
@@ -722,21 +722,21 @@ textarea {
 
 .workspace-empty {
   display: flex;
-  min-height: 20rem;
+  min-height: 16rem;
   align-items: center;
   justify-content: center;
   border: 1px dashed var(--border-soft);
-  border-radius: 26px;
+  border-radius: 10px;
   background: var(--surface-soft);
-  padding: 2rem;
+  padding: 1.5rem;
   text-align: center;
   color: var(--text-secondary);
 }
 
 .prose-report {
   color: var(--text-primary);
-  font-size: 0.97rem;
-  line-height: 1.95;
+  font-size: 0.92rem;
+  line-height: 1.8;
 }
 
 .prose-report h1,
@@ -749,20 +749,20 @@ textarea {
 }
 
 .prose-report h1 {
-  margin-bottom: 1.25rem;
-  font-size: 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.7rem;
 }
 
 .prose-report h2 {
-  margin-top: 2rem;
-  margin-bottom: 0.9rem;
-  font-size: 1.65rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.7rem;
+  font-size: 1.4rem;
 }
 
 .prose-report h3 {
-  margin-top: 1.6rem;
-  margin-bottom: 0.7rem;
-  font-size: 1.3rem;
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.15rem;
 }
 
 .prose-report p,
@@ -790,16 +790,16 @@ textarea {
 
 .prose-report pre {
   overflow: auto;
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--code-bg);
-  padding: 1rem;
+  padding: 0.8rem;
   color: var(--code-text);
 }
 
 .prose-report :not(pre) > code {
-  border-radius: 999px;
+  border-radius: 4px;
   background: rgba(99, 91, 255, 0.1);
-  padding: 0.15rem 0.45rem;
+  padding: 0.12rem 0.38rem;
   color: var(--accent);
 }
 
@@ -844,15 +844,15 @@ textarea {
 
 @media (max-width: 768px) {
   .panel-shell {
-    border-radius: 24px;
+    border-radius: 10px;
   }
 
   .timeline-row {
-    padding: 0.92rem;
+    padding: 0.65rem;
   }
 
   .query-shell-textarea {
-    min-height: 7.4rem;
+    min-height: 6rem;
   }
 
   .starter-pill {

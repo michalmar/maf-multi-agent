@@ -84,7 +84,7 @@ export function AgentRoster({
   const maxEvents = Math.max(...Object.values(eventCounts), 1);
 
   return (
-    <section className="panel-shell flex h-full flex-col p-5 sm:p-6">
+    <section className="panel-shell flex h-full flex-col p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="eyebrow">Crew roster</p>
@@ -101,7 +101,7 @@ export function AgentRoster({
         ) : null}
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="mt-4 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
           {liveMetrics.map((metric) => (
             <div key={metric.label} className="metric-card">
@@ -124,7 +124,7 @@ export function AgentRoster({
         </div>
       </div>
 
-      <div className="graph-shell mt-6 flex-1 overflow-x-auto">
+      <div className="graph-shell mt-4 flex-1 overflow-x-auto">
         <div className="relative min-w-[900px]" style={{ height: CANVAS_HEIGHT, width: graph.canvasWidth }}>
           <svg
             className="absolute inset-0 h-full w-full"

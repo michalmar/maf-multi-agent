@@ -164,7 +164,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm font-semibold tracking-tight leading-none" style={{ color: 'var(--text-primary)' }}>
-                Multi-Agent Travel Planner
+                MAF & Foundry Agent Orchestration
               </h1>
               <p className="text-[10px] mt-0.5 leading-none" style={{ color: 'var(--text-muted)' }}>
                 Powered by MAF + Azure AI Foundry

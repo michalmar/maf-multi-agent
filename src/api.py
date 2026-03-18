@@ -21,7 +21,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Multi-Agent Travel Planner")
+app = FastAPI(title="MAF & Foundry Agent Orchestration")
 
 app.add_middleware(
     CORSMiddleware,

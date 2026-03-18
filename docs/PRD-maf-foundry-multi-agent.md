@@ -1,4 +1,4 @@
-# PRD: Multi-Agent Travel Planner — MAF Orchestrator + Azure AI Foundry Sub-Agents
+# PRD: MAF & Foundry Agent Orchestration — MAF Orchestrator + Azure AI Foundry Sub-Agents
 
 > **Status**: Implemented  
 > **Last Updated**: 2026-02-26  

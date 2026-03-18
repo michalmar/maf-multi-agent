@@ -117,7 +117,7 @@ export function WorkspacePanels({
   };
 
   return (
-    <section className="panel-shell p-5 sm:p-6">
+    <section className="panel-shell p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(183,193,212,0.14)] pb-4">
         <div>
           <p className="eyebrow">Workspace</p>
@@ -147,7 +147,7 @@ export function WorkspacePanels({
         </div>
       </div>
 
-      <div className="mt-6 min-h-[34rem]">
+      <div className="mt-4 min-h-[28rem]">
         {activeTab === "activity" ? (
           <ActivityFeed
             activeAgent={activeAgent}

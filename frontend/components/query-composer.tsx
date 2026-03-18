@@ -53,8 +53,8 @@ export function QueryComposer({
   }, [query]);
 
   return (
-    <section className={`panel-shell query-shell ${isCondensed ? "px-4 py-3 sm:px-5 sm:py-4" : "px-4 py-4 sm:px-6 sm:py-6"}`}>
-      <form onSubmit={handleSubmit} className={isCondensed ? "" : "space-y-5"}>
+    <section className={`panel-shell query-shell ${isCondensed ? "px-3 py-2.5 sm:px-4 sm:py-3" : "px-3 py-3 sm:px-5 sm:py-5"}`}>
+      <form onSubmit={handleSubmit} className={isCondensed ? "" : "space-y-4"}>
         {!isCondensed ? (
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">
@@ -75,7 +75,7 @@ export function QueryComposer({
         ) : null}
 
         {isCondensed ? (
-          <div className="rounded-[24px] border border-[var(--border-soft)] bg-[var(--surface-elevated)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+          <div className="rounded-[10px] border border-[var(--border-soft)] bg-[var(--surface-elevated)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Mission brief saved</p>
@@ -104,9 +104,9 @@ export function QueryComposer({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value.slice(0, MAX_QUERY_LENGTH))}
                 disabled={disabled}
-                rows={5}
+                rows={4}
                 maxLength={MAX_QUERY_LENGTH}
-                className="field-shell query-shell-textarea min-h-36 w-full resize-y"
+                className="field-shell query-shell-textarea min-h-28 w-full resize-y"
                 placeholder="Describe the task for the orchestrator and specialist agents."
               />
 
