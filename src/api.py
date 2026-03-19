@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncGenerator
 
@@ -21,7 +22,17 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="MAF & Foundry Agent Orchestration")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize logging and observability on startup."""
+    setup_logging()
+    from src.observability import setup_observability
+    await setup_observability()
+    yield
+
+
+app = FastAPI(title="MAF & Foundry Agent Orchestration", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,6 +102,13 @@ async def start_run(req: RunRequest):
     loop = asyncio.get_event_loop()
 
     def event_callback(event: AgentEvent):
+        if event.event_type != EventType.AGENT_STREAMING:
+            logger.info(
+                "EVENT [%s] source=%s | %s",
+                event.event_type.value,
+                event.source,
+                json.dumps(event.data, default=str)[:200],
+            )
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
@@ -168,6 +186,10 @@ async def stream_events(run_id: str):
                 # Send done sentinel
                 yield f"data: {json.dumps({'event_type': 'done'})}\n\n"
                 break
+            # Skip streaming deltas — they flood the SSE connection and
+            # the frontend filters them out anyway.
+            if event.event_type == EventType.AGENT_STREAMING:
+                continue
             yield _event_to_sse(event)
 
         # Cleanup

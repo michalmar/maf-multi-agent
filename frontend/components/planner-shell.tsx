@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, HelpCircle, History, Home, MoonStar, Settings2, SunMedium } from "lucide-react";
 import { AgentRoster } from "@/components/agent-roster";
+import { AgentRosterGraph } from "@/components/agent-roster-graph";
 import { QueryComposer } from "@/components/query-composer";
 import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
@@ -149,7 +150,6 @@ function isDoneSignal(payload: AgentEvent | { event_type: "done" }): payload is 
 export function PlannerShell() {
   const missionHeaderContainerRef = useRef<HTMLDivElement | null>(null);
   const missionHeaderRef = useRef<HTMLElement | null>(null);
-  const rosterPanelRef = useRef<HTMLDivElement | null>(null);
   const [theme, setTheme] = useState<ThemeMode>("daybreak");
   const [runSource, setRunSource] = useState<RunSource>("live");
   const [status, setStatus] = useState<RunStatus>("idle");
@@ -167,8 +167,7 @@ export function PlannerShell() {
   const [streamLabel, setStreamLabel] = useState("Proxy ready. Submit a brief to begin streaming.");
   const [missionHeaderHeight, setMissionHeaderHeight] = useState(0);
   const [isMissionHeaderPinned, setIsMissionHeaderPinned] = useState(false);
-  const [taskBoardHeight, setTaskBoardHeight] = useState<number | null>(null);
-  const [syncTaskBoardHeight, setSyncTaskBoardHeight] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const closeStream = useCallback(() => {
@@ -233,18 +232,6 @@ export function PlannerShell() {
   useEffect(() => {
     return () => closeStream();
   }, [closeStream]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 1280px)");
-    const updateSyncTaskBoardHeight = (event?: MediaQueryListEvent) => {
-      setSyncTaskBoardHeight(event ? event.matches : mediaQuery.matches);
-    };
-
-    updateSyncTaskBoardHeight();
-    mediaQuery.addEventListener("change", updateSyncTaskBoardHeight);
-
-    return () => mediaQuery.removeEventListener("change", updateSyncTaskBoardHeight);
-  }, []);
 
   const handleIncomingEvent = useCallback((event: AgentEvent) => {
     setEvents((previous) => [...previous, event]);
@@ -328,7 +315,10 @@ export function PlannerShell() {
         setRunId(payload.run_id);
         setStreamLabel("Live stream connected. Events will appear in the activity workspace.");
 
-        const eventSource = new EventSource(`/api/stream/${payload.run_id}`);
+        // Connect EventSource directly to the backend to bypass Next.js dev
+        // server response buffering that kills SSE real-time delivery.
+        const sseBase = process.env.NEXT_PUBLIC_BACKEND_API_URL || "";
+        const eventSource = new EventSource(`${sseBase}/api/stream/${payload.run_id}`);
         eventSourceRef.current = eventSource;
 
         eventSource.onmessage = (message) => {
@@ -462,29 +452,6 @@ export function PlannerShell() {
           : "Ready";
 
   useEffect(() => {
-    if (!syncTaskBoardHeight) {
-      setTaskBoardHeight(null);
-      return;
-    }
-
-    const rosterPanel = rosterPanelRef.current;
-    if (!rosterPanel) {
-      return;
-    }
-
-    const updateHeight = () => {
-      setTaskBoardHeight(Math.round(rosterPanel.getBoundingClientRect().height));
-    };
-
-    updateHeight();
-
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(rosterPanel);
-
-    return () => observer.disconnect();
-  }, [syncTaskBoardHeight, liveMetrics.length, rosterAgents.length, selectedAgentSummary.body, highlightedTask]);
-
-  useEffect(() => {
     const missionHeader = missionHeaderRef.current;
     if (!missionHeader) {
       return;
@@ -609,20 +576,37 @@ export function PlannerShell() {
   );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
-      <div
-        ref={missionHeaderContainerRef}
-        className="w-full"
-        style={isMissionHeaderPinned && missionHeaderHeight ? { height: `${missionHeaderHeight}px` } : undefined}
-      >
-        {isMissionHeaderPinned ? (
-          <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6">
-            <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
-          </div>
-        ) : (
-          missionHeaderPanel
-        )}
-      </div>
+    <div className="flex min-h-screen">
+      <aside className={`sidebar-rail ${sidebarCollapsed ? "sidebar-rail-collapsed" : ""}`}>
+        <AgentRoster
+          activeAgent={activeAgent}
+          agents={rosterAgents}
+          collapsed={sidebarCollapsed}
+          eventCounts={agentEventCounts}
+          highlightedTask={highlightedTask}
+          liveMetrics={liveMetrics}
+          onSelectAgent={setActiveAgent}
+          onToggle={() => setSidebarCollapsed((c) => !c)}
+          runSource={runSource}
+          selectedAgentSummary={selectedAgentSummary}
+          statusByAgent={agentStatuses}
+        />
+      </aside>
+
+      <main className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+        <div
+          ref={missionHeaderContainerRef}
+          className="w-full"
+          style={isMissionHeaderPinned && missionHeaderHeight ? { height: `${missionHeaderHeight}px` } : undefined}
+        >
+          {isMissionHeaderPinned ? (
+            <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6">
+              <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
+            </div>
+          ) : (
+            missionHeaderPanel
+          )}
+        </div>
 
         {error ? (
           <motion.div
@@ -651,31 +635,20 @@ export function PlannerShell() {
           query={draftQuery}
         />
 
-        <section className="grid items-stretch gap-4 xl:grid-cols-[1.35fr_0.48fr]">
-          <div ref={rosterPanelRef} className="h-full">
-            <AgentRoster
-              activeAgent={activeAgent}
-              agents={rosterAgents}
-              eventCounts={agentEventCounts}
-              highlightedTask={highlightedTask}
-              liveMetrics={liveMetrics}
-              onSelectAgent={setActiveAgent}
-              runSource={runSource}
-              selectedAgentSummary={selectedAgentSummary}
-              statusByAgent={agentStatuses}
-            />
-          </div>
+        <AgentRosterGraph
+          agents={rosterAgents}
+          activeAgent={activeAgent}
+          eventCounts={agentEventCounts}
+          statusByAgent={agentStatuses}
+          onSelectAgent={setActiveAgent}
+        />
 
-          <div className="flex justify-start xl:justify-stretch">
-            <TaskBoard
-              highlightedTask={highlightedTask}
-              onSelectTask={setHighlightedTask}
-              panelHeight={taskBoardHeight}
-              running={status === "running"}
-              tasks={tasks}
-            />
-          </div>
-        </section>
+        <TaskBoard
+          highlightedTask={highlightedTask}
+          onSelectTask={setHighlightedTask}
+          running={status === "running"}
+          tasks={tasks}
+        />
 
         <WorkspacePanels
           activeAgent={activeAgent}
@@ -693,5 +666,6 @@ export function PlannerShell() {
           {streamLabel}
         </p>
       </main>
+    </div>
   );
 }

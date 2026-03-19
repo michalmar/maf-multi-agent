@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getAgentIdentity, getStatusTone } from "@/lib/agent-metadata";
 import { AgentDefinition, AgentStatus, RunSource } from "@/lib/types";
 
 interface AgentRosterProps {
   agents: AgentDefinition[];
   activeAgent: string | null;
+  collapsed: boolean;
   eventCounts: Record<string, number>;
   highlightedTask: number | null;
   liveMetrics: Array<{ label: string; value: string }>;
@@ -15,46 +16,20 @@ interface AgentRosterProps {
   selectedAgentSummary: { title: string; subtitle: string; body: string };
   statusByAgent: Record<string, AgentStatus>;
   onSelectAgent: (agentName: string | null) => void;
+  onToggle: () => void;
 }
 
-interface NodeLayout {
-  left: number;
-  top: number;
-  width: number;
-}
-
-const ORCHESTRATOR_WIDTH = 248;
-const NODE_WIDTH = 198;
-const NODE_HEIGHT = 108;
-const CANVAS_HEIGHT = 332;
-
-function buildChildLayouts(count: number, canvasWidth: number) {
-  if (count === 0) {
-    return [];
-  }
-
-  const gap = count > 1 ? (canvasWidth - NODE_WIDTH * count) / (count + 1) : (canvasWidth - NODE_WIDTH) / 2;
-
-  return Array.from({ length: count }, (_, index) => ({
-    left: Math.round(gap + index * (NODE_WIDTH + gap)),
-    top: 192,
-    width: NODE_WIDTH,
-  }));
-}
-
-function connectorPath(master: NodeLayout, child: NodeLayout) {
-  const masterX = master.left + master.width / 2;
-  const masterY = master.top + NODE_HEIGHT - 8;
-  const childX = child.left + child.width / 2;
-  const childY = child.top + 10;
-  const midY = masterY + (childY - masterY) * 0.52;
-
-  return `M ${masterX} ${masterY} C ${masterX} ${midY}, ${childX} ${midY - 14}, ${childX} ${childY}`;
+function statusAnimationClass(status: AgentStatus) {
+  if (status === "working") return "agent-node-working";
+  if (status === "done") return "agent-node-done";
+  if (status === "error") return "agent-node-error";
+  return "";
 }
 
 export function AgentRoster({
   agents,
   activeAgent,
+  collapsed,
   eventCounts,
   highlightedTask,
   liveMetrics,
@@ -62,211 +37,147 @@ export function AgentRoster({
   selectedAgentSummary,
   statusByAgent,
   onSelectAgent,
+  onToggle,
 }: AgentRosterProps) {
-  const orchestrator = agents.find((agent) => agent.name === "orchestrator");
-  const specialists = agents.filter((agent) => agent.name !== "orchestrator");
-
-  const graph = useMemo(() => {
-    const canvasWidth = Math.max(900, specialists.length * 214 + 100);
-    const master: NodeLayout = {
-      left: Math.round((canvasWidth - ORCHESTRATOR_WIDTH) / 2),
-      top: 26,
-      width: ORCHESTRATOR_WIDTH,
-    };
-
-    return {
-      canvasWidth,
-      master,
-      children: buildChildLayouts(specialists.length, canvasWidth),
-    };
-  }, [specialists.length]);
-
   const maxEvents = Math.max(...Object.values(eventCounts), 1);
 
-  return (
-    <section className="panel-shell flex h-full flex-col p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow">Crew roster</p>
-          <h2 className="section-title mt-2">Operational graph</h2>
-          <p className="section-copy mt-2 max-w-2xl">
-            A cleaner network view for the orchestrator and specialist agents, with the same selection and progress behavior.
-          </p>
-        </div>
+  if (collapsed) {
+    return (
+      <div className="flex h-full flex-col items-center gap-1 py-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="sidebar-toggle-btn mb-2"
+          title="Expand sidebar"
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
 
-        {activeAgent ? (
-          <button type="button" className="secondary-button" onClick={() => onSelectAgent(null)}>
-            Clear focus
-          </button>
+        {agents.map((agent) => {
+          const identity = getAgentIdentity(agent);
+          const status = statusByAgent[agent.name] ?? "idle";
+          const statusTone = getStatusTone(status);
+          const isActive = activeAgent === agent.name;
+
+          return (
+            <button
+              key={agent.name}
+              type="button"
+              onClick={() => onSelectAgent(isActive ? null : agent.name)}
+              className={`sidebar-avatar-btn ${isActive ? "sidebar-avatar-btn-active" : ""} ${statusAnimationClass(status)}`}
+              title={`${identity.displayName} — ${statusTone.label}`}
+            >
+              <span
+                className="sidebar-agent-avatar"
+                style={{ color: identity.accent, borderColor: identity.border }}
+              >
+                {identity.avatar}
+              </span>
+              <span
+                className="sidebar-status-dot"
+                style={{ background: statusTone.color }}
+              />
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col gap-2.5 p-3">
+      <div className="flex items-center justify-between">
+        <span className="eyebrow">Agents</span>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="sidebar-toggle-btn"
+          title="Collapse sidebar"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5">
+        {liveMetrics.map((metric) => (
+          <div key={metric.label} className="sidebar-metric">
+            <span className="sidebar-metric-label">{metric.label}</span>
+            <span className="sidebar-metric-value">{metric.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1 space-y-0.5 overflow-y-auto">
+        {agents.map((agent, index) => {
+          const identity = getAgentIdentity(agent);
+          const status = statusByAgent[agent.name] ?? "idle";
+          const statusTone = getStatusTone(status);
+          const isActive = activeAgent === agent.name;
+          const eventCount = eventCounts[agent.name] ?? 0;
+          const progress = Math.round((eventCount / maxEvents) * 100);
+
+          return (
+            <motion.button
+              key={agent.name}
+              type="button"
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.18, delay: index * 0.03 }}
+              onClick={() => onSelectAgent(isActive ? null : agent.name)}
+              className={`sidebar-agent-row ${isActive ? "sidebar-agent-row-active" : ""} ${statusAnimationClass(status)}`}
+            >
+              <span
+                className="sidebar-agent-avatar"
+                style={{ color: identity.accent, borderColor: identity.border }}
+              >
+                {identity.avatar}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="truncate text-[0.78rem] font-semibold text-[var(--text-primary)]">
+                    {identity.displayName}
+                  </span>
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                    style={{ color: statusTone.color, background: statusTone.background }}
+                  >
+                    {statusTone.label}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="sidebar-progress-track flex-1">
+                    <span
+                      className={`sidebar-progress-fill ${status === "working" ? "sidebar-progress-fill-live" : ""}`}
+                      style={{ width: `${Math.max(progress, 6)}%`, background: statusTone.color }}
+                    />
+                  </div>
+                  <span className="font-mono text-[10px] text-[var(--text-muted)]">{eventCount}</span>
+                </div>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div className="sidebar-inspector-card">
+        <p className="text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+          {runSource === "mock" ? "Mock context" : "Inspector"}
+        </p>
+        <p className="mt-1.5 text-xs font-semibold text-[var(--text-primary)]">{selectedAgentSummary.title}</p>
+        <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">{selectedAgentSummary.subtitle}</p>
+        <p className="mt-1.5 text-[11px] leading-[1.5] text-[var(--text-secondary)]">{selectedAgentSummary.body}</p>
+        {highlightedTask !== null ? (
+          <p className="mt-1.5 text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            Task #{highlightedTask} highlighted
+          </p>
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-          {liveMetrics.map((metric) => (
-            <div key={metric.label} className="metric-card">
-              <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">{metric.label}</span>
-              <p className="mt-3 font-mono text-2xl text-[var(--text-primary)]">{metric.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="inspector-card">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
-            {runSource === "mock" ? "Mock replay context" : "Selection inspector"}
-          </p>
-          <p className="mt-3 text-sm font-semibold text-[var(--text-primary)]">{selectedAgentSummary.title}</p>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">{selectedAgentSummary.subtitle}</p>
-          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{selectedAgentSummary.body}</p>
-          {highlightedTask !== null ? (
-            <p className="mt-3 text-[11px] uppercase tracking-[0.22em] text-[var(--text-muted)]">Task #{highlightedTask} highlighted</p>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="graph-shell mt-4 flex-1 overflow-x-auto">
-        <div className="relative min-w-[900px]" style={{ height: CANVAS_HEIGHT, width: graph.canvasWidth }}>
-          <svg
-            className="absolute inset-0 h-full w-full"
-            viewBox={`0 0 ${graph.canvasWidth} ${CANVAS_HEIGHT}`}
-            fill="none"
-            aria-hidden="true"
-          >
-            {specialists.map((agent, index) => {
-              const status = statusByAgent[agent.name] ?? "idle";
-              const statusTone = getStatusTone(status);
-              const isActive = activeAgent === agent.name;
-              const path = connectorPath(graph.master, graph.children[index]);
-
-              return (
-                <g key={agent.name}>
-                  <path d={path} className="graph-connector-base" />
-                  <path
-                    d={path}
-                    className={status === "working" ? "graph-connector-live" : "graph-connector-state"}
-                    style={{
-                      stroke: statusTone.color,
-                      opacity: isActive || status !== "idle" ? 1 : 0.34,
-                    }}
-                  />
-                </g>
-              );
-            })}
-          </svg>
-
-          {orchestrator ? (
-            <RosterNode
-              key={orchestrator.name}
-              active={activeAgent === orchestrator.name}
-              agent={orchestrator}
-              eventCount={eventCounts[orchestrator.name] ?? 0}
-              left={graph.master.left}
-              onSelectAgent={onSelectAgent}
-              progress={Math.round(((eventCounts[orchestrator.name] ?? 0) / maxEvents) * 100)}
-              status={statusByAgent[orchestrator.name] ?? "idle"}
-              top={graph.master.top}
-              width={graph.master.width}
-            />
-          ) : null}
-
-          {specialists.map((agent, index) => (
-            <RosterNode
-              key={agent.name}
-              active={activeAgent === agent.name}
-              agent={agent}
-              eventCount={eventCounts[agent.name] ?? 0}
-              left={graph.children[index].left}
-              onSelectAgent={onSelectAgent}
-              progress={Math.round(((eventCounts[agent.name] ?? 0) / maxEvents) * 100)}
-              status={statusByAgent[agent.name] ?? "idle"}
-              top={graph.children[index].top}
-              width={graph.children[index].width}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-interface RosterNodeProps {
-  active: boolean;
-  agent: AgentDefinition;
-  eventCount: number;
-  left: number;
-  onSelectAgent: (agentName: string | null) => void;
-  progress: number;
-  status: AgentStatus;
-  top: number;
-  width: number;
-}
-
-function RosterNode({
-  active,
-  agent,
-  eventCount,
-  left,
-  onSelectAgent,
-  progress,
-  status,
-  top,
-  width,
-}: RosterNodeProps) {
-  const identity = getAgentIdentity(agent);
-  const statusTone = getStatusTone(status);
-
-  return (
-    <motion.button
-      type="button"
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      onClick={() => onSelectAgent(active ? null : agent.name)}
-      className={`graph-node ${active ? "graph-node-active" : ""}`}
-      style={{
-        left,
-        top,
-        width,
-        borderColor: identity.border,
-        background: identity.soft,
-        boxShadow: active ? `0 0 0 1px ${identity.accent}` : undefined,
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 text-left">
-          <div className="flex items-center gap-2">
-            <span className="graph-avatar" style={{ color: identity.accent, borderColor: identity.border }}>
-              {identity.avatar}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
-                {identity.displayName}
-              </p>
-              <p className="truncate text-[11px] uppercase tracking-[0.18em] text-[var(--text-muted)]">{identity.role}</p>
-            </div>
-          </div>
-        </div>
-
-        <span
-          className="rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
-          style={{ color: statusTone.color, background: statusTone.background }}
-        >
-          {statusTone.label}
-        </span>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <div className="graph-meter flex-1">
-          <span
-            className={`graph-meter-bar ${status === "working" ? "graph-meter-bar-live" : ""}`}
-            style={{ width: `${Math.max(progress, 10)}%`, background: statusTone.color }}
-          />
-        </div>
-        <div className="text-right">
-          <div className="font-mono text-base text-[var(--text-primary)]">{eventCount}</div>
-          <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">events</div>
-        </div>
-      </div>
-    </motion.button>
+      {activeAgent ? (
+        <button type="button" className="secondary-button w-full text-xs" onClick={() => onSelectAgent(null)}>
+          Clear focus
+        </button>
+      ) : null}
+    </div>
   );
 }

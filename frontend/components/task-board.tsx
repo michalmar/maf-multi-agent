@@ -10,7 +10,6 @@ interface TaskBoardProps {
   tasks: TaskItem[];
   running: boolean;
   highlightedTask: number | null;
-  panelHeight?: number | null;
   onSelectTask: (taskId: number | null) => void;
 }
 
@@ -34,7 +33,7 @@ function PlaceholderTasks({ running }: { running: boolean }) {
   );
 }
 
-export function TaskBoard({ tasks, running, highlightedTask, panelHeight, onSelectTask }: TaskBoardProps) {
+export function TaskBoard({ tasks, running, highlightedTask, onSelectTask }: TaskBoardProps) {
   const [collapsed, setCollapsed] = useState(true);
   const completed = tasks.filter((task) => task.finished).length;
   const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
@@ -77,7 +76,6 @@ export function TaskBoard({ tasks, running, highlightedTask, panelHeight, onSele
   return (
     <section
       className="panel-shell flex w-full flex-col overflow-hidden p-4 sm:p-5"
-      style={panelHeight ? { height: `${panelHeight}px` } : undefined}
     >
       <div className="flex items-center justify-between gap-4">
         <div>

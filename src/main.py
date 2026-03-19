@@ -124,6 +124,10 @@ async def main() -> None:
     load_dotenv()
     setup_logging()
 
+    # Initialize observability (traces, metrics, logs → App Insights)
+    from src.observability import setup_observability
+    await setup_observability()
+
     args = sys.argv[1:]
     mode = "scratchpad"
     if "--mode" in args:
