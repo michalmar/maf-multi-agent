@@ -40,9 +40,10 @@ COPY --from=backend-build /app/.venv ./.venv
 COPY src ./src
 COPY agents ./agents
 
-# Frontend: Next.js standalone output
+# Frontend: Next.js standalone output + static assets + public files
 COPY --from=frontend-build /app/frontend/.next/standalone ./frontend-standalone
 COPY --from=frontend-build /app/frontend/.next/static ./frontend-standalone/frontend/.next/static
+COPY --from=frontend-build /app/frontend/public ./frontend-standalone/frontend/public
 
 # Supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
