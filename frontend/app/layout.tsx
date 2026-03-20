@@ -32,8 +32,8 @@ const themeBootstrap = `
 `;
 
 export const metadata: Metadata = {
-  title: "MAF Mission Control",
-  description: "A polished control surface for the multi-agent travel planner.",
+  title: "Wired Orchestra",
+  description: "Multi-agent orchestration — where specialist agents perform in concert.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

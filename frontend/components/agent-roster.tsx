@@ -43,7 +43,7 @@ export function AgentRoster({
 
   if (collapsed) {
     return (
-      <div className="flex h-full flex-col items-center gap-1 py-3">
+      <div className="flex h-full flex-col items-center gap-2 py-3">
         <button
           type="button"
           onClick={onToggle}
@@ -107,7 +107,7 @@ export function AgentRoster({
         ))}
       </div>
 
-      <div className="flex-1 space-y-0.5 overflow-y-auto">
+      <div className="flex-1 space-y-2 overflow-y-auto">
         {agents.map((agent, index) => {
           const identity = getAgentIdentity(agent);
           const status = statusByAgent[agent.name] ?? "idle";

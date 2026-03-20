@@ -60,4 +60,5 @@ export interface AgentEvent {
   source: string;
   data: EventData;
   timestamp: number;
+  event_summary?: string;
 }

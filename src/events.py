@@ -43,6 +43,7 @@ class AgentEvent:
     source: str  # e.g. "orchestrator", "flights_tool", "hotels_tool"
     data: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
+    event_summary: str = ""
 
 
 EventCallback = Optional[Callable[[AgentEvent], None]]

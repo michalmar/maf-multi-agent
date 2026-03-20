@@ -670,7 +670,7 @@ textarea {
 .tl-feed::before {
   content: "";
   position: absolute;
-  left: 18px;
+  left: 16px;
   top: 4px;
   bottom: 4px;
   width: 2px;
@@ -688,9 +688,9 @@ textarea {
 }
 
 .tl-dot {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
   border-radius: 50%;
   z-index: 1;
   transition: transform 180ms ease;
@@ -726,7 +726,7 @@ textarea {
   flex-shrink: 0;
   letter-spacing: 0.03em;
   opacity: 0.7;
-  min-width: 5.4em;
+  min-width: 3.4em;
 }
 
 .tl-agent {
@@ -907,9 +907,9 @@ textarea {
 }
 
 .tl-dot-sm {
-  width: 10px;
-  height: 10px;
-  min-width: 10px;
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
 }
 
 .tl-lane-row {

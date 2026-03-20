@@ -73,7 +73,6 @@ function formatTimestamp(timestamp: number) {
   return new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit",
   }).format(new Date(timestamp * 1000));
 }
 
@@ -96,6 +95,11 @@ function summarizeEvent(event: AgentEvent) {
   if (type === "workflow_completed")
     return typeof data.elapsed === "number" ? `Workflow completed in ${data.elapsed.toFixed(1)}s.` : "Workflow completed.";
   return JSON.stringify(data);
+}
+
+function getDisplaySummary(event: AgentEvent): string {
+  if (event.event_summary) return event.event_summary;
+  return summarizeEvent(event);
 }
 
 function dotColorForEvent(event: AgentEvent, agentAccent: string): string {
@@ -201,7 +205,7 @@ function FeedRow({
           {agent.displayName}
         </span>
         <EventTypeIcon type={event.event_type} />
-        <span className="tl-summary">{summarizeEvent(event)}</span>
+        <span className="tl-summary">{getDisplaySummary(event)}</span>
         <ChevronRight className={`tl-chevron ${expanded ? "tl-chevron-open" : ""}`} />
       </button>
 
@@ -226,7 +230,7 @@ function LaneItem({ event, isLive }: { event: AgentEvent; isLive: boolean }) {
         />
         <time className="tl-time">{formatTimestamp(event.timestamp)}</time>
         <EventTypeIcon type={event.event_type} />
-        <span className="tl-summary">{summarizeEvent(event)}</span>
+        <span className="tl-summary">{getDisplaySummary(event)}</span>
         <ChevronRight className={`tl-chevron ${expanded ? "tl-chevron-open" : ""}`} />
       </button>
 

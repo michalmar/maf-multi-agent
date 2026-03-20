@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, HelpCircle, History, Home, MoonStar, Settings2, SunMedium } from "lucide-react";
+import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
 import { QueryComposer } from "@/components/query-composer";
@@ -495,55 +496,29 @@ export function PlannerShell() {
     <header
       ref={missionHeaderRef}
       className={`panel-shell w-full overflow-hidden transition-[padding,box-shadow,border-radius] duration-200 ${
-        isMissionHeaderPinned ? "px-3 py-2.5 sm:px-4 sm:py-3" : "px-4 py-4 sm:px-5 sm:py-5"
+        isMissionHeaderPinned ? "px-3 py-2 sm:px-4 sm:py-2.5" : "px-4 py-4 sm:px-5 sm:py-5"
       }`}
     >
-      <div
-        className={`flex flex-col transition-[gap] duration-200 xl:flex-row xl:justify-between ${
-          isMissionHeaderPinned ? "gap-4 xl:items-center" : "gap-6 xl:items-start"
-        }`}
-      >
-        <div className="max-w-3xl">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="eyebrow">MAF mission control</span>
+      {isMissionHeaderPinned ? (
+        /* ── Compact pinned layout: single row, badges + menu + run ID + theme ── */
+        <div className="flex items-center gap-3">
+          <Image src="/logo.svg" alt="Wired Orchestra" width={24} height={24} className="shrink-0" />
+          <div className="flex items-center gap-2">
             <span className="status-chip">{statusCopy.label}</span>
             <span className="source-chip" style={sourceChipStyle}>
               {sourceCopy.label}
             </span>
           </div>
 
-          <h1
-            className={`display-title max-w-2xl font-semibold leading-[1.08] text-[var(--text-primary)] transition-[margin-top,font-size] duration-200 ${
-              isMissionHeaderPinned ? "mt-2 text-[clamp(1.5rem,2.5vw,2rem)]" : "mt-3 text-[clamp(1.8rem,3vw,2.6rem)]"
-            }`}
-          >
-            MAF & Foundry Agent Orchestration
-          </h1>
-
-          <p
-            className={`section-copy max-w-2xl transition-[margin-top,font-size,line-height] duration-200 ${
-              isMissionHeaderPinned ? "mt-1.5 text-[0.82rem] leading-5" : "mt-2"
-            }`}
-          >
-            {statusCopy.description} {sourceCopy.description}
-          </p>
-        </div>
-
-        <div
-          className={`flex w-full max-w-[36rem] flex-col xl:items-end ${
-            isMissionHeaderPinned ? "gap-2" : "gap-3"
-          }`}
-        >
-          <nav className={`mission-menu ${isMissionHeaderPinned ? "mission-menu-compact" : ""}`} aria-label="Mission control">
+          <nav className="mission-menu mission-menu-compact" aria-label="Mission control">
             {MISSION_MENU_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = item.id === "home";
-
               return (
                 <button
                   key={item.id}
                   type="button"
-                  className={`mission-menu-button ${isMissionHeaderPinned ? "mission-menu-button-compact" : ""} ${isActive ? "mission-menu-button-active" : ""}`}
+                  className={`mission-menu-button mission-menu-button-compact ${isActive ? "mission-menu-button-active" : ""}`}
                   aria-current={isActive ? "page" : undefined}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -553,25 +528,84 @@ export function PlannerShell() {
             })}
           </nav>
 
-          <div className={`flex flex-wrap xl:justify-end ${isMissionHeaderPinned ? "gap-2" : "gap-2.5"}`}>
+          <div className="ml-auto flex items-center gap-2">
             {runId ? (
-              <div className={`metric-inline min-w-[11rem] ${isMissionHeaderPinned ? "metric-inline-compact" : ""}`}>
-                <span className="metric-inline-label">Run ID</span>
-                <span className="font-mono text-sm text-[var(--text-primary)]">{runId}</span>
-              </div>
+              <span className="font-mono text-xs text-[var(--text-muted)]" title={runId}>{runId.slice(0, 3)}</span>
             ) : null}
 
             <button
               type="button"
               onClick={toggleTheme}
-              className={`secondary-button ${isMissionHeaderPinned ? "secondary-button-compact" : ""}`}
+              className="secondary-button secondary-button-compact"
+              title={theme === "night" ? "Day mode" : "Night mode"}
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-              {theme === "night" ? "Day mode" : "Night mode"}
             </button>
           </div>
         </div>
-      </div>
+      ) : (
+        /* ── Full expanded layout ── */
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="eyebrow">Mission Control</span>
+              <span className="status-chip">{statusCopy.label}</span>
+              <span className="source-chip" style={sourceChipStyle}>
+                {sourceCopy.label}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Image src="/logo.svg" alt="Wired Orchestra" width={40} height={40} className="shrink-0" />
+              <h1 className="display-title max-w-2xl text-[clamp(1.8rem,3vw,2.6rem)] font-semibold leading-[1.08] text-[var(--text-primary)]">
+                Wired Orchestra
+              </h1>
+            </div>
+
+            <p className="section-copy mt-2 max-w-2xl">
+              {statusCopy.description} {sourceCopy.description}
+            </p>
+          </div>
+
+          <div className="flex w-full max-w-[36rem] flex-col gap-3 xl:items-end">
+            <nav className="mission-menu" aria-label="Mission control">
+              {MISSION_MENU_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const isActive = item.id === "home";
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`mission-menu-button ${isActive ? "mission-menu-button-active" : ""}`}
+                    aria-current={isActive ? "page" : undefined}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="flex flex-wrap gap-2.5 xl:justify-end">
+              {runId ? (
+                <div className="metric-inline min-w-[11rem]">
+                  <span className="metric-inline-label">Run ID</span>
+                  <span className="font-mono text-sm text-[var(--text-primary)]">{runId}</span>
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="secondary-button"
+              >
+                {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+                {theme === "night" ? "Day mode" : "Night mode"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 
@@ -600,7 +634,10 @@ export function PlannerShell() {
           style={isMissionHeaderPinned && missionHeaderHeight ? { height: `${missionHeaderHeight}px` } : undefined}
         >
           {isMissionHeaderPinned ? (
-            <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6">
+            <div
+              className="pointer-events-none fixed top-0 right-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6"
+              style={{ left: sidebarCollapsed ? 56 : 300 }}
+            >
               <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
             </div>
           ) : (

@@ -16,6 +16,7 @@ from src.scratchpad.taskboard import TaskBoard
 from src.scratchpad.shared_document import SharedDocument
 from src.scratchpad.facilitator_tools import FacilitatorTools
 from src.scratchpad.dispatcher import create_dispatch_tools
+from src.summary import SummaryService
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,21 @@ async def run_scratchpad_workflow(
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
     config = load_config()
+
+    # Create summary service for enriching events with LLM-generated summaries
+    summary_service = SummaryService()
+
+    # Wrap the raw event callback to inject summaries before emission
+    raw_callback = event_callback
+
+    def enriched_callback(event: AgentEvent) -> None:
+        if raw_callback is None:
+            return
+        if not event.event_summary:
+            event.event_summary = summary_service.generate_summary_safe(event)
+        raw_callback(event)
+
+    event_callback = enriched_callback if raw_callback else None
 
     if event_callback:
         event_callback(AgentEvent(

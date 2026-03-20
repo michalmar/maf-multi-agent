@@ -87,6 +87,7 @@ def _event_to_sse(event: AgentEvent) -> str:
         "source": event.source,
         "data": event.data,
         "timestamp": event.timestamp,
+        "event_summary": event.event_summary,
     }
     return f"data: {json.dumps(payload)}\n\n"
 
@@ -224,6 +225,7 @@ def setup_logging():
     for noisy in [
         "azure.core.pipeline.policies.http_logging_policy",
         "azure.identity",
+        "azure.monitor.opentelemetry.exporter",
         "httpx",
         "openai",
     ]:
