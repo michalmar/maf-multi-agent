@@ -14,6 +14,13 @@ export async function GET() {
     cache: "no-store",
   });
 
+  if (!upstream.ok) {
+    return NextResponse.json(
+      { detail: "Failed to fetch agents" },
+      { status: upstream.status },
+    );
+  }
+
   const data = await upstream.json();
   return NextResponse.json(data, { status: upstream.status });
 }
