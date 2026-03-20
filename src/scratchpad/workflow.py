@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from agent_framework.azure import AzureOpenAIResponsesClient
-from azure.identity import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 from jinja2 import Environment, FileSystemLoader
 
 from src.config import load_config
@@ -92,7 +92,7 @@ async def run_scratchpad_workflow(
 
     # Create the Facilitator agent
     client = AzureOpenAIResponsesClient(
-        credential=AzureCliCredential(),
+        credential=DefaultAzureCredential(),
         project_endpoint=config.project_endpoint,
         deployment_name=config.azure_openai_chat_deployment_name,
     )

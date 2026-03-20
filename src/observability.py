@@ -65,10 +65,10 @@ async def _setup_foundry_monitor(project_endpoint: str, enable_sensitive: bool) 
     """
     from agent_framework.azure import AzureAIClient
     from azure.ai.projects.aio import AIProjectClient
-    from azure.identity.aio import AzureCliCredential
+    from azure.identity.aio import DefaultAzureCredential
 
     async with (
-        AzureCliCredential() as credential,
+        DefaultAzureCredential() as credential,
         AIProjectClient(endpoint=project_endpoint, credential=credential) as project_client,
         AzureAIClient(project_client=project_client) as client,
     ):

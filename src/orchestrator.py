@@ -10,7 +10,7 @@ import time
 from typing import Optional
 
 from agent_framework.azure import AzureOpenAIResponsesClient
-from azure.identity import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 
 from src.agent_loader import generate_orchestrator_instructions, load_agents
 from src.config import load_config
@@ -142,7 +142,7 @@ def create_orchestrator(
     logger.info("Creating Azure OpenAI client for orchestrator with kwargs: %s", kwargs)
 
     client = AzureOpenAIResponsesClient(
-        credential=AzureCliCredential(),
+        credential=DefaultAzureCredential(),
         **kwargs,
     )
 

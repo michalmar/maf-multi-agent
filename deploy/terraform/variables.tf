@@ -1,0 +1,52 @@
+variable "subscription_id" {
+  description = "Azure subscription ID"
+  type        = string
+}
+
+variable "resource_group_name" {
+  description = "Name of the resource group to create"
+  type        = string
+  default     = "rg-maf-demo"
+}
+
+variable "location" {
+  description = "Azure region"
+  type        = string
+  default     = "eastus"
+}
+
+variable "acr_name" {
+  description = "Azure Container Registry name (must be globally unique, alphanumeric only)"
+  type        = string
+}
+
+variable "app_name" {
+  description = "Container App name"
+  type        = string
+  default     = "maf-multi-agent"
+}
+
+# ── AI service configuration ──────────────────────────────────
+
+variable "project_endpoint" {
+  description = "Azure AI Foundry project endpoint URL"
+  type        = string
+}
+
+variable "azure_openai_chat_deployment_name" {
+  description = "Azure OpenAI deployment name for the orchestrator"
+  type        = string
+  default     = "gpt-5.2"
+}
+
+variable "azure_openai_summary_deployment_name" {
+  description = "Azure OpenAI deployment name for event summaries"
+  type        = string
+  default     = "gpt-4.1-nano"
+}
+
+variable "ai_services_resource_id" {
+  description = "Full resource ID of the Azure AI Services resource (for RBAC). Leave empty to skip."
+  type        = string
+  default     = ""
+}

@@ -10,7 +10,7 @@ import logging
 from typing import Optional
 
 from azure.ai.projects import AIProjectClient
-from azure.identity import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 from openai import OpenAI
 
 from src.config import load_config
@@ -73,7 +73,7 @@ class SummaryService:
         if self._client is None:
             project_client = AIProjectClient(
                 endpoint=self._project_endpoint,
-                credential=AzureCliCredential(),
+                credential=DefaultAzureCredential(),
             )
             self._client = project_client.get_openai_client()
         return self._client

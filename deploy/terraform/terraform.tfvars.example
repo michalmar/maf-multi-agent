@@ -1,0 +1,10 @@
+subscription_id = "<your-azure-subscription-id>"
+acr_name        = "mafdemo<unique-suffix>"   # must be globally unique, alphanumeric only
+
+# Reuse your existing AI services
+project_endpoint                     = "https://aif-mma-eus.services.ai.azure.com/api/projects/demo-eus"
+azure_openai_chat_deployment_name    = "gpt-5.2"
+azure_openai_summary_deployment_name = "gpt-4.1-nano"
+
+# Optional: full resource ID for automatic RBAC assignment
+# ai_services_resource_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>"

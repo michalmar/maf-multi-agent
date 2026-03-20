@@ -46,3 +46,10 @@ output/
 
 .agents/
 .next/
+
+# Terraform
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.backup
+deploy/terraform/.terraform.lock.hcl
+deploy/terraform/terraform.tfvars
