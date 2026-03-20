@@ -46,6 +46,7 @@ output/
 
 .agents/
 .next/
+*.tsbuildinfo
 
 # Terraform
 deploy/terraform/.terraform/

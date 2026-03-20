@@ -173,6 +173,9 @@ async def _run_workflow(run_id: str, query: str, event_callback):
     await queue.put(None)
 
 
+_SSE_KEEPALIVE_INTERVAL = 15  # seconds between heartbeat comments
+
+
 @app.get("/api/stream/{run_id}")
 async def stream_events(run_id: str):
     """SSE endpoint — streams AgentEvents for a given run."""
@@ -182,7 +185,17 @@ async def stream_events(run_id: str):
     async def event_generator() -> AsyncGenerator[str, None]:
         queue = _runs[run_id]
         while True:
-            event = await queue.get()
+            try:
+                event = await asyncio.wait_for(
+                    queue.get(), timeout=_SSE_KEEPALIVE_INTERVAL,
+                )
+            except asyncio.TimeoutError:
+                # No event within the keepalive window — send an SSE
+                # comment to prevent proxy idle-timeout disconnects
+                # (e.g. Azure Container Apps / Envoy ingress).
+                yield ": keepalive\n\n"
+                continue
+
             if event is None:
                 # Send done sentinel
                 yield f"data: {json.dumps({'event_type': 'done'})}\n\n"
