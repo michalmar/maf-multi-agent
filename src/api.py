@@ -48,6 +48,7 @@ _results: dict[str, dict] = {}
 
 class RunRequest(BaseModel):
     query: str
+    selected_agents: list[str] | None = None
 
 
 class RunResponse(BaseModel):
@@ -113,12 +114,12 @@ async def start_run(req: RunRequest):
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback))
+    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents))
 
     return RunResponse(run_id=run_id)
 
 
-async def _run_workflow(run_id: str, query: str, event_callback):
+async def _run_workflow(run_id: str, query: str, event_callback, selected_agents: list[str] | None = None):
     """Execute the scratchpad workflow and push events to the queue."""
     queue = _runs[run_id]
     try:
@@ -126,6 +127,7 @@ async def _run_workflow(run_id: str, query: str, event_callback):
 
         result_text, document_md = await run_scratchpad_workflow(
             query, event_callback=event_callback,
+            selected_agents=selected_agents,
         )
 
         # Save outputs

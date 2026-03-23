@@ -107,8 +107,13 @@ def create_dispatch_tools(
     document: SharedDocument,
     agents_dir: Optional[str] = None,
     event_callback: EventCallback = None,
+    selected_agents: Optional[list[str]] = None,
 ) -> list[FunctionTool]:
     """Create dispatch FunctionTool objects for each agent defined in YAML.
+
+    Args:
+        selected_agents: If provided, only create tools for agents whose name
+                         is in this list.  When None, all agents are included.
 
     Returns list of FunctionTool objects named 'call_<agent_name>'.
     """
@@ -118,12 +123,18 @@ def create_dispatch_tools(
         logger.warning("Agents directory not found: %s", agents_path)
         return []
 
+    selected_set = set(selected_agents) if selected_agents is not None else None
     yaml_files = sorted(agents_path.glob("*.yaml"))
     tools = []
 
     for yaml_file in yaml_files:
         try:
             agent_def = parse_agent_yaml(yaml_file)
+
+            if selected_set is not None and agent_def.name not in selected_set:
+                logger.info("⏭️  Skipping agent %s (not in selected_agents)", agent_def.name)
+                continue
+
             dispatch_func = _make_dispatch_func(
                 agent_def, taskboard, document, event_callback,
             )

@@ -34,6 +34,7 @@ async def run_scratchpad_workflow(
     query: str,
     agents_dir: Optional[str] = None,
     event_callback: EventCallback = None,
+    selected_agents: Optional[list[str]] = None,
 ) -> tuple[str, str]:
     """Run the full scratchpad workflow for a user query.
 
@@ -44,6 +45,7 @@ async def run_scratchpad_workflow(
         query: The user's travel planning question.
         agents_dir: Directory with agent YAML definitions.
         event_callback: Optional callback for real-time event streaming.
+        selected_agents: Optional list of agent names to include. If None, all agents are used.
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
@@ -80,6 +82,7 @@ async def run_scratchpad_workflow(
     dispatch_tools = create_dispatch_tools(
         taskboard, document, agents_dir,
         event_callback=event_callback,
+        selected_agents=selected_agents,
     )
 
     all_tools = facilitator_tools.get_tools() + dispatch_tools
