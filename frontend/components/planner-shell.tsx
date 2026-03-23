@@ -169,6 +169,7 @@ export function PlannerShell() {
   const [missionHeaderHeight, setMissionHeaderHeight] = useState(0);
   const [isMissionHeaderPinned, setIsMissionHeaderPinned] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const closeStream = useCallback(() => {
@@ -214,7 +215,9 @@ export function PlannerShell() {
 
         const payload = (await response.json()) as AgentDefinition[];
         if (runSource === "live") {
-          setAgents(ensureOrchestratorFirst(payload));
+          const ordered = ensureOrchestratorFirst(payload);
+          setAgents(ordered);
+          setEnabledAgents(new Set(ordered.map((a) => a.name)));
           setStreamLabel("Backend proxy connected. Agent manifest loaded successfully.");
         }
       } catch (fetchError) {
@@ -233,6 +236,19 @@ export function PlannerShell() {
   useEffect(() => {
     return () => closeStream();
   }, [closeStream]);
+
+  const handleToggleAgent = useCallback((agentName: string) => {
+    if (agentName === "orchestrator") return;
+    setEnabledAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentName)) {
+        next.delete(agentName);
+      } else {
+        next.add(agentName);
+      }
+      return next;
+    });
+  }, []);
 
   const handleIncomingEvent = useCallback((event: AgentEvent) => {
     setEvents((previous) => [...previous, event]);
@@ -305,7 +321,10 @@ export function PlannerShell() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({
+            query,
+            selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
+          }),
         });
 
         if (!response.ok) {
@@ -347,7 +366,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, handleIncomingEvent],
+    [closeStream, handleIncomingEvent, enabledAgents],
   );
 
   const handleLoadMock = useCallback(() => {
@@ -363,6 +382,7 @@ export function PlannerShell() {
     setDraftQuery(scenario.query);
     setError("");
     setAgents(ensureOrchestratorFirst(scenario.agents));
+    setEnabledAgents(new Set(ensureOrchestratorFirst(scenario.agents).map((a) => a.name)));
     setActiveAgent(null);
     setHighlightedTask(null);
     setActiveTab("activity");
@@ -600,11 +620,14 @@ export function PlannerShell() {
           activeAgent={activeAgent}
           agents={rosterAgents}
           collapsed={sidebarCollapsed}
+          enabledAgents={enabledAgents}
           eventCounts={agentEventCounts}
           highlightedTask={highlightedTask}
           liveMetrics={liveMetrics}
           onSelectAgent={setActiveAgent}
           onToggle={() => setSidebarCollapsed((c) => !c)}
+          onToggleAgent={handleToggleAgent}
+          running={status === "running"}
           runSource={runSource}
           selectedAgentSummary={selectedAgentSummary}
           statusByAgent={agentStatuses}
@@ -659,6 +682,7 @@ export function PlannerShell() {
         <AgentRosterGraph
           agents={rosterAgents}
           activeAgent={activeAgent}
+          enabledAgents={enabledAgents}
           eventCounts={agentEventCounts}
           statusByAgent={agentStatuses}
           onSelectAgent={setActiveAgent}

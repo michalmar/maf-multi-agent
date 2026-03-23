@@ -9,6 +9,7 @@ import { AgentDefinition, AgentStatus } from "@/lib/types";
 interface AgentRosterGraphProps {
   agents: AgentDefinition[];
   activeAgent: string | null;
+  enabledAgents: Set<string>;
   eventCounts: Record<string, number>;
   statusByAgent: Record<string, AgentStatus>;
   onSelectAgent: (agentName: string | null) => void;
@@ -55,6 +56,7 @@ function connectorPath(master: NodeLayout, child: NodeLayout) {
 export function AgentRosterGraph({
   agents,
   activeAgent,
+  enabledAgents,
   eventCounts,
   statusByAgent,
   onSelectAgent,
@@ -62,7 +64,9 @@ export function AgentRosterGraph({
   const [expanded, setExpanded] = useState(false);
 
   const orchestrator = agents.find((agent) => agent.name === "orchestrator");
-  const specialists = agents.filter((agent) => agent.name !== "orchestrator");
+  const specialists = agents.filter(
+    (agent) => agent.name !== "orchestrator" && enabledAgents.has(agent.name),
+  );
 
   const graph = useMemo(() => {
     const canvasWidth = Math.max(900, specialists.length * 214 + 100);
@@ -97,7 +101,7 @@ export function AgentRosterGraph({
             Agent graph
           </span>
           <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-            {agents.length} agents
+            {specialists.length + (orchestrator ? 1 : 0)} agents
           </span>
           {workingCount > 0 && (
             <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
