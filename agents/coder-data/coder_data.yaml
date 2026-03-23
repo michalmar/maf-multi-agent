@@ -1,0 +1,20 @@
+# Coder specialist agent
+# Delegates coding and code execution tasks to the Foundry Prompt Agent
+
+name: coderdata_tool
+display_name: Coder Data Agent
+avatar: 💻
+role: Software Engineer
+model: gpt-5.2 (Foundry)
+
+description: >
+  Delegate a data analysis task to the data analyst specialist agent and whencoding or code execution task to the coder specialist agent. 
+  Perform higher level data analysis task (as anomaly detection, compex trend correlation and analysis, etc.) and generate charts for better understanding.
+  Use this tool when you need to write, review, debug, or execute code in any programming language, generate scripts, or solve technical problems. 
+  You have access to all needed data.
+
+task_description: >
+  A detailed coding request including the programming language, desired
+  functionality, input/output expectations, and any constraints or libraries to use.
+
+foundry_agent_name: CoderData

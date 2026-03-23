@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#635bff"/>
+      <stop offset="50%" stop-color="#0a7cff"/>
+      <stop offset="100%" stop-color="#00d4aa"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="36" x2="36" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+  </defs>
+  <!-- Flowing wires -->
+  <path d="M4 26 C10 10, 18 28, 18 14" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M12 28 C16 14, 24 30, 26 12" stroke="url(#g2)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <path d="M22 28 C24 18, 30 22, 32 10" stroke="url(#g1)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+  <!-- Agent dots at wave peaks -->
+  <circle cx="18" cy="14" r="3" fill="#635bff"/>
+  <circle cx="26" cy="12" r="2.5" fill="#f472b6"/>
+  <circle cx="32" cy="10" r="2" fill="#00d4aa"/>
+  <!-- Subtle glow on main dot -->
+  <circle cx="18" cy="14" r="6" fill="#635bff" opacity="0.12"/>
+</svg>

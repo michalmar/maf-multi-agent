@@ -548,6 +548,7 @@ export function PlannerShell() {
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2.5">
+              <Image src="/logo.svg" alt="Wired Orchestra" width={40} height={40} className="shrink-0" />
               <span className="eyebrow">Mission Control</span>
               <span className="status-chip">{statusCopy.label}</span>
               <span className="source-chip" style={sourceChipStyle}>
@@ -555,16 +556,7 @@ export function PlannerShell() {
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Image src="/logo.svg" alt="Wired Orchestra" width={40} height={40} className="shrink-0" />
-              <h1 className="display-title max-w-2xl text-[clamp(1.8rem,3vw,2.6rem)] font-semibold leading-[1.08] text-[var(--text-primary)]">
-                Wired Orchestra
-              </h1>
-            </div>
-
-            <p className="section-copy mt-2 max-w-2xl">
-              {statusCopy.description} {sourceCopy.description}
-            </p>
+            
           </div>
 
           <div className="flex w-full max-w-[36rem] flex-col gap-3 xl:items-end">
@@ -584,25 +576,17 @@ export function PlannerShell() {
                   </button>
                 );
               })}
+              <button
+              type="button"
+              onClick={toggleTheme}
+              className="secondary-button secondary-button-compact"
+              title={theme === "night" ? "Day mode" : "Night mode"}
+            >
+              {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+            </button>
             </nav>
 
-            <div className="flex flex-wrap gap-2.5 xl:justify-end">
-              {runId ? (
-                <div className="metric-inline min-w-[11rem]">
-                  <span className="metric-inline-label">Run ID</span>
-                  <span className="font-mono text-sm text-[var(--text-primary)]">{runId}</span>
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="secondary-button"
-              >
-                {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-                {theme === "night" ? "Day mode" : "Night mode"}
-              </button>
-            </div>
+            
           </div>
         </div>
       )}
