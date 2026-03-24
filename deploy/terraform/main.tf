@@ -189,6 +189,15 @@ resource "azurerm_container_app" "main" {
         value = "true"
       }
 
+      # Fabric capacity status check (optional)
+      dynamic "env" {
+        for_each = var.fabric_capacity_resource_id != "" ? [1] : []
+        content {
+          name  = "FABRIC_CAPACITY_RESOURCE_ID"
+          value = var.fabric_capacity_resource_id
+        }
+      }
+
       # Fabric Data Agent MCP — only injected when enabled
       dynamic "env" {
         for_each = var.enable_fabric_data_agent ? [1] : []

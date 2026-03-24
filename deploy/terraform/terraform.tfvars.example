@@ -17,3 +17,6 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 
 # enable_fabric_data_agent  = true
 # fabric_data_agent_mcp_url = "https://<your-fabric-data-agent-mcp-url>"
+
+# Fabric capacity status check (optional — enables green/red indicator in UI)
+# fabric_capacity_resource_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Fabric/capacities/<name>"

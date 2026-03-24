@@ -64,3 +64,9 @@ variable "fabric_data_agent_mcp_url" {
   type        = string
   default     = ""
 }
+
+variable "fabric_capacity_resource_id" {
+  description = "Full ARM resource ID of the Fabric capacity (for status checks). Leave empty to disable."
+  type        = string
+  default     = ""
+}
