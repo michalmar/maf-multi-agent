@@ -50,3 +50,17 @@ variable "ai_services_resource_id" {
   type        = string
   default     = ""
 }
+
+# ── Fabric Data Agent (service principal) ─────────────────────
+
+variable "enable_fabric_data_agent" {
+  description = "Create a service principal for Fabric Data Agent MCP access"
+  type        = bool
+  default     = false
+}
+
+variable "fabric_data_agent_mcp_url" {
+  description = "Fabric Data Agent MCP endpoint URL (required when enable_fabric_data_agent = true)"
+  type        = string
+  default     = ""
+}

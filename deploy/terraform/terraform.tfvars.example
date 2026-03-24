@@ -8,3 +8,12 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 
 # Optional: full resource ID for automatic RBAC assignment
 # ai_services_resource_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>"
+
+# ── Fabric Data Agent (service principal for MCP access) ──────
+# Set to true to create a service principal with Power BI permissions.
+# After terraform apply, you must:
+#   1. Grant admin consent in Azure Portal → Entra ID → App registrations → API permissions
+#   2. Add the SP to your Fabric workspace as Member or Contributor
+
+# enable_fabric_data_agent  = true
+# fabric_data_agent_mcp_url = "https://<your-fabric-data-agent-mcp-url>"
