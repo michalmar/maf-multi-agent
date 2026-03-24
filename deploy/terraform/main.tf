@@ -72,6 +72,16 @@ resource "azurerm_role_assignment" "ai_developer" {
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
+# Grant Contributor on the Fabric capacity resource (for status check + resume)
+# Scoped to the single capacity resource — NOT the subscription or resource group.
+# Needed actions: Microsoft.Fabric/capacities/read, .../resume/action
+resource "azurerm_role_assignment" "fabric_capacity_contributor" {
+  count                = var.fabric_capacity_resource_id != "" ? 1 : 0
+  scope                = var.fabric_capacity_resource_id
+  role_definition_name = "Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
 # ── Fabric Data Agent — Service Principal ─────────────────────
 # Creates an Entra ID app registration + SP with Power BI API
 # permissions required by Fabric Data Agent MCP.
