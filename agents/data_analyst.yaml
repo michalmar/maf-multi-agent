@@ -1,11 +1,12 @@
 # Data Analyst specialist agent
-# Delegates analytical queries and data tasks to the Foundry Prompt Agent
+# Calls the Fabric Data Agent MCP endpoint directly with service principal auth
 
 name: data_analyst_tool
 display_name: Data Analyst
 avatar: 📊
 role: Data Analyst
-model: gpt-4.1 (Foundry)
+model: Fabric Data Agent (MCP)
+type: mcp
 
 description: >
   Delegate a data analysis task to the data analyst specialist agent.
@@ -16,4 +17,11 @@ task_description: >
   A detailed data analysis request including the data source, specific
   questions to answer, metrics to compute, and desired output format.
 
-foundry_agent_name: DataAgent
+mcp_url_env: FABRIC_DATA_AGENT_MCP_URL
+mcp_tool_name: fabric-data-agent
+mcp_auth:
+  type: service_principal
+  tenant_id_env: FABRIC_SP_TENANT_ID
+  client_id_env: FABRIC_SP_CLIENT_ID
+  client_secret_env: FABRIC_SP_CLIENT_SECRET
+  scope: https://api.fabric.microsoft.com/.default

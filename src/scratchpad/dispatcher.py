@@ -14,6 +14,7 @@ from src.agent_loader import AgentDefinition, parse_agent_yaml, DEFAULT_AGENTS_D
 from src.config import load_config
 from src.events import EventCallback
 from src.foundry_client import run_foundry_agent
+from src.fabric_mcp_client import run_fabric_mcp
 from src.scratchpad.taskboard import TaskBoard
 from src.scratchpad.shared_document import SharedDocument
 
@@ -59,18 +60,33 @@ Your assigned tasks:
 
 Please provide detailed recommendations for each task. Be specific with names, prices, times, and practical details."""
 
-        # Call the Foundry agent in a worker thread so the event loop stays free
+        # Call the agent in a worker thread so the event loop stays free
         config = load_config()
         t0 = time.perf_counter()
         try:
-            response = await asyncio.to_thread(
-                run_foundry_agent,
-                project_endpoint=config.project_endpoint,
-                agent_name=agent_def.foundry_agent_name,
-                task=full_prompt,
-                event_callback=event_callback,
-                source_name=agent_def.name,
-            )
+            if agent_def.agent_type == "mcp":
+                auth = agent_def.mcp_auth
+                response = await asyncio.to_thread(
+                    run_fabric_mcp,
+                    mcp_url_env=agent_def.mcp_url_env,
+                    mcp_tool_name=agent_def.mcp_tool_name,
+                    tenant_id_env=auth.tenant_id_env,
+                    client_id_env=auth.client_id_env,
+                    client_secret_env=auth.client_secret_env,
+                    scope=auth.scope,
+                    task=full_prompt,
+                    event_callback=event_callback,
+                    source_name=agent_def.name,
+                )
+            else:
+                response = await asyncio.to_thread(
+                    run_foundry_agent,
+                    project_endpoint=config.project_endpoint,
+                    agent_name=agent_def.foundry_agent_name,
+                    task=full_prompt,
+                    event_callback=event_callback,
+                    source_name=agent_def.name,
+                )
         except Exception as e:
             logger.error("❌ Dispatch to %s failed: %s", display, e)
             return f"Error: specialist {display} failed: {e}"

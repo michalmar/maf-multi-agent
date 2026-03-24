@@ -1,6 +1,6 @@
 # MAF & Foundry Agent Orchestration
 
-A multi-agent travel planning system that combines **Microsoft Agent Framework (MAF)** as the orchestrator with **Azure AI Foundry** specialist agents. Features a real-time web UI with SSE event streaming.
+A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the orchestrator with **Azure AI Foundry** specialist agents and **Fabric Data Agent** via MCP. Features a real-time web UI with SSE event streaming.
 
 ![app](docs/app.png)
 
@@ -9,7 +9,7 @@ A multi-agent travel planning system that combines **Microsoft Agent Framework (
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Web UI (React)                    │
-│        Vite · Tailwind CSS · Framer Motion          │
+│          Next.js · Tailwind CSS · SSE               │
 └──────────────────────┬──────────────────────────────┘
                        │ SSE / REST
 ┌──────────────────────▼──────────────────────────────┐
@@ -22,14 +22,25 @@ A multi-agent travel planning system that combines **Microsoft Agent Framework (
 │          MAF Orchestrator (Responses API)            │
 │    Scratchpad: TaskBoard + SharedDocument            │
 │    Delegates tasks via FunctionTool per agent        │
-└───────┬──────────────┬──────────────┬───────────────┘
-        │              │              │
-   ┌────▼────┐   ┌────▼────┐   ┌────▼────┐
-   │ ✈️ Flight│   │ 🏨 Hotel │   │ 🔍 Web  │
-   │  Agent  │   │  Agent  │   │ Search  │
-   └─────────┘   └─────────┘   └─────────┘
-   Azure AI Foundry Prompt Agents (YAML-defined)
+└──┬──────────┬──────────┬──────────┬─────────────────┘
+   │          │          │          │
+┌──▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼──────────────┐
+│📊Data│ │📚 KB  │ │💻Code │ │🔍 Web            │
+│Analyst│ │ Agent │ │  Agent│ │ Search           │
+└──┬───┘ └───┬───┘ └───┬───┘ └───┬───────────────┘
+   │         │         │         │
+   │     Foundry Responses API   │
+   │     (DefaultAzureCredential)│
+   │                             │
+   ▼                             │
+Fabric Data Agent MCP            │
+(Service Principal auth)         │
+ClientSecretCredential ──► Fabric API
 ```
+
+**Two agent execution paths (YAML-driven):**
+- **`type: foundry`** (default) — delegates to Azure AI Foundry Prompt Agents via Responses API using managed identity
+- **`type: mcp`** — calls Fabric Data Agent MCP endpoint directly via HTTP JSON-RPC with service principal authentication
 
 **Key patterns:**
 - **Scratchpad Memory** — shared `TaskBoard` (progress tracking) and `SharedDocument` (collaborative output) accessible to all agents
@@ -40,8 +51,9 @@ A multi-agent travel planning system that combines **Microsoft Agent Framework (
 
 - Python 3.11+
 - Node.js 18+
-- Azure AI Foundry project with deployed Prompt Agents (`flight-agent-v2`, `hotel-agent-v2`, `WebSearch`)
-- Azure OpenAI deployment (e.g. `gpt-5.1`) for the orchestrator
+- Azure AI Foundry project with deployed Prompt Agents (`OperationsEngineering`, `Coder`, `WebSearch`)
+- Azure OpenAI deployment (e.g. `gpt-5.2`) for the orchestrator
+- *(Optional)* Fabric Data Agent with MCP endpoint + Entra ID service principal for data analysis
 
 ## Setup
 
@@ -51,10 +63,24 @@ Create a `.env` file:
 
 ```env
 PROJECT_ENDPOINT=https://<your-foundry-endpoint>/api/projects/<project>
-AZURE_OPENAI_CHAT_DEPLOYMENT_NAME=gpt-5.1
+AZURE_OPENAI_CHAT_DEPLOYMENT_NAME=gpt-5.2
+AZURE_OPENAI_SUMMARY_DEPLOYMENT_NAME=gpt-4.1-nano
 ```
 
 Authentication uses `DefaultAzureCredential` — ensure you are logged in via `az login`.
+
+#### Fabric Data Agent (optional)
+
+To enable the data analyst agent with Fabric MCP, add:
+
+```env
+FABRIC_DATA_AGENT_MCP_URL=https://api.fabric.microsoft.com/v1/mcp/workspaces/<id>/dataagents/<id>/agent
+FABRIC_SP_TENANT_ID=<entra-tenant-id>
+FABRIC_SP_CLIENT_ID=<service-principal-client-id>
+FABRIC_SP_CLIENT_SECRET=<service-principal-client-secret>
+```
+
+The service principal is provisioned via Terraform (see `deploy/terraform/`) with `enable_fabric_data_agent = true`. Post-apply: grant admin consent for Power BI API permissions and add the SP to your Fabric workspace.
 
 ### 2. Backend
 
@@ -84,16 +110,18 @@ The Next.js frontend rewrites `/api/*` requests to the backend at `http://localh
 ## Project Structure
 
 ```
-agents/              # YAML agent definitions (flights, hotels, websearch)
+agents/              # YAML agent definitions (data_analyst, operations, coder, websearch)
 src/
   api.py             # FastAPI server + SSE streaming
   orchestrator.py    # MAF orchestrator setup
-  agent_loader.py    # YAML agent parser + loader
+  agent_loader.py    # YAML agent parser + loader (routes by type: foundry | mcp)
+  foundry_client.py  # Azure AI Foundry Responses API client
+  fabric_mcp_client.py  # Fabric Data Agent MCP client (SP auth, JSON-RPC)
   events.py          # Event types and callback definitions
   config.py          # Environment configuration
   scratchpad/
     workflow.py      # Main workflow entry point
-    dispatcher.py    # Async dispatch to Foundry agents
+    dispatcher.py    # Async dispatch to Foundry agents and MCP endpoints
     taskboard.py     # Task tracking scratchpad
     shared_document.py  # Collaborative document scratchpad
 frontend/
@@ -102,6 +130,8 @@ frontend/
     globals.css      # Global theme and layout styles
   components/        # Query composer, roster, task board, workspace panels, etc.
   lib/               # Typed models and UI metadata helpers
+deploy/
+  terraform/         # Azure infra: Container App, ACR, managed identity, Fabric SP
 docs/                # PRD and design documents
 tests/               # Backend test suite
 ```

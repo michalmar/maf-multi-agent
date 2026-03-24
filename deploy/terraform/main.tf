@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -68,6 +72,66 @@ resource "azurerm_role_assignment" "ai_developer" {
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
+# ── Fabric Data Agent — Service Principal ─────────────────────
+# Creates an Entra ID app registration + SP with Power BI API
+# permissions required by Fabric Data Agent MCP.
+#
+# Post-apply manual steps:
+#   1. Grant admin consent: Azure Portal → Entra ID → App registrations
+#      → <app> → API permissions → Grant admin consent
+#   2. Add SP to Fabric workspace: Fabric Portal → Workspace settings
+#      → Manage access → Add the SP as Member or Contributor
+
+data "azuread_client_config" "current" {
+  count = var.enable_fabric_data_agent ? 1 : 0
+}
+
+# Look up Power BI Service to resolve delegated permission IDs dynamically
+data "azuread_service_principal" "power_bi" {
+  count     = var.enable_fabric_data_agent ? 1 : 0
+  client_id = "00000009-0000-0000-c000-000000000000" # Power BI Service
+}
+
+resource "azuread_application" "fabric_data_agent" {
+  count        = var.enable_fabric_data_agent ? 1 : 0
+  display_name = "${var.app_name}-fabric-data-agent"
+  owners       = [data.azuread_client_config.current[0].object_id]
+
+  required_resource_access {
+    resource_app_id = "00000009-0000-0000-c000-000000000000" # Power BI Service
+
+    dynamic "resource_access" {
+      for_each = toset([
+        "Workspace.ReadWrite.All",
+        "Item.ReadWrite.All",
+        "Dataset.ReadWrite.All",
+        "DataAgent.Read.All",
+        "DataAgent.Execute.All",
+      ])
+      content {
+        id   = data.azuread_service_principal.power_bi[0].oauth2_permission_scope_ids[resource_access.value]
+        type = "Scope" # Delegated
+      }
+    }
+  }
+}
+
+resource "azuread_service_principal" "fabric_data_agent" {
+  count     = var.enable_fabric_data_agent ? 1 : 0
+  client_id = azuread_application.fabric_data_agent[0].client_id
+  owners    = [data.azuread_client_config.current[0].object_id]
+}
+
+resource "azuread_application_password" "fabric_data_agent" {
+  count          = var.enable_fabric_data_agent ? 1 : 0
+  application_id = azuread_application.fabric_data_agent[0].id
+  display_name   = "fabric-mcp-secret"
+
+  rotate_when_changed = {
+    rotation = "1"
+  }
+}
+
 # ── Container App (starts with hello-world, updated by deploy.sh) ─
 resource "azurerm_container_app" "main" {
   name                         = var.app_name
@@ -83,6 +147,15 @@ resource "azurerm_container_app" "main" {
   registry {
     server   = azurerm_container_registry.main.login_server
     identity = azurerm_user_assigned_identity.main.id
+  }
+
+  # Fabric SP client secret (stored encrypted by Container Apps)
+  dynamic "secret" {
+    for_each = var.enable_fabric_data_agent ? [1] : []
+    content {
+      name  = "fabric-sp-client-secret"
+      value = azuread_application_password.fabric_data_agent[0].value
+    }
   }
 
   template {
@@ -114,6 +187,36 @@ resource "azurerm_container_app" "main" {
       env {
         name  = "ENABLE_INSTRUMENTATION"
         value = "true"
+      }
+
+      # Fabric Data Agent MCP — only injected when enabled
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent ? [1] : []
+        content {
+          name  = "FABRIC_DATA_AGENT_MCP_URL"
+          value = var.fabric_data_agent_mcp_url
+        }
+      }
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent ? [1] : []
+        content {
+          name  = "FABRIC_SP_TENANT_ID"
+          value = data.azuread_client_config.current[0].tenant_id
+        }
+      }
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent ? [1] : []
+        content {
+          name  = "FABRIC_SP_CLIENT_ID"
+          value = azuread_application.fabric_data_agent[0].client_id
+        }
+      }
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent ? [1] : []
+        content {
+          name        = "FABRIC_SP_CLIENT_SECRET"
+          secret_name = "fabric-sp-client-secret"
+        }
       }
     }
   }
