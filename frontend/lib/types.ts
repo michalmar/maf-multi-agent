@@ -62,3 +62,12 @@ export interface AgentEvent {
   timestamp: number;
   event_summary?: string;
 }
+
+export interface FabricStatus {
+  enabled: boolean;
+  state?: string;
+  sku?: string;
+  name?: string;
+  resource_group?: string;
+  error?: string;
+}

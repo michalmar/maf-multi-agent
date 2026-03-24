@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { getAgentIdentity, getStatusTone } from "@/lib/agent-metadata";
-import { AgentDefinition, AgentStatus, RunSource } from "@/lib/types";
+import { AgentDefinition, AgentStatus, FabricStatus, RunSource } from "@/lib/types";
 
 interface AgentRosterProps {
   agents: AgentDefinition[];
@@ -11,9 +11,11 @@ interface AgentRosterProps {
   collapsed: boolean;
   enabledAgents: Set<string>;
   eventCounts: Record<string, number>;
+  fabricStatus: FabricStatus | null;
   highlightedTask: number | null;
   liveMetrics: Array<{ label: string; value: string }>;
   onSelectAgent: (agentName: string | null) => void;
+  onResumeFabric: () => void;
   onToggle: () => void;
   onToggleAgent: (agentName: string) => void;
   running: boolean;
@@ -29,15 +31,80 @@ function statusAnimationClass(status: AgentStatus) {
   return "";
 }
 
+function fabricStatusIndicator(status: FabricStatus | null, collapsed: boolean, onResume: () => void) {
+  if (!status?.enabled) return null;
+
+  const state = status.state ?? "Unknown";
+  const isActive = state === "Active";
+  const isPaused = state === "Paused" || state === "Suspended";
+  const isTransitioning = ["Resuming", "Provisioning", "Scaling", "Preparing"].includes(state);
+
+  const color = isActive ? "#22c55e" : isPaused ? "#ef4444" : isTransitioning ? "#f59e0b" : "#6b7280";
+  const bg = isActive ? "rgba(34,197,94,0.12)" : isPaused ? "rgba(239,68,68,0.12)" : "rgba(245,158,11,0.12)";
+  const label = isActive ? "Active" : state;
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-1" title={`Fabric: ${label} (${status.sku ?? ""})`}>
+        <span
+          className="flex h-5 w-5 items-center justify-center rounded-full text-[10px]"
+          style={{ background: bg, color }}
+        >
+          ⚡
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center gap-2 rounded-md px-2.5 py-1.5"
+      style={{ background: bg }}
+    >
+      <span
+        className="inline-block h-2 w-2 shrink-0 rounded-full"
+        style={{ background: color }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1">
+          <span className="truncate text-[11px] font-semibold" style={{ color }}>
+            Fabric {label}
+          </span>
+          {status.sku && (
+            <span className="text-[10px] text-[var(--text-muted)]">{status.sku}</span>
+          )}
+        </div>
+        {status.name && (
+          <span className="block truncate text-[10px] text-[var(--text-muted)]">{status.name}</span>
+        )}
+      </div>
+      {isPaused && (
+        <button
+          type="button"
+          onClick={onResume}
+          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors hover:brightness-110"
+          style={{ color: "#22c55e", background: "rgba(34,197,94,0.15)" }}
+          title="Resume Fabric capacity"
+        >
+          <Play className="h-3 w-3 fill-current" />
+          Resume
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AgentRoster({
   agents,
   activeAgent,
   collapsed,
   enabledAgents,
   eventCounts,
+  fabricStatus,
   highlightedTask,
   liveMetrics,
   onSelectAgent,
+  onResumeFabric,
   onToggle,
   onToggleAgent,
   running,
@@ -88,6 +155,8 @@ export function AgentRoster({
             </button>
           );
         })}
+
+        {fabricStatusIndicator(fabricStatus, true, onResumeFabric)}
       </div>
     );
   }
@@ -114,6 +183,8 @@ export function AgentRoster({
           </div>
         ))}
       </div>
+
+      {fabricStatusIndicator(fabricStatus, false, onResumeFabric)}
 
       <div className="flex-1 space-y-2 overflow-y-auto">
         {agents.map((agent, index) => {

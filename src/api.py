@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from src.events import AgentEvent, EventType
 from src.agent_loader import list_agent_definitions
+from src.fabric_capacity import get_fabric_capacity_status, resume_fabric_capacity
 
 load_dotenv()
 
@@ -228,6 +229,20 @@ async def get_result(run_id: str):
     if run_id not in _results:
         raise HTTPException(status_code=404, detail="Result not found")
     return _results[run_id]
+
+
+# ── Fabric Capacity Status ────────────────────────────────────
+
+@app.get("/api/fabric/status")
+async def fabric_status():
+    """Check Fabric capacity state (Active, Paused, Suspended, etc.)."""
+    return await get_fabric_capacity_status()
+
+
+@app.post("/api/fabric/resume")
+async def fabric_resume():
+    """Resume a paused/suspended Fabric capacity."""
+    return await resume_fabric_capacity()
 
 
 def setup_logging():

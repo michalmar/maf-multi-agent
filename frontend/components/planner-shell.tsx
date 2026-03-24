@@ -17,6 +17,7 @@ import {
   AgentEvent,
   AgentStatus,
   DocumentVersion,
+  FabricStatus,
   RunSource,
   RunStatus,
   TaskItem,
@@ -170,6 +171,7 @@ export function PlannerShell() {
   const [isMissionHeaderPinned, setIsMissionHeaderPinned] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
+  const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const closeStream = useCallback(() => {
@@ -232,6 +234,45 @@ export function PlannerShell() {
 
     return () => abortController.abort();
   }, [runSource]);
+
+  // Fetch Fabric capacity status on page load
+  useEffect(() => {
+    const abortController = new AbortController();
+
+    async function loadFabricStatus() {
+      try {
+        const resp = await fetch("/api/fabric/status", {
+          signal: abortController.signal,
+          cache: "no-store",
+        });
+        if (resp.ok) {
+          const data = (await resp.json()) as FabricStatus;
+          setFabricStatus(data);
+        }
+      } catch {
+        // Fabric status is optional — silently ignore
+      }
+    }
+
+    void loadFabricStatus();
+    return () => abortController.abort();
+  }, []);
+
+  const handleResumeFabric = useCallback(async () => {
+    try {
+      const resp = await fetch("/api/fabric/resume", { method: "POST" });
+      if (resp.ok) {
+        setFabricStatus((prev) => prev ? { ...prev, state: "Resuming" } : prev);
+        // Re-check status after a delay
+        setTimeout(async () => {
+          try {
+            const check = await fetch("/api/fabric/status", { cache: "no-store" });
+            if (check.ok) setFabricStatus(await check.json());
+          } catch { /* ignore */ }
+        }, 15000);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     return () => closeStream();
@@ -622,9 +663,11 @@ export function PlannerShell() {
           collapsed={sidebarCollapsed}
           enabledAgents={enabledAgents}
           eventCounts={agentEventCounts}
+          fabricStatus={fabricStatus}
           highlightedTask={highlightedTask}
           liveMetrics={liveMetrics}
           onSelectAgent={setActiveAgent}
+          onResumeFabric={handleResumeFabric}
           onToggle={() => setSidebarCollapsed((c) => !c)}
           onToggleAgent={handleToggleAgent}
           running={status === "running"}
