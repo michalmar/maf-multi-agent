@@ -2,7 +2,7 @@ export type ThemeMode = "night" | "daybreak";
 export type RunStatus = "idle" | "running" | "done" | "error";
 export type WorkspaceTab = "activity" | "document" | "result";
 export type AgentStatus = "idle" | "working" | "done" | "error";
-export type RunSource = "live" | "mock";
+export type RunSource = "live" | "mock" | "replay";
 
 export interface AgentDefinition {
   name: string;
@@ -70,4 +70,26 @@ export interface FabricStatus {
   name?: string;
   resource_group?: string;
   error?: string;
+}
+
+export interface HistoryItem {
+  run_id: string;
+  query: string;
+  timestamp: string;
+  status: string;
+  event_count: number;
+  has_result: boolean;
+}
+
+export interface SessionSnapshot {
+  run_id: string;
+  query: string;
+  timestamp: string;
+  status: string;
+  agents: AgentDefinition[];
+  events: AgentEvent[];
+  tasks: TaskItem[];
+  documents: DocumentVersion[];
+  result: string;
+  stream_label: string;
 }

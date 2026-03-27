@@ -6,6 +6,7 @@ import { AlertTriangle, HelpCircle, History, Home, MoonStar, Settings2, SunMediu
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
+import { HistoryPanel } from "@/components/history-panel";
 import { QueryComposer } from "@/components/query-composer";
 import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
@@ -18,8 +19,10 @@ import {
   AgentStatus,
   DocumentVersion,
   FabricStatus,
+  HistoryItem,
   RunSource,
   RunStatus,
+  SessionSnapshot,
   TaskItem,
   ThemeMode,
   WorkspaceTab,
@@ -54,6 +57,10 @@ const RUN_SOURCE_COPY: Record<RunSource, { label: string; description: string }>
   mock: {
     label: "Mock replay",
     description: "Local fixture inspired by a completed maintenance run.",
+  },
+  replay: {
+    label: "Session replay",
+    description: "Viewing a saved session from run history.",
   },
 };
 
@@ -173,6 +180,11 @@ export function PlannerShell() {
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // History / replay state
+  const [sidebarView, setSidebarView] = useState<"agents" | "history">("agents");
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const closeStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -431,6 +443,91 @@ export function PlannerShell() {
     setStreamLabel(scenario.streamLabel);
   }, [closeStream]);
 
+  // ── History / Replay ─────────────────────────────────────────
+
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/history");
+      if (res.ok) {
+        const data = (await res.json()) as HistoryItem[];
+        setHistoryItems(data);
+      }
+    } catch {
+      // silent — history is non-critical
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  // Load history when switching to history tab
+  useEffect(() => {
+    if (sidebarView === "history") {
+      fetchHistory();
+    }
+  }, [sidebarView, fetchHistory]);
+
+  // Refresh history after a run completes
+  useEffect(() => {
+    if (status === "done" && runSource === "live") {
+      fetchHistory();
+    }
+  }, [status, runSource, fetchHistory]);
+
+  const handleLoadReplay = useCallback(
+    async (replayRunId: string) => {
+      closeStream();
+      try {
+        const res = await fetch(`/api/history/${replayRunId}`);
+        if (!res.ok) throw new Error("Failed to load session");
+        const snap = (await res.json()) as SessionSnapshot;
+
+        setRunSource("replay");
+        setStatus("done");
+        setEvents(snap.events);
+        setTasks(snap.tasks);
+        setDocuments(snap.documents);
+        setResult(snap.result);
+        setDraftQuery(snap.query);
+        setError("");
+        setAgents(ensureOrchestratorFirst(snap.agents));
+        setEnabledAgents(new Set(ensureOrchestratorFirst(snap.agents).map((a) => a.name)));
+        setActiveAgent(null);
+        setHighlightedTask(null);
+        setActiveTab("activity");
+        setRunId(snap.run_id);
+        setStreamLabel(snap.stream_label || `Replay of run ${snap.run_id}`);
+        setSidebarView("agents");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load replay");
+      }
+    },
+    [closeStream],
+  );
+
+  const handleDeleteHistory = useCallback(
+    async (deleteRunId: string) => {
+      try {
+        const res = await fetch(`/api/history/${deleteRunId}`, { method: "DELETE" });
+        if (res.ok) {
+          setHistoryItems((prev) => prev.filter((item) => item.run_id !== deleteRunId));
+          if (runId === deleteRunId) {
+            setRunSource("live");
+            setStatus("idle");
+            setEvents([]);
+            setTasks([]);
+            setDocuments([]);
+            setResult("");
+            setRunId(null);
+          }
+        }
+      } catch {
+        // silent
+      }
+    },
+    [runId],
+  );
+
   const rosterAgents = useMemo(() => ensureOrchestratorFirst(agents), [agents]);
 
   const agentEventCounts = useMemo(() => {
@@ -472,11 +569,13 @@ export function PlannerShell() {
           subtitle: "Highlighted across the board",
           body: "Use the graph and activity timeline together to trace which agent touched this task and how the work progressed.",
         }
-      : runSource === "mock"
+      : runSource === "mock" || runSource === "replay"
         ? {
-            title: "Mock replay active",
-            subtitle: "Offline tuning mode",
-            body: "You are viewing a local maintenance replay fixture. Use it to refine spacing, graph density, and workspace behavior without waiting on the backend orchestration loop.",
+            title: runSource === "replay" ? "Session replay active" : "Mock replay active",
+            subtitle: "Offline viewing mode",
+            body: runSource === "replay"
+              ? "You are viewing a saved session replay. Browse the activity feed, documents, and final result from this past run."
+              : "You are viewing a local maintenance replay fixture. Use it to refine spacing, graph density, and workspace behavior without waiting on the backend orchestration loop.",
           }
         : {
             title: "No active focus",
@@ -489,7 +588,7 @@ export function PlannerShell() {
   };
 
   const sourceChipStyle =
-    runSource === "mock"
+    runSource === "mock" || runSource === "replay"
       ? {
           borderColor: "rgba(0, 184, 217, 0.18)",
           background: "rgba(0, 184, 217, 0.08)",
@@ -502,11 +601,11 @@ export function PlannerShell() {
         };
 
   const missionBriefCollapseMode: "idle" | "running" | "settled" | "mock" =
-    runSource === "mock" ? "mock" : status === "running" ? "running" : status === "done" ? "settled" : "idle";
+    runSource === "mock" || runSource === "replay" ? "mock" : status === "running" ? "running" : status === "done" ? "settled" : "idle";
 
   const missionBriefCondensedLabel =
     missionBriefCollapseMode === "mock"
-      ? "Mock replay"
+      ? runSource === "replay" ? "Replay" : "Mock replay"
       : missionBriefCollapseMode === "running"
         ? "Streaming"
         : missionBriefCollapseMode === "settled"
@@ -657,24 +756,55 @@ export function PlannerShell() {
   return (
     <div className="flex min-h-screen">
       <aside className={`sidebar-rail ${sidebarCollapsed ? "sidebar-rail-collapsed" : ""}`}>
-        <AgentRoster
-          activeAgent={activeAgent}
-          agents={rosterAgents}
-          collapsed={sidebarCollapsed}
-          enabledAgents={enabledAgents}
-          eventCounts={agentEventCounts}
-          fabricStatus={fabricStatus}
-          highlightedTask={highlightedTask}
-          liveMetrics={liveMetrics}
-          onSelectAgent={setActiveAgent}
-          onResumeFabric={handleResumeFabric}
-          onToggle={() => setSidebarCollapsed((c) => !c)}
-          onToggleAgent={handleToggleAgent}
-          running={status === "running"}
-          runSource={runSource}
-          selectedAgentSummary={selectedAgentSummary}
-          statusByAgent={agentStatuses}
-        />
+        {!sidebarCollapsed ? (
+          <div className="sidebar-view-tabs">
+            <button
+              type="button"
+              className={`sidebar-view-tab ${sidebarView === "agents" ? "sidebar-view-tab-active" : ""}`}
+              onClick={() => setSidebarView("agents")}
+            >
+              Agents
+            </button>
+            <button
+              type="button"
+              className={`sidebar-view-tab ${sidebarView === "history" ? "sidebar-view-tab-active" : ""}`}
+              onClick={() => setSidebarView("history")}
+            >
+              <History className="h-3.5 w-3.5" />
+              History
+            </button>
+          </div>
+        ) : null}
+
+        {sidebarView === "agents" || sidebarCollapsed ? (
+          <AgentRoster
+            activeAgent={activeAgent}
+            agents={rosterAgents}
+            collapsed={sidebarCollapsed}
+            enabledAgents={enabledAgents}
+            eventCounts={agentEventCounts}
+            fabricStatus={fabricStatus}
+            highlightedTask={highlightedTask}
+            liveMetrics={liveMetrics}
+            onSelectAgent={setActiveAgent}
+            onResumeFabric={handleResumeFabric}
+            onToggle={() => setSidebarCollapsed((c) => !c)}
+            onToggleAgent={handleToggleAgent}
+            running={status === "running"}
+            runSource={runSource}
+            selectedAgentSummary={selectedAgentSummary}
+            statusByAgent={agentStatuses}
+          />
+        ) : (
+          <HistoryPanel
+            collapsed={sidebarCollapsed}
+            items={historyItems}
+            activeRunId={runId}
+            onLoad={handleLoadReplay}
+            onDelete={handleDeleteHistory}
+            loading={historyLoading}
+          />
+        )}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
@@ -715,7 +845,7 @@ export function PlannerShell() {
           collapseMode={missionBriefCollapseMode}
           condensedStateLabel={missionBriefCondensedLabel}
           disabled={status === "running"}
-          isMockActive={runSource === "mock"}
+          isMockActive={runSource === "mock" || runSource === "replay"}
           onLoadMock={handleLoadMock}
           onQueryChange={setDraftQuery}
           onRun={handleRun}
