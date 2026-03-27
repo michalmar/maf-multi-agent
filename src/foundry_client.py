@@ -23,6 +23,9 @@ from src.file_store import store_file, guess_content_type
 
 logger = logging.getLogger(__name__)
 
+# Shared thread pool for agent invocations — avoids per-call ThreadPoolExecutor overhead
+_agent_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="foundry-agent")
+
 
 class FoundryAgentError(RuntimeError):
     """Raised when a Foundry agent run fails (non-retryable)."""
@@ -439,26 +442,25 @@ def run_foundry_agent(
             loop.close()
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_in_thread)
+        future = _agent_pool.submit(_run_in_thread)
 
-            if eq is not None and event_callback:
-                # Bridge events from worker thread to callback while waiting
-                while not future.done():
-                    try:
-                        evt = eq.get(timeout=0.05)
-                        event_callback(evt)
-                    except queue.Empty:
-                        continue
+        if eq is not None and event_callback:
+            # Bridge events from worker thread to callback while waiting
+            while not future.done():
+                try:
+                    evt = eq.get(timeout=0.05)
+                    event_callback(evt)
+                except queue.Empty:
+                    continue
 
-                # Drain remaining events after future completes
-                while not eq.empty():
-                    try:
-                        event_callback(eq.get_nowait())
-                    except queue.Empty:
-                        break
+            # Drain remaining events after future completes
+            while not eq.empty():
+                try:
+                    event_callback(eq.get_nowait())
+                except queue.Empty:
+                    break
 
-            response_text, usage = future.result(timeout=120)
+        response_text, usage = future.result(timeout=120)
     except FoundryAgentError:
         raise
     except Exception as e:
