@@ -30,7 +30,7 @@ _SYSTEM_PROMPT = (
     "You are a concise technical summarizer for a multi-agent orchestration system. "
     "Generate a single short sentence (max 20 words) summarizing the event. "
     "Be specific — mention tool names, agent names, or key decisions. "
-    "Do NOT use quotes or markdown. Reply with only the summary sentence."
+    "Do NOT use quotes or markdown or underscores. Reply with only the summary sentence."
 )
 
 
@@ -61,22 +61,44 @@ def _build_user_prompt(event: AgentEvent) -> str:
 
 
 class SummaryService:
-    """Manages an OpenAI client (via AI Foundry project) for generating event summaries."""
+    """Manages an OpenAI client (via AI Foundry project) for generating event summaries.
+
+    Credentials and project client are stored for reuse to avoid connection pool leaks.
+    """
 
     def __init__(self):
         config = load_config()
         self._deployment = config.azure_openai_summary_deployment_name
         self._project_endpoint = config.project_endpoint
+        self._credential: Optional[DefaultAzureCredential] = None
+        self._project_client: Optional[AIProjectClient] = None
         self._client: Optional[OpenAI] = None
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
-            project_client = AIProjectClient(
+            self._credential = DefaultAzureCredential()
+            self._project_client = AIProjectClient(
                 endpoint=self._project_endpoint,
-                credential=DefaultAzureCredential(),
+                credential=self._credential,
             )
-            self._client = project_client.get_openai_client()
+            self._client = self._project_client.get_openai_client()
         return self._client
+
+    def close(self) -> None:
+        """Release underlying HTTP connections."""
+        if self._project_client is not None:
+            try:
+                self._project_client.close()
+            except Exception:
+                pass
+            self._project_client = None
+        if self._credential is not None:
+            try:
+                self._credential.close()
+            except Exception:
+                pass
+            self._credential = None
+        self._client = None
 
     def generate_summary(self, event: AgentEvent) -> str:
         """Generate a one-sentence summary for an event. Returns empty string on failure."""

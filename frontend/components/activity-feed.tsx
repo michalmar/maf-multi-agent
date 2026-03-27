@@ -102,26 +102,31 @@ function getDisplaySummary(event: AgentEvent): string {
   return summarizeEvent(event);
 }
 
-function dotColorForEvent(event: AgentEvent, agentAccent: string): string {
-  if (event.event_type === "agent_error") return "var(--danger)";
-  if (event.event_type === "workflow_completed" || event.event_type === "agent_completed") return "var(--success)";
-  if (event.event_type === "workflow_started") return "var(--accent)";
-  return agentAccent;
-}
-
 function prettifyData(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
 /* ── Shared sub-components ─────────────────────────── */
 
-function EventTypeIcon({ type }: { type: string }) {
-  const Icon = EVENT_ICONS[type] ?? CircleDot;
+/** Icon displayed on the timeline vertical line as the node marker */
+function TimelineNodeIcon({
+  event,
+  isLive,
+}: {
+  event: AgentEvent;
+  isLive: boolean;
+}) {
+  const Icon = EVENT_ICONS[event.event_type] ?? CircleDot;
+
   return (
-    <span className="tl-icon-wrap" title={EVENT_LABELS[type] || type}>
-      <Icon className="tl-icon" />
+    <span className={`tl-node ${isLive ? "tl-node-pulse" : ""}`}>
+      <Icon className="tl-node-icon" />
     </span>
   );
+}
+
+function isCompletedEvent(type: string) {
+  return type === "agent_completed" || type === "workflow_completed" || type === "task_completed";
 }
 
 function EventDetail({ event }: { event: AgentEvent }) {
@@ -158,6 +163,10 @@ function ExpandableDetail({ event }: { event: AgentEvent }) {
         className="overflow-hidden"
       >
         <div className="tl-detail">
+          <div className="tl-detail-meta">
+            <time className="tl-detail-time">{formatTimestamp(event.timestamp)}</time>
+            <span className="tl-detail-type">{EVENT_LABELS[event.event_type] || event.event_type}</span>
+          </div>
           <EventDetail event={event} />
         </div>
       </motion.div>
@@ -178,7 +187,6 @@ function FeedRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const agent = getAgentIdentity(event.source);
-  const dotColor = dotColorForEvent(event, agent.accent);
 
   const isTaskRelated =
     highlightedTask !== null &&
@@ -195,16 +203,11 @@ function FeedRow({
       transition={{ duration: 0.22, ease: "easeOut" }}
       className={`tl-item ${isTaskRelated ? "tl-item-highlight" : ""}`}
     >
-      <button type="button" className="tl-row" onClick={() => setExpanded((v) => !v)}>
-        <span
-          className={`tl-dot ${isLive ? "tl-dot-pulse" : ""}`}
-          style={{ background: dotColor }}
-        />
-        <time className="tl-time">{formatTimestamp(event.timestamp)}</time>
+      <button type="button" className={`tl-row ${isCompletedEvent(event.event_type) ? "tl-row-done" : ""}`} onClick={() => setExpanded((v) => !v)}>
+        <TimelineNodeIcon event={event} isLive={isLive} />
         <span className="tl-agent" style={{ color: agent.accent, background: agent.soft }}>
           {agent.displayName}
         </span>
-        <EventTypeIcon type={event.event_type} />
         <span className="tl-summary">{getDisplaySummary(event)}</span>
         <ChevronRight className={`tl-chevron ${expanded ? "tl-chevron-open" : ""}`} />
       </button>
@@ -219,17 +222,11 @@ function FeedRow({
 function LaneItem({ event, isLive }: { event: AgentEvent; isLive: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const agent = getAgentIdentity(event.source);
-  const dotColor = dotColorForEvent(event, agent.accent);
 
   return (
     <div className="tl-lane-item">
-      <button type="button" className="tl-lane-row" onClick={() => setExpanded((v) => !v)}>
-        <span
-          className={`tl-dot tl-dot-sm ${isLive ? "tl-dot-pulse" : ""}`}
-          style={{ background: dotColor }}
-        />
-        <time className="tl-time">{formatTimestamp(event.timestamp)}</time>
-        <EventTypeIcon type={event.event_type} />
+      <button type="button" className={`tl-lane-row ${isCompletedEvent(event.event_type) ? "tl-row-done" : ""}`} onClick={() => setExpanded((v) => !v)}>
+        <TimelineNodeIcon event={event} isLive={isLive} />
         <span className="tl-summary">{getDisplaySummary(event)}</span>
         <ChevronRight className={`tl-chevron ${expanded ? "tl-chevron-open" : ""}`} />
       </button>

@@ -40,7 +40,16 @@ def _make_dispatch_func(
     """
 
     async def _dispatch(task_ids: str, message: str) -> str:
-        ids = json.loads(task_ids)
+        # Parse task IDs with error handling for malformed LLM output
+        try:
+            ids = json.loads(task_ids)
+            if not isinstance(ids, list):
+                ids = [ids]
+            ids = [int(x) for x in ids]
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.error("❌ Invalid task_ids '%s': %s", task_ids, e)
+            return f"Error: task_ids must be a JSON array of integers, got: {task_ids}"
+
         display = agent_def.display_name.upper().replace(" ", "-")
 
         logger.info("═" * 60)
@@ -88,7 +97,13 @@ Please provide detailed recommendations for each task. Be specific with names, p
                     source_name=agent_def.name,
                 )
         except Exception as e:
-            logger.error("❌ Dispatch to %s failed: %s", display, e)
+            logger.error("❌ Dispatch to %s failed: %s", display, e, exc_info=True)
+            # Mark tasks as complete so they don't stay in limbo forever
+            for task_id in ids:
+                try:
+                    taskboard.complete_task(task_id)
+                except ValueError:
+                    pass
             return f"Error: specialist {display} failed: {e}"
 
         elapsed = time.perf_counter() - t0

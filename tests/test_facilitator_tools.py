@@ -39,8 +39,8 @@ def test_create_tasks(tools, board):
 
 
 def test_create_tasks_invalid_json(tools):
-    with pytest.raises(json.JSONDecodeError):
-        tools._create_tasks(tasks="not valid json")
+    result = tools._create_tasks(tasks="not valid json")
+    assert "Error:" in result
 
 
 # ── get_plan_status ───────────────────────────────────────────

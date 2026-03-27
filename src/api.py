@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -221,6 +222,14 @@ async def _run_workflow(
             source="orchestrator",
             data={"error": str(e)},
         ))
+        # Save snapshot even on failure so we don't lose debug context
+        try:
+            _save_session_snapshot(
+                run_id, run_dir, query, collected_events or [],
+                "", "", "error",
+            )
+        except Exception:
+            logger.warning("⚠️  Failed to save error snapshot for %s", run_id)
 
     # Sentinel to signal stream end
     await queue.put(None)
@@ -259,8 +268,9 @@ async def stream_events(run_id: str):
                 continue
             yield _event_to_sse(event)
 
-        # Cleanup
+        # Cleanup — free both queues and cached results to prevent memory leaks
         _runs.pop(run_id, None)
+        _results.pop(run_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -423,6 +433,20 @@ def _get_output_dir() -> str:
     return os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
 
 
+# Regex: only allow alphanumeric, hyphens, underscores (no .. or /)
+_SAFE_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _validate_run_id(run_id: str) -> str:
+    """Validate run_id to prevent path traversal. Returns the resolved directory path."""
+    if not _SAFE_RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    resolved = os.path.realpath(os.path.join(_get_output_dir(), run_id))
+    if not resolved.startswith(os.path.realpath(_get_output_dir())):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    return resolved
+
+
 @app.get("/api/history")
 async def list_history():
     """List all saved session snapshots, newest first."""
@@ -432,6 +456,8 @@ async def list_history():
         return items
 
     for entry in sorted(os.listdir(output_dir), reverse=True):
+        if not _SAFE_RUN_ID_RE.match(entry):
+            continue
         session_path = os.path.join(output_dir, entry, "session.json")
         if not os.path.isfile(session_path):
             continue
@@ -455,7 +481,8 @@ async def list_history():
 @app.get("/api/history/{run_id}")
 async def get_history_session(run_id: str):
     """Load a complete session snapshot for replay."""
-    session_path = os.path.join(_get_output_dir(), run_id, "session.json")
+    run_dir = _validate_run_id(run_id)
+    session_path = os.path.join(run_dir, "session.json")
     if not os.path.isfile(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -467,7 +494,7 @@ async def get_history_session(run_id: str):
 async def delete_history_session(run_id: str):
     """Delete a saved session and its output folder."""
     import shutil
-    run_dir = os.path.join(_get_output_dir(), run_id)
+    run_dir = _validate_run_id(run_id)
     if not os.path.isdir(run_dir):
         raise HTTPException(status_code=404, detail="Session not found")
     shutil.rmtree(run_dir)

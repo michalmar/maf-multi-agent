@@ -44,7 +44,13 @@ class FacilitatorTools:
 
     def _create_tasks(self, tasks: str) -> str:
         """Parse JSON task list and create tasks on the TaskBoard."""
-        task_defs = json.loads(tasks)
+        try:
+            task_defs = json.loads(tasks)
+            if not isinstance(task_defs, list):
+                return f"Error: tasks must be a JSON array, got: {type(task_defs).__name__}"
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("❌ Invalid tasks JSON '%s': %s", tasks[:200], e)
+            return f"Error: tasks must be a valid JSON array. Parse error: {e}"
         created = self._taskboard.create_tasks(task_defs)
         result = []
         for t in created:
