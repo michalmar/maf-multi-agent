@@ -12,12 +12,13 @@ from typing import AsyncGenerator
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from src.events import AgentEvent, EventType
 from src.agent_loader import list_agent_definitions
 from src.fabric_capacity import get_fabric_capacity_status, resume_fabric_capacity
+from src.file_store import get_file, rewrite_sandbox_urls, rewrite_sandbox_urls_for_disk, copy_run_files
 
 load_dotenv()
 
@@ -83,11 +84,28 @@ async def get_agents():
 
 
 def _event_to_sse(event: AgentEvent) -> str:
-    """Serialize an AgentEvent to an SSE data line."""
+    """Serialize an AgentEvent to an SSE data line.
+
+    Rewrites ``sandbox:`` URLs in text fields so the frontend can
+    render images via the ``/api/files/`` endpoint.
+    """
+    data = event.data
+
+    # Rewrite sandbox: URLs in text fields destined for the frontend
+    _TEXT_KEYS = ("text", "result", "content")
+    rewritten = False
+    for key in _TEXT_KEYS:
+        val = data.get(key)
+        if isinstance(val, str) and "sandbox:" in val:
+            if not rewritten:
+                data = dict(data)  # shallow copy once
+                rewritten = True
+            data[key] = rewrite_sandbox_urls(val)
+
     payload = {
         "event_type": event.event_type.value,
         "source": event.source,
-        "data": event.data,
+        "data": data,
         "timestamp": event.timestamp,
         "event_summary": event.event_summary,
     }
@@ -131,9 +149,10 @@ async def _run_workflow(run_id: str, query: str, event_callback, selected_agents
             selected_agents=selected_agents,
         )
 
-        # Save outputs
+        # Save outputs to per-run folder: output/{run_id}/
         output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
-        os.makedirs(output_dir, exist_ok=True)
+        run_dir = os.path.join(output_dir, run_id)
+        os.makedirs(run_dir, exist_ok=True)
 
         def _save(filename, title, content):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -143,21 +162,25 @@ async def _run_workflow(run_id: str, query: str, event_callback, selected_agents
                 f"- **Timestamp:** {ts}\n"
                 f"- **Query:** {query}\n\n---\n\n"
             )
-            path = os.path.join(output_dir, f"{run_id}-{filename}.md")
+            rewritten = rewrite_sandbox_urls_for_disk(content) if content else ""
+            path = os.path.join(run_dir, f"{filename}.md")
             with open(path, "w") as f:
-                f.write(header + content + "\n")
+                f.write(header + rewritten + "\n")
             return path
 
-        _save("result", "Travel Plan — Final Result", result_text)
+        _save("result", "Final Result", result_text)
         if document_md:
             _save("document", "Shared Document", document_md)
 
+        # Copy sandbox files into run folder so markdown + images are self-contained
+        copy_run_files(run_dir)
+
         _results[run_id] = {
-            "result": result_text,
-            "document": document_md or "",
+            "result": rewrite_sandbox_urls(result_text) if result_text else "",
+            "document": rewrite_sandbox_urls(document_md) if document_md else "",
         }
 
-        # Send final result event
+        # Send final result event (URL rewriting happens in _event_to_sse)
         await queue.put(AgentEvent(
             event_type=EventType.OUTPUT,
             source="orchestrator",
@@ -229,6 +252,35 @@ async def get_result(run_id: str):
     if run_id not in _results:
         raise HTTPException(status_code=404, detail="Result not found")
     return _results[run_id]
+
+
+# ── Sandbox file serving ──────────────────────────────────────
+
+@app.get("/api/files/{file_key:path}")
+async def serve_file(file_key: str):
+    """Serve a Code Interpreter sandbox file downloaded from Azure.
+
+    The file_key is the URL-encoded sandbox path (e.g., ``%2Fmnt%2Fdata%2Fplot.png``).
+    """
+    import urllib.parse
+
+    decoded_key = urllib.parse.unquote(file_key)
+    # Try both with and without leading slash
+    entry = get_file(f"sandbox:{decoded_key}")
+    if entry is None and not decoded_key.startswith("/"):
+        entry = get_file(f"sandbox:/{decoded_key}")
+    if entry is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    data, content_type = entry
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "Content-Disposition": f"inline",
+        },
+    )
 
 
 # ── Fabric Capacity Status ────────────────────────────────────

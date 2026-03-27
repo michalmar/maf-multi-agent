@@ -3,8 +3,52 @@
 import { useMemo, useState } from "react";
 import { Check, Copy, Download, FileText, GitCompare, Radio, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ActivityFeed } from "@/components/activity-feed";
 import { AgentEvent, DocumentVersion, RunStatus, WorkspaceTab } from "@/lib/types";
+
+/* ── Custom ReactMarkdown renderers ───────────────── */
+
+function SandboxImage({ src, alt, ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) {
+  const [expanded, setExpanded] = useState(false);
+  const imgSrc = typeof src === "string" ? src : undefined;
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imgSrc}
+        alt={alt ?? "Agent generated image"}
+        loading="lazy"
+        onClick={() => setExpanded(true)}
+        className="sandbox-image"
+        {...rest}
+      />
+      {expanded && imgSrc ? (
+        <div className="sandbox-lightbox" onClick={() => setExpanded(false)}>
+          <div className="sandbox-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imgSrc} alt={alt ?? "Agent generated image"} className="sandbox-lightbox-img" />
+            <div className="sandbox-lightbox-actions">
+              {alt ? <span className="sandbox-lightbox-caption">{alt}</span> : null}
+              <a href={imgSrc} target="_blank" rel="noopener noreferrer" className="secondary-button">
+                <Download className="h-4 w-4" /> Open full size
+              </a>
+              <button type="button" className="secondary-button" onClick={() => setExpanded(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+const markdownComponents: Components = {
+  img: (props) => <SandboxImage {...props} />,
+};
 
 interface WorkspacePanelsProps {
   activeAgent: string | null;
@@ -224,9 +268,11 @@ export function WorkspacePanels({
                     ))}
                   </div>
                 ) : (
-                  <pre className="whitespace-pre-wrap p-6 text-sm leading-7 text-[var(--text-secondary)]">
-                    {currentDocument.content}
-                  </pre>
+                  <div className="prose-report max-w-none px-6 py-6">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {currentDocument.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
               </div>
             ) : (
@@ -258,7 +304,7 @@ export function WorkspacePanels({
             {result ? (
                <div className="workspace-surface px-6 py-6">
                  <div className="prose-report max-w-none">
-                   <ReactMarkdown>{result}</ReactMarkdown>
+                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{result}</ReactMarkdown>
                  </div>
               </div>
             ) : (
