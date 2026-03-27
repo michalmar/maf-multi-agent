@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Network } from "lucide-react";
+import { ChevronDown, Network, Circle, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { getAgentIdentity, getStatusTone } from "@/lib/agent-metadata";
 import { AgentDefinition, AgentStatus } from "@/lib/types";
 
@@ -23,8 +23,8 @@ interface NodeLayout {
 
 const ORCHESTRATOR_WIDTH = 248;
 const NODE_WIDTH = 198;
-const NODE_HEIGHT = 108;
-const CANVAS_HEIGHT = 332;
+const NODE_HEIGHT = 90;
+const CANVAS_HEIGHT = 310;
 
 function buildChildLayouts(count: number, canvasWidth: number) {
   if (count === 0) {
@@ -45,13 +45,33 @@ function buildChildLayouts(count: number, canvasWidth: number) {
 
 function connectorPath(master: NodeLayout, child: NodeLayout) {
   const masterX = master.left + master.width / 2;
-  const masterY = master.top + NODE_HEIGHT - 8;
+  const masterY = master.top + NODE_HEIGHT;
   const childX = child.left + child.width / 2;
-  const childY = child.top + 10;
-  const midY = masterY + (childY - masterY) * 0.52;
+  const childY = child.top;
+  const midY = Math.round(masterY + (childY - masterY) / 2);
+  const r = 8;
 
-  return `M ${masterX} ${masterY} C ${masterX} ${midY}, ${childX} ${midY - 14}, ${childX} ${childY}`;
+  if (Math.abs(masterX - childX) < 2) {
+    return `M ${masterX} ${masterY} L ${masterX} ${childY}`;
+  }
+
+  const dx = childX > masterX ? 1 : -1;
+  return [
+    `M ${masterX} ${masterY}`,
+    `L ${masterX} ${midY - r}`,
+    `Q ${masterX} ${midY} ${masterX + dx * r} ${midY}`,
+    `L ${childX - dx * r} ${midY}`,
+    `Q ${childX} ${midY} ${childX} ${midY + r}`,
+    `L ${childX} ${childY}`,
+  ].join(" ");
 }
+
+const STATUS_ICONS: Record<string, typeof Circle> = {
+  idle: Circle,
+  working: Loader2,
+  done: CheckCircle2,
+  error: AlertTriangle,
+};
 
 export function AgentRosterGraph({
   agents,
@@ -82,8 +102,6 @@ export function AgentRosterGraph({
       children: buildChildLayouts(specialists.length, canvasWidth),
     };
   }, [specialists.length]);
-
-  const maxEvents = Math.max(...Object.values(eventCounts), 1);
 
   const workingCount = Object.values(statusByAgent).filter((s) => s === "working").length;
   const doneCount = Object.values(statusByAgent).filter((s) => s === "done").length;
@@ -143,6 +161,13 @@ export function AgentRosterGraph({
                   fill="none"
                   aria-hidden="true"
                 >
+                  {/* Grid pattern */}
+                  <defs>
+                    <pattern id="graph-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                      <path d="M 20 0 L 0 0 0 20" fill="none" className="graph-gridline" />
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#graph-grid)" />
                   {specialists.map((agent, index) => {
                     const status = statusByAgent[agent.name] ?? "idle";
                     const statusTone = getStatusTone(status);
@@ -180,10 +205,6 @@ export function AgentRosterGraph({
                     eventCount={eventCounts[orchestrator.name] ?? 0}
                     left={graph.master.left}
                     onSelectAgent={onSelectAgent}
-                    progress={Math.round(
-                      ((eventCounts[orchestrator.name] ?? 0) / maxEvents) *
-                        100,
-                    )}
                     status={statusByAgent[orchestrator.name] ?? "idle"}
                     top={graph.master.top}
                     width={graph.master.width}
@@ -198,9 +219,6 @@ export function AgentRosterGraph({
                     eventCount={eventCounts[agent.name] ?? 0}
                     left={graph.children[index].left}
                     onSelectAgent={onSelectAgent}
-                    progress={Math.round(
-                      ((eventCounts[agent.name] ?? 0) / maxEvents) * 100,
-                    )}
                     status={statusByAgent[agent.name] ?? "idle"}
                     top={graph.children[index].top}
                     width={graph.children[index].width}
@@ -221,7 +239,6 @@ interface GraphNodeProps {
   eventCount: number;
   left: number;
   onSelectAgent: (agentName: string | null) => void;
-  progress: number;
   status: AgentStatus;
   top: number;
   width: number;
@@ -233,13 +250,13 @@ function GraphNode({
   eventCount,
   left,
   onSelectAgent,
-  progress,
   status,
   top,
   width,
 }: GraphNodeProps) {
   const identity = getAgentIdentity(agent);
   const statusTone = getStatusTone(status);
+  const StatusIcon = STATUS_ICONS[status] ?? Circle;
 
   return (
     <motion.button
@@ -258,7 +275,7 @@ function GraphNode({
         boxShadow: active ? `0 0 0 1px ${identity.accent}` : undefined,
       }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 text-left">
           <div className="flex items-center gap-2">
             <span
@@ -281,34 +298,17 @@ function GraphNode({
           </div>
         </div>
 
-        <span
-          className="rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
-          style={{
-            color: statusTone.color,
-            background: statusTone.background,
-          }}
-        >
-          {statusTone.label}
-        </span>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <div className="graph-meter flex-1">
-          <span
-            className={`graph-meter-bar ${status === "working" ? "graph-meter-bar-live" : ""}`}
-            style={{
-              width: `${Math.max(progress, 10)}%`,
-              background: statusTone.color,
-            }}
-          />
-        </div>
-        <div className="text-right">
-          <div className="font-mono text-base text-[var(--text-primary)]">
+        <div className="flex items-center gap-2">
+          <span className="graph-event-count font-mono text-[var(--text-muted)]">
             {eventCount}
-          </div>
-          <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">
-            events
-          </div>
+          </span>
+          <span
+            className="graph-status-icon"
+            style={{ color: statusTone.color }}
+            title={statusTone.label}
+          >
+            <StatusIcon className={`h-3.5 w-3.5 ${status === "working" ? "animate-spin" : ""}`} />
+          </span>
         </div>
       </div>
     </motion.button>

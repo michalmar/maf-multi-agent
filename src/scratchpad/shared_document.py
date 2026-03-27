@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 from collections import defaultdict
 import logging
+import threading
 
 from src.events import AgentEvent, EventCallback, EventType
 
@@ -34,6 +35,7 @@ class SharedDocument:
         self._version: int = 0
         self._history: list[dict] = []  # version history for UI
         self._raw_contributions: str | None = None  # snapshot before first consolidation
+        self._lock = threading.Lock()
         self._event_callback = event_callback
 
     @property
@@ -58,23 +60,25 @@ class SharedDocument:
             )
 
         entry = SlotEntry(agent=agent, content=content)
-        self._slots[day][time_slot].append(entry)
-        self._version += 1
-        self._history.append(
-            {
-                "version": self._version,
-                "author": agent,
-                "action": "write",
-                "day": day,
-                "time_slot": time_slot,
-            }
-        )
+        with self._lock:
+            self._slots[day][time_slot].append(entry)
+            self._version += 1
+            version = self._version
+            self._history.append(
+                {
+                    "version": version,
+                    "author": agent,
+                    "action": "write",
+                    "day": day,
+                    "time_slot": time_slot,
+                }
+            )
         logger.info(
             "📝 SharedDocument: [%s] wrote to day=%d slot=%s (v%d)",
             agent,
             day,
             time_slot,
-            self._version,
+            version,
         )
         self._emit_update()
 
@@ -88,39 +92,43 @@ class SharedDocument:
         """Replace all entries in a slot with a single consolidated version.
         Used by the Facilitator to merge multiple specialist contributions.
         """
-        # Snapshot raw agent contributions before the first consolidation
-        if self._raw_contributions is None:
-            self._raw_contributions = self.render(show_agent_tags=True)
         if time_slot not in VALID_TIME_SLOTS:
             raise ValueError(
                 f"Invalid time_slot '{time_slot}'. Must be one of {VALID_TIME_SLOTS}"
             )
 
-        self._slots[day][time_slot] = [SlotEntry(agent=author, content=content)]
-        self._version += 1
-        self._history.append(
-            {
-                "version": self._version,
-                "author": author,
-                "action": "consolidate",
-                "day": day,
-                "time_slot": time_slot,
-            }
-        )
+        with self._lock:
+            # Snapshot raw agent contributions before the first consolidation
+            if self._raw_contributions is None:
+                self._raw_contributions = self._render_unlocked(show_agent_tags=True)
+
+            self._slots[day][time_slot] = [SlotEntry(agent=author, content=content)]
+            self._version += 1
+            version = self._version
+            self._history.append(
+                {
+                    "version": version,
+                    "author": author,
+                    "action": "consolidate",
+                    "day": day,
+                    "time_slot": time_slot,
+                }
+            )
         logger.info(
             "🔀 SharedDocument: consolidated day=%d slot=%s (v%d)",
             day,
             time_slot,
-            self._version,
+            version,
         )
         self._emit_update()
 
     def render(self, show_agent_tags: bool = True) -> str:
-        """Render the document as a readable string.
+        """Render the document as a readable string (thread-safe)."""
+        with self._lock:
+            return self._render_unlocked(show_agent_tags)
 
-        If show_agent_tags=True, entries are prefixed with [agent_name].
-        If False, a clean version is returned (for final output to user).
-        """
+    def _render_unlocked(self, show_agent_tags: bool = True) -> str:
+        """Render the document. Caller must hold _lock."""
         if not self._slots:
             return "(empty document)"
 
@@ -149,20 +157,26 @@ class SharedDocument:
 
     @property
     def version(self) -> int:
-        return self._version
+        with self._lock:
+            return self._version
 
     @property
     def history(self) -> list[dict]:
-        return list(self._history)
+        with self._lock:
+            return list(self._history)
 
     def _emit_update(self) -> None:
         if self._event_callback:
+            with self._lock:
+                version = self._version
+                content = self._render_unlocked(show_agent_tags=True)
+                last_history = self._history[-1] if self._history else {}
             self._event_callback(AgentEvent(
                 event_type=EventType.DOCUMENT_UPDATED,
                 source="document",
                 data={
-                    "version": self._version,
-                    "content": self.render(show_agent_tags=True),
-                    "history": self._history[-1] if self._history else {},
+                    "version": version,
+                    "content": content,
+                    "history": last_history,
                 },
             ))

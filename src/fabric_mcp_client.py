@@ -15,6 +15,7 @@ import logging
 import os
 import queue
 import time
+import threading
 from dataclasses import dataclass
 from typing import Optional
 
@@ -42,29 +43,38 @@ class _CachedToken:
 
 # Module-level token cache keyed by (tenant_id, client_id, scope)
 _token_cache: dict[tuple[str, str, str], _CachedToken] = {}
+_token_lock = threading.Lock()
+# Reusable credentials keyed by (tenant_id, client_id) — avoids connection pool leaks
+_credentials: dict[tuple[str, str], ClientSecretCredential] = {}
 
 
 def _get_token(tenant_id: str, client_id: str, client_secret: str, scope: str) -> str:
-    """Acquire a Fabric API token, using cache when possible."""
+    """Acquire a Fabric API token, using cache when possible. Thread-safe."""
     cache_key = (tenant_id, client_id, scope)
-    cached = _token_cache.get(cache_key)
+    with _token_lock:
+        cached = _token_cache.get(cache_key)
+        if cached and cached.expires_at > time.time() + TOKEN_REFRESH_BUFFER_SECONDS:
+            return cached.token
 
-    if cached and cached.expires_at > time.time() + TOKEN_REFRESH_BUFFER_SECONDS:
-        return cached.token
+        # Reuse credential to avoid HTTP connection pool leaks
+        cred_key = (tenant_id, client_id)
+        credential = _credentials.get(cred_key)
+        if credential is None:
+            credential = ClientSecretCredential(
+                tenant_id=tenant_id,
+                client_id=client_id,
+                client_secret=client_secret,
+            )
+            _credentials[cred_key] = credential
 
-    credential = ClientSecretCredential(
-        tenant_id=tenant_id,
-        client_id=client_id,
-        client_secret=client_secret,
-    )
-    token_response = credential.get_token(scope)
+        token_response = credential.get_token(scope)
 
-    _token_cache[cache_key] = _CachedToken(
-        token=token_response.token,
-        expires_at=token_response.expires_on,
-    )
-    logger.info("🔑 Fabric SP token acquired (expires in %.0fs)", token_response.expires_on - time.time())
-    return token_response.token
+        _token_cache[cache_key] = _CachedToken(
+            token=token_response.token,
+            expires_at=token_response.expires_on,
+        )
+        logger.info("🔑 Fabric SP token acquired (expires in %.0fs)", token_response.expires_on - time.time())
+        return token_response.token
 
 
 def _truncate(text: str, max_len: int = 200) -> str:
