@@ -47,6 +47,7 @@ app.add_middleware(
 # In-memory store for active runs
 _runs: dict[str, asyncio.Queue] = {}
 _results: dict[str, dict] = {}
+_streaming: dict[str, bool] = {}  # tracks active SSE consumers to prevent split-stream
 
 
 class RunRequest(BaseModel):
@@ -244,6 +245,15 @@ async def stream_events(run_id: str):
     if run_id not in _runs:
         raise HTTPException(status_code=404, detail="Run not found")
 
+    # Reject duplicate connections — asyncio.Queue is single-consumer;
+    # a second client would steal events from the first.
+    if _streaming.get(run_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Another client is already streaming this run",
+        )
+    _streaming[run_id] = True
+
     async def event_generator() -> AsyncGenerator[str, None]:
         queue = _runs[run_id]
         while True:
@@ -271,6 +281,7 @@ async def stream_events(run_id: str):
         # Cleanup — free both queues and cached results to prevent memory leaks
         _runs.pop(run_id, None)
         _results.pop(run_id, None)
+        _streaming.pop(run_id, None)
 
     return StreamingResponse(
         event_generator(),

@@ -22,9 +22,14 @@ from typing import Optional
 import httpx
 from azure.identity import ClientSecretCredential
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 from src.events import AgentEvent, EventCallback, EventType
 
 logger = logging.getLogger(__name__)
+
+# Shared thread pool for MCP invocations — avoids per-call ThreadPoolExecutor overhead
+_mcp_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="fabric-mcp")
 
 FABRIC_API_SCOPE = "https://api.fabric.microsoft.com/.default"
 TOKEN_REFRESH_BUFFER_SECONDS = 300  # refresh 5 minutes before expiry
@@ -91,6 +96,18 @@ def _resolve_env(env_var_name: str) -> str:
     return value
 
 
+_HTTP_TIMEOUT = 115.0  # 5s buffer before the 120s thread timeout
+_THREAD_TIMEOUT = 120.0
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.NetworkError)),
+    before_sleep=lambda rs: logger.warning(
+        "⚠️  MCP call retry #%d after %s", rs.attempt_number, rs.outcome.exception(),
+    ),
+)
 async def _call_mcp_async(
     mcp_url: str,
     tool_name: str,
@@ -98,7 +115,7 @@ async def _call_mcp_async(
     token: str,
     event_queue: Optional[queue.Queue] = None,
     source_name: str = "",
-    timeout: float = 120.0,
+    timeout: float = _HTTP_TIMEOUT,
 ) -> str:
     """Call a Fabric MCP endpoint using the full MCP Streamable HTTP protocol.
 
@@ -300,25 +317,24 @@ def run_fabric_mcp(
             loop.close()
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_in_thread)
+        future = _mcp_pool.submit(_run_in_thread)
 
-            if eq is not None and event_callback:
-                while not future.done():
-                    try:
-                        evt = eq.get(timeout=0.05)
-                        event_callback(evt)
-                    except queue.Empty:
-                        continue
+        if eq is not None and event_callback:
+            while not future.done():
+                try:
+                    evt = eq.get(timeout=0.05)
+                    event_callback(evt)
+                except queue.Empty:
+                    continue
 
-                # Drain remaining events
-                while not eq.empty():
-                    try:
-                        event_callback(eq.get_nowait())
-                    except queue.Empty:
-                        break
+            # Drain remaining events
+            while not eq.empty():
+                try:
+                    event_callback(eq.get_nowait())
+                except queue.Empty:
+                    break
 
-            response_text = future.result(timeout=120)
+        response_text = future.result(timeout=_THREAD_TIMEOUT)
     except FabricMcpError:
         raise
     except Exception as e:

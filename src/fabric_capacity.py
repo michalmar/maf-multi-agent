@@ -16,6 +16,7 @@ import re
 
 import httpx
 from azure.identity.aio import DefaultAzureCredential
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +71,19 @@ async def get_fabric_capacity_status() -> dict:
         "Content-Type": "application/json",
     }
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.NetworkError)),
+    )
+    async def _get_with_retry(client, url, headers):
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
+            resp = await _get_with_retry(client, url, headers)
             data = resp.json()
     except httpx.HTTPStatusError as e:
         logger.error("Fabric capacity GET failed: %d %s", e.response.status_code, e.response.text[:300])
@@ -123,13 +133,24 @@ async def resume_fabric_capacity() -> dict:
         "Content-Type": "application/json",
     }
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.NetworkError)),
+    )
+    async def _post_with_retry(client, url, headers):
+        resp = await client.post(url, headers=headers)
+        if resp.status_code in (200, 202):
+            return resp
+        resp.raise_for_status()
+        return resp
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, headers=headers)
+            resp = await _post_with_retry(client, url, headers)
             if resp.status_code in (200, 202):
                 logger.info("▶️  Fabric capacity resume initiated")
                 return {"success": True, "message": "Resume initiated"}
-            resp.raise_for_status()
     except httpx.HTTPStatusError as e:
         logger.error("Fabric capacity resume failed: %d %s", e.response.status_code, e.response.text[:300])
         return {"success": False, "error": f"ARM API returned {e.response.status_code}"}

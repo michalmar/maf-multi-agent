@@ -61,7 +61,7 @@ export function QueryComposer({
               <p className="eyebrow">Mission brief</p>
               <h2 className="section-title mt-2">Describe the task for the agent system</h2>
               <p className="section-copy mt-2">
-                Keep the workflow identical while giving the interface a cleaner command surface for live runs, mock replays, and final output review.
+                Describe the task for the multi-agent system. Be specific when it comes to details or problem description.
               </p>
             </div>
 
