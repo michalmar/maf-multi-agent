@@ -16,6 +16,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from src.events import AgentEvent, EventType
+from src.file_store import rewrite_sandbox_urls_for_disk, copy_run_files
 
 
 # Agent display names and emoji prefixes
@@ -103,20 +104,21 @@ DEFAULT_QUERY = "What vibration RMS threshold requires a planned intervention fo
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
 
 
-def _save_markdown(run_id: str, filename: str, title: str, content: str, query: str, mode: str) -> str:
-    """Save content as a markdown file in the output directory."""
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+def _save_markdown(run_dir: str, filename: str, title: str, content: str, query: str, mode: str) -> str:
+    """Save content as a markdown file in the per-run output directory."""
+    os.makedirs(run_dir, exist_ok=True)
     header = (
         f"# {title}\n\n"
-        f"- **Run ID:** `{run_id}`\n"
+        f"- **Run ID:** `{os.path.basename(run_dir)}`\n"
         f"- **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"- **Mode:** {mode}\n"
         f"- **Query:** {query}\n\n"
         f"---\n\n"
     )
-    filepath = os.path.join(OUTPUT_DIR, f"{run_id}-{filename}.md")
+    rewritten = rewrite_sandbox_urls_for_disk(content) if content else ""
+    filepath = os.path.join(run_dir, f"{filename}.md")
     with open(filepath, "w") as f:
-        f.write(header + content + "\n")
+        f.write(header + rewritten + "\n")
     return filepath
 
 
@@ -160,14 +162,20 @@ async def main() -> None:
     print("=" * 60)
     print(result)
 
-    # Save final result
-    result_path = _save_markdown(run_id, "result", "Travel Plan — Final Result", result, query, mode)
+    # Save final result to per-run folder: output/{run_id}/
+    run_dir = os.path.join(OUTPUT_DIR, run_id)
+    result_path = _save_markdown(run_dir, "result", "Final Result", result, query, mode)
     print(f"\n📄 Result saved to: {result_path}")
 
     # Save shared document (scratchpad mode only)
     if document_md:
-        doc_path = _save_markdown(run_id, "document", "Shared Document (Agent Contributions)", document_md, query, mode)
+        doc_path = _save_markdown(run_dir, "document", "Shared Document (Agent Contributions)", document_md, query, mode)
         print(f"📋 Document saved to: {doc_path}")
+
+    # Copy sandbox files into run folder
+    n = copy_run_files(run_dir)
+    if n:
+        print(f"🖼️  Copied {n} sandbox file(s) to {os.path.join(run_dir, 'files')}")
 
 
 if __name__ == "__main__":

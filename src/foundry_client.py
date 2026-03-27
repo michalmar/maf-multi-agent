@@ -19,6 +19,7 @@ from azure.identity.aio import DefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
 
 from src.events import AgentEvent, EventCallback, EventType
+from src.file_store import store_file, guess_content_type
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,236 @@ def _truncate(text: str, max_len: int = 200) -> str:
     if len(text) <= max_len:
         return text
     return text[:max_len] + f"... ({len(text)} chars total)"
+
+
+async def _extract_sandbox_files(openai_client, response, conversation_id: str = "") -> int:
+    """Extract and store Code Interpreter sandbox files from a response.
+
+    Strategies:
+    1. Response output annotations (file_path or container_file_citation)
+    2. Code interpreter call results (image outputs)
+    3. Conversation items with file references (fallback if 1+2 yield nothing)
+
+    Returns the number of files successfully downloaded.
+    """
+    downloaded = 0
+    seen_file_ids: set[str] = set()
+
+    logger.info(
+        "🔍 Sandbox file extraction started | response type=%s, has output=%s",
+        type(response).__name__, hasattr(response, "output"),
+    )
+
+    # ── Strategy 1 & 2: Inspect response.output ──────────────────
+
+    if hasattr(response, "output") and response.output:
+        item_types = [getattr(item, "type", type(item).__name__) for item in response.output]
+        logger.info("🔍 Response output: %d items, types=%s", len(response.output), item_types)
+
+        for item in response.output:
+            item_type = getattr(item, "type", None)
+
+            # Strategy 1: Content with annotations (file_path or container_file_citation)
+            contents = getattr(item, "content", None) or getattr(item, "contents", None) or []
+            if not isinstance(contents, (list, tuple)):
+                contents = [contents]
+
+            for content_part in contents:
+                if content_part is None:
+                    continue
+                downloaded += await _process_annotations(
+                    openai_client, getattr(content_part, "annotations", None) or [], seen_file_ids,
+                )
+
+            # Strategy 2: code_interpreter_call image results
+            if item_type == "code_interpreter_call":
+                call_obj = getattr(item, "code_interpreter_call", None) or item
+                results = getattr(call_obj, "results", None) or getattr(call_obj, "output", None) or []
+                for result in results:
+                    result_type = getattr(result, "type", None)
+                    if result_type == "image":
+                        image_obj = getattr(result, "image", None)
+                        file_id = getattr(image_obj, "file_id", None) if image_obj else None
+                        if file_id and file_id not in seen_file_ids:
+                            sandbox_key = f"sandbox:/mnt/data/code_interpreter_{file_id}.png"
+                            downloaded += await _download_file(
+                                openai_client, file_id, sandbox_key, seen_file_ids,
+                            )
+
+    # ── Strategy 3: Fetch conversation items (fallback) ──────────
+
+    if conversation_id and downloaded == 0:
+        logger.info("🔍 Strategy 3: Fetching conversation items for conv=%s", conversation_id[:24])
+        try:
+            items_resp = await openai_client.conversations.items.list(
+                conversation_id=conversation_id,
+            )
+            items_list = []
+            if hasattr(items_resp, "__aiter__"):
+                async for ci in items_resp:
+                    items_list.append(ci)
+            elif hasattr(items_resp, "data"):
+                items_list = items_resp.data
+            elif isinstance(items_resp, list):
+                items_list = items_resp
+
+            logger.info("🔍 Conversation items: %d total", len(items_list))
+
+            for ci in items_list:
+                ci_content = getattr(ci, "content", None) or []
+                if not isinstance(ci_content, (list, tuple)):
+                    ci_content = [ci_content]
+
+                for part in ci_content:
+                    if part is None:
+                        continue
+                    # Text parts may have annotations
+                    annotations = getattr(part, "annotations", None)
+                    if annotations is None:
+                        part_text = getattr(part, "text", None)
+                        if part_text and hasattr(part_text, "annotations"):
+                            annotations = part_text.annotations
+                    if annotations:
+                        downloaded += await _process_annotations(
+                            openai_client, annotations, seen_file_ids,
+                        )
+
+                    # Image content parts may have file_id directly
+                    part_type = getattr(part, "type", None)
+                    if part_type == "image_file":
+                        file_id = getattr(part, "file_id", None)
+                        if not file_id:
+                            img_file = getattr(part, "image_file", None)
+                            file_id = getattr(img_file, "file_id", None) if img_file else None
+                        if file_id and file_id not in seen_file_ids:
+                            sandbox_key = f"sandbox:/mnt/data/conv_image_{file_id}.png"
+                            downloaded += await _download_file(
+                                openai_client, file_id, sandbox_key, seen_file_ids,
+                            )
+
+        except Exception as e:
+            logger.warning("⚠️  Conversation items fetch failed: %s", e, exc_info=True)
+
+    logger.info("🔍 Sandbox file extraction done | downloaded=%d", downloaded)
+    return downloaded
+
+
+async def _process_annotations(openai_client, annotations, seen_file_ids: set[str]) -> int:
+    """Process annotations from a content part, downloading any referenced files."""
+    downloaded = 0
+    for ann in annotations:
+        ann_type = getattr(ann, "type", None)
+
+        if ann_type == "container_file_citation":
+            # Code Interpreter container files (the primary case for Foundry agents)
+            container_id = getattr(ann, "container_id", None)
+            file_id = getattr(ann, "file_id", None)
+            filename = getattr(ann, "filename", None)
+            if container_id and file_id and filename:
+                sandbox_key = f"sandbox:/mnt/data/{filename}"
+                downloaded += await _download_container_file(
+                    openai_client, container_id, file_id, sandbox_key, seen_file_ids,
+                )
+            else:
+                logger.debug(
+                    "Skipping container_file_citation: container_id=%s, file_id=%s, filename=%s",
+                    container_id, file_id, filename,
+                )
+
+        elif ann_type == "file_path":
+            # Legacy Assistants API file_path annotations
+            file_path_obj = getattr(ann, "file_path", None)
+            file_id = getattr(file_path_obj, "file_id", None) if file_path_obj else None
+            sandbox_text = getattr(ann, "text", None)
+            if file_id and sandbox_text:
+                downloaded += await _download_file(
+                    openai_client, file_id, sandbox_text, seen_file_ids,
+                )
+        else:
+            logger.debug("Skipping annotation type: %s", ann_type)
+
+    return downloaded
+
+
+async def _download_container_file(
+    openai_client,
+    container_id: str,
+    file_id: str,
+    sandbox_key: str,
+    seen_file_ids: set[str],
+) -> int:
+    """Download a file from a Code Interpreter container. Returns 1 on success."""
+    if file_id in seen_file_ids:
+        return 0
+
+    ct = guess_content_type(sandbox_key)
+
+    # Primary: containers.files.content.retrieve() API
+    try:
+        resp = await openai_client.containers.files.content.retrieve(
+            file_id,
+            container_id=container_id,
+        )
+        data = await _extract_bytes_async(resp)
+        if data and len(data) > 0:
+            store_file(sandbox_key, data, ct)
+            seen_file_ids.add(file_id)
+            logger.info("🖼️  Downloaded container file: %s (%d bytes)", sandbox_key, len(data))
+            return 1
+    except Exception as e:
+        logger.info("Container files API failed for %s: %s — trying files API", file_id, e)
+
+    # Fallback: regular files.content API
+    return await _download_file(openai_client, file_id, sandbox_key, seen_file_ids)
+
+
+async def _download_file(
+    openai_client,
+    file_id: str,
+    sandbox_key: str,
+    seen_file_ids: set[str],
+) -> int:
+    """Download a file via the files API. Returns 1 on success, 0 on failure."""
+    if file_id in seen_file_ids:
+        return 0
+
+    ct = guess_content_type(sandbox_key.replace("sandbox:", ""))
+
+    try:
+        resp = await openai_client.files.content(file_id)
+        data = await _extract_bytes_async(resp)
+        if data and len(data) > 0:
+            store_file(sandbox_key, data, ct)
+            seen_file_ids.add(file_id)
+            logger.info("🖼️  Downloaded file: %s (%d bytes)", sandbox_key, len(data))
+            return 1
+    except Exception as e:
+        logger.debug("files.content failed for %s: %s", file_id, e)
+
+    logger.warning("⚠️  All download methods failed for file_id=%s (%s)", file_id, sandbox_key)
+    return 0
+
+
+async def _extract_bytes_async(resp) -> bytes:
+    """Extract raw bytes from various async SDK response types.
+
+    The Azure OpenAI async SDK returns AsyncContent objects where
+    .read() is a coroutine that must be awaited.
+    """
+    if hasattr(resp, "read"):
+        result = resp.read()
+        # Handle both sync and async .read()
+        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+            return await result
+        return result
+    if hasattr(resp, "content"):
+        content = resp.content
+        if asyncio.iscoroutine(content):
+            return await content
+        return content
+    if isinstance(resp, bytes):
+        return resp
+    return bytes(resp)
 
 
 async def _run_agent_async(
@@ -85,6 +316,7 @@ async def _run_agent_async(
 
             full_text_parts: list[str] = []
             usage = None
+            completed_response = None
             async for event in stream:
                 etype = type(event).__name__
                 if etype == "ResponseTextDeltaEvent":
@@ -96,13 +328,29 @@ async def _run_agent_async(
                         data={"delta": delta},
                     ))
                 elif etype == "ResponseCompletedEvent":
-                    if hasattr(event, 'response') and hasattr(event.response, 'usage') and event.response.usage:
-                        u = event.response.usage
-                        usage = {
-                            "input_tokens": getattr(u, 'input_tokens', 0),
-                            "output_tokens": getattr(u, 'output_tokens', 0),
-                            "total_tokens": getattr(u, 'total_tokens', 0),
-                        }
+                    if hasattr(event, 'response'):
+                        completed_response = event.response
+                        if hasattr(completed_response, 'usage') and completed_response.usage:
+                            u = completed_response.usage
+                            usage = {
+                                "input_tokens": getattr(u, 'input_tokens', 0),
+                                "output_tokens": getattr(u, 'output_tokens', 0),
+                                "total_tokens": getattr(u, 'total_tokens', 0),
+                            }
+                else:
+                    logger.debug("Stream event: %s", etype)
+
+            # Extract Code Interpreter sandbox files before closing the client
+            try:
+                n = await _extract_sandbox_files(
+                    openai_client,
+                    completed_response if completed_response else type("Empty", (), {"output": None})(),
+                    conversation_id=conversation.id,
+                )
+                if n:
+                    logger.info("📎 Extracted %d sandbox file(s) from streaming response", n)
+            except Exception as e:
+                logger.warning("⚠️  Sandbox file extraction failed (streaming): %s", e, exc_info=True)
 
             return "".join(full_text_parts), usage
         else:
@@ -119,6 +367,17 @@ async def _run_agent_async(
                     "output_tokens": getattr(u, 'output_tokens', 0),
                     "total_tokens": getattr(u, 'total_tokens', 0),
                 }
+
+            # Extract Code Interpreter sandbox files before closing the client
+            try:
+                n = await _extract_sandbox_files(
+                    openai_client, response, conversation_id=conversation.id,
+                )
+                if n:
+                    logger.info("📎 Extracted %d sandbox file(s) from response", n)
+            except Exception as e:
+                logger.warning("⚠️  Sandbox file extraction failed: %s", e)
+
             return response.output_text, usage
 
 
