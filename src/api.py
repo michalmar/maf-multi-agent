@@ -119,11 +119,22 @@ async def start_run(req: RunRequest):
     queue: asyncio.Queue = asyncio.Queue()
     _runs[run_id] = queue
 
+    # Collect events for session snapshot (thread-safe list)
+    collected_events: list[dict] = []
+
     # Event callback bridges sync calls into the async queue
     loop = asyncio.get_event_loop()
 
     def event_callback(event: AgentEvent):
         if event.event_type != EventType.AGENT_STREAMING:
+            # Serialize and collect for session snapshot
+            collected_events.append({
+                "event_type": event.event_type.value,
+                "source": event.source,
+                "data": event.data,
+                "timestamp": event.timestamp,
+                "event_summary": event.event_summary,
+            })
             logger.info(
                 "EVENT [%s] source=%s | %s",
                 event.event_type.value,
@@ -133,14 +144,21 @@ async def start_run(req: RunRequest):
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents))
+    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events))
 
     return RunResponse(run_id=run_id)
 
 
-async def _run_workflow(run_id: str, query: str, event_callback, selected_agents: list[str] | None = None):
+async def _run_workflow(
+    run_id: str,
+    query: str,
+    event_callback,
+    selected_agents: list[str] | None = None,
+    collected_events: list[dict] | None = None,
+):
     """Execute the scratchpad workflow and push events to the queue."""
     queue = _runs[run_id]
+    workflow_status = "done"
     try:
         from src.scratchpad.workflow import run_scratchpad_workflow
 
@@ -187,7 +205,16 @@ async def _run_workflow(run_id: str, query: str, event_callback, selected_agents
             data={"text": result_text, "document": document_md or ""},
         ))
 
+        # Save session snapshot for replay
+        _save_session_snapshot(
+            run_id, run_dir, query, collected_events or [],
+            rewrite_sandbox_urls(result_text) if result_text else "",
+            rewrite_sandbox_urls(document_md) if document_md else "",
+            workflow_status,
+        )
+
     except Exception as e:
+        workflow_status = "error"
         logger.exception("Workflow failed for run %s", run_id)
         await queue.put(AgentEvent(
             event_type=EventType.AGENT_ERROR,
@@ -295,6 +322,156 @@ async def fabric_status():
 async def fabric_resume():
     """Resume a paused/suspended Fabric capacity."""
     return await resume_fabric_capacity()
+
+
+# ── Session snapshot & history ─────────────────────────────────
+
+def _save_session_snapshot(
+    run_id: str,
+    run_dir: str,
+    query: str,
+    events: list[dict],
+    result_text: str,
+    document_md: str,
+    status: str,
+) -> None:
+    """Save a complete session snapshot for replay mode."""
+    try:
+        # Derive tasks and documents from collected events
+        tasks: list[dict] = []
+        documents: list[dict] = []
+        agents_seen: dict[str, dict] = {}
+
+        for ev in events:
+            et = ev.get("event_type", "")
+            data = ev.get("data", {})
+
+            if et == "tasks_created" and data.get("tasks"):
+                tasks = data["tasks"]
+
+            if et == "task_completed" and data.get("task_id") is not None:
+                tid = data["task_id"]
+                for t in tasks:
+                    if t.get("id") == tid:
+                        t["finished"] = True
+
+            if et == "document_updated" and data.get("content"):
+                documents.append({
+                    "version": data.get("version", len(documents) + 1),
+                    "content": rewrite_sandbox_urls(data["content"]),
+                    "action": (data.get("history") or {}).get("action", "update"),
+                })
+
+            # Track agents
+            source = ev.get("source", "")
+            if source and source != "orchestrator" and source != "document":
+                if source not in agents_seen:
+                    agents_seen[source] = {"name": source, "display_name": source}
+
+        # Add final document version
+        if document_md:
+            documents.append({"version": "final", "content": document_md, "action": "final"})
+
+        # Rewrite sandbox URLs in all collected event text fields
+        rewritten_events = []
+        for ev in events:
+            ev_copy = dict(ev)
+            data = ev_copy.get("data", {})
+            if isinstance(data, dict):
+                data_copy = dict(data)
+                for key in ("text", "result", "content"):
+                    val = data_copy.get(key)
+                    if isinstance(val, str) and "sandbox:" in val:
+                        data_copy[key] = rewrite_sandbox_urls(val)
+                ev_copy["data"] = data_copy
+            rewritten_events.append(ev_copy)
+
+        # Load agent definitions for the snapshot
+        try:
+            from src.agent_loader import list_agent_definitions
+            agent_defs = [
+                {"name": a.name, "display_name": a.display_name, "avatar": a.avatar,
+                 "role": a.role, "model": a.model, "description": a.description}
+                for a in list_agent_definitions()
+            ]
+        except Exception:
+            agent_defs = list(agents_seen.values())
+
+        snapshot = {
+            "run_id": run_id,
+            "query": query,
+            "timestamp": datetime.now().isoformat(),
+            "status": status,
+            "agents": agent_defs,
+            "events": rewritten_events,
+            "tasks": tasks,
+            "documents": documents,
+            "result": result_text,
+            "stream_label": f"Replay of run {run_id}",
+        }
+
+        path = os.path.join(run_dir, "session.json")
+        with open(path, "w") as f:
+            json.dump(snapshot, f, default=str, indent=2)
+
+        logger.info("📸 Session snapshot saved: %s", path)
+    except Exception as e:
+        logger.warning("⚠️  Failed to save session snapshot for %s: %s", run_id, e)
+
+
+def _get_output_dir() -> str:
+    return os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
+
+
+@app.get("/api/history")
+async def list_history():
+    """List all saved session snapshots, newest first."""
+    output_dir = _get_output_dir()
+    items = []
+    if not os.path.isdir(output_dir):
+        return items
+
+    for entry in sorted(os.listdir(output_dir), reverse=True):
+        session_path = os.path.join(output_dir, entry, "session.json")
+        if not os.path.isfile(session_path):
+            continue
+        try:
+            with open(session_path) as f:
+                snap = json.load(f)
+            items.append({
+                "run_id": snap.get("run_id", entry),
+                "query": snap.get("query", "")[:200],
+                "timestamp": snap.get("timestamp", ""),
+                "status": snap.get("status", "unknown"),
+                "event_count": len(snap.get("events", [])),
+                "has_result": bool(snap.get("result")),
+            })
+        except Exception:
+            continue
+
+    return items
+
+
+@app.get("/api/history/{run_id}")
+async def get_history_session(run_id: str):
+    """Load a complete session snapshot for replay."""
+    session_path = os.path.join(_get_output_dir(), run_id, "session.json")
+    if not os.path.isfile(session_path):
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    with open(session_path) as f:
+        return json.load(f)
+
+
+@app.delete("/api/history/{run_id}")
+async def delete_history_session(run_id: str):
+    """Delete a saved session and its output folder."""
+    import shutil
+    run_dir = os.path.join(_get_output_dir(), run_id)
+    if not os.path.isdir(run_dir):
+        raise HTTPException(status_code=404, detail="Session not found")
+    shutil.rmtree(run_dir)
+    return {"deleted": run_id}
 
 
 def setup_logging():

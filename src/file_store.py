@@ -59,9 +59,38 @@ def store_file(sandbox_path: str, data: bytes, content_type: str = "application/
 
 
 def get_file(sandbox_path: str) -> Optional[tuple[bytes, str]]:
-    """Retrieve stored file bytes and content type. Returns None if not found."""
+    """Retrieve stored file bytes and content type.
+
+    Falls back to disk search if not in memory (enables replay after restart).
+    Searches ``output/sandbox_files/`` and all ``output/*/files/`` directories.
+    """
     with _lock:
-        return _store.get(sandbox_path)
+        entry = _store.get(sandbox_path)
+    if entry:
+        return entry
+
+    # Disk fallback: search persistence dirs for the file
+    disk_name = _disk_key(sandbox_path)
+    output_root = _PERSIST_DIR.parent  # output/
+
+    search_dirs = [_PERSIST_DIR]  # output/sandbox_files/
+    if output_root.is_dir():
+        search_dirs.extend(output_root.glob("*/files"))  # output/{run_id}/files/
+
+    for search_dir in search_dirs:
+        disk_path = search_dir / disk_name
+        if disk_path.is_file():
+            try:
+                data = disk_path.read_bytes()
+                ct = guess_content_type(str(disk_path))
+                with _lock:
+                    _store[sandbox_path] = (data, ct)
+                logger.info("📦 Loaded from disk cache: %s → %s", sandbox_path, disk_path)
+                return (data, ct)
+            except Exception:
+                continue
+
+    return None
 
 
 def has_file(sandbox_path: str) -> bool:

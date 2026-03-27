@@ -110,18 +110,16 @@ The Next.js frontend rewrites `/api/*` requests to the backend at `http://localh
 ## Project Structure
 
 ```
-agents/              # YAML agent definitions (data_analyst, operations, coder, websearch)
+agents/              # YAML agent definitions (flights, hotels, websearch)
 src/
   api.py             # FastAPI server + SSE streaming
   orchestrator.py    # MAF orchestrator setup
-  agent_loader.py    # YAML agent parser + loader (routes by type: foundry | mcp)
-  foundry_client.py  # Azure AI Foundry Responses API client
-  fabric_mcp_client.py  # Fabric Data Agent MCP client (SP auth, JSON-RPC)
+  agent_loader.py    # YAML agent parser + loader
   events.py          # Event types and callback definitions
   config.py          # Environment configuration
   scratchpad/
     workflow.py      # Main workflow entry point
-    dispatcher.py    # Async dispatch to Foundry agents and MCP endpoints
+    dispatcher.py    # Async dispatch to Foundry agents
     taskboard.py     # Task tracking scratchpad
     shared_document.py  # Collaborative document scratchpad
 frontend/
@@ -130,8 +128,6 @@ frontend/
     globals.css      # Global theme and layout styles
   components/        # Query composer, roster, task board, workspace panels, etc.
   lib/               # Typed models and UI metadata helpers
-deploy/
-  terraform/         # Azure infra: Container App, ACR, managed identity, Fabric SP
 docs/                # PRD and design documents
 tests/               # Backend test suite
 ```
