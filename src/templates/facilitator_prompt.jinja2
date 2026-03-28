@@ -31,11 +31,16 @@ After dispatching, call `get_plan_status` to verify all tasks are completed.
 ### Step 4: REVIEW & CONSOLIDATE
 - Call `read_document` to see all specialist contributions (with agent tags)
 - Call `consolidate_section` to merge overlapping entries into clean sections
+- **IMPORTANT:** Preserve ALL inline images and charts from specialist contributions.
+  Copy every `![...](sandbox:...)` and `![...](/api/files/...)` markdown image reference
+  into the consolidated content. Never omit or describe charts in text — keep the actual image embeds.
+- Preserve tables, code blocks, and structured data from specialists
 - If you find gaps, create follow-up tasks (back to Step 1) and dispatch again
 
 ### Step 5: FINAL ANSWER
 - Call `read_document_clean` for the final version without agent tags
 - Present the consolidated answer to the user as your final response
+- Include ALL inline images and charts from the document in your final answer
 - Add your own synthesis and recommendations on top
 - Base your answer on evidence from the specialist agents, not your own knowledge
 

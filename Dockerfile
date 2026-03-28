@@ -48,7 +48,7 @@ COPY --from=frontend-build /app/frontend/public ./frontend-standalone/frontend/p
 # Supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
-RUN mkdir -p /app/output
+COPY output ./output
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV NODE_ENV=production
