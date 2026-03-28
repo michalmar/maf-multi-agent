@@ -8,13 +8,18 @@ role: Software Engineer
 model: gpt-5.2 (Foundry)
 
 description: >
-  Delegate a data analysis task to the data analyst specialist agent and whencoding or code execution task to the coder specialist agent. 
-  Perform higher level data analysis task (as anomaly detection, compex trend correlation and analysis, etc.) and generate charts for better understanding.
-  Use this tool when you need to write, review, debug, or execute code in any programming language, generate scripts, or solve technical problems. 
-  You have access to all needed data.
+  Delegate data analysis, coding, or code execution tasks to the coder specialist agent.
+  Performs higher-level data analysis (anomaly detection, complex trend correlation, etc.)
+  and generates charts as inline images for the shared document.
+  Use this tool when you need to write, review, debug, or execute code, generate scripts,
+  create visualizations, or solve technical problems. The agent has access to all needed data.
 
 task_description: >
-  A detailed coding request including the programming language, desired
-  functionality, input/output expectations, and any constraints or libraries to use.
+  A detailed coding or data analysis request. Include the programming language,
+  desired functionality, input/output expectations, and any constraints.
+  IMPORTANT: When requesting charts or visualizations, specify that the agent must
+  save them as PNG files and embed them inline using markdown image syntax
+  (e.g., ![Chart](sandbox:/mnt/data/chart.png)). All charts must be rendered
+  as actual images, never described in text only.
 
 foundry_agent_name: CoderData

@@ -1678,3 +1678,45 @@ textarea {
   line-height: 1.4;
   max-width: 200px;
 }
+
+/* ── Reasoning effort toggle ──────────────────────────────────── */
+.reasoning-toggle-group {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.reasoning-toggle-button {
+  padding: 3px 10px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reasoning-toggle-button:last-child {
+  border-right: none;
+}
+
+.reasoning-toggle-button:hover:not(:disabled) {
+  color: var(--text-secondary);
+  background: rgba(99, 91, 255, 0.05);
+}
+
+.reasoning-toggle-button-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.reasoning-toggle-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

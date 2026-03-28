@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ChevronDown, FlaskConical, LoaderCircle, Send } from "lucide-react";
 import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 
+export type ReasoningEffort = "high" | "medium" | "low" | "none";
+
 interface QueryComposerProps {
   collapseMode: "idle" | "running" | "settled" | "mock";
   condensedStateLabel: string;
@@ -13,9 +15,18 @@ interface QueryComposerProps {
   onQueryChange: (query: string) => void;
   query: string;
   onRun: (query: string) => void;
+  reasoningEffort: ReasoningEffort;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void;
 }
 
 const MAX_QUERY_LENGTH = 900;
+
+const REASONING_OPTIONS: { value: ReasoningEffort; label: string; hint: string }[] = [
+  { value: "none", label: "None", hint: "No extended reasoning" },
+  { value: "low", label: "Low", hint: "Fast" },
+  { value: "medium", label: "Med", hint: "Balanced" },
+  { value: "high", label: "High", hint: "Best quality" },
+];
 
 export function QueryComposer({
   collapseMode,
@@ -26,6 +37,8 @@ export function QueryComposer({
   onQueryChange,
   query,
   onRun,
+  reasoningEffort,
+  onReasoningEffortChange,
 }: QueryComposerProps) {
   const [isCondensed, setIsCondensed] = useState(false);
 
@@ -61,7 +74,7 @@ export function QueryComposer({
               <p className="eyebrow">Mission brief</p>
               <h2 className="section-title mt-2">Describe the task for the agent system</h2>
               <p className="section-copy mt-2">
-                Describe the task for the multi-agent system. Be specific when it comes to details or problem description.
+                xDescribe the task for the multi-agent system. Be specific when it comes to details or problem description.
               </p>
             </div>
 
@@ -100,15 +113,35 @@ export function QueryComposer({
         ) : (
           <>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-              <textarea
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value.slice(0, MAX_QUERY_LENGTH))}
-                disabled={disabled}
-                rows={4}
-                maxLength={MAX_QUERY_LENGTH}
-                className="field-shell query-shell-textarea min-h-28 w-full resize-y"
-                placeholder="Describe the task for the orchestrator and specialist agents."
-              />
+              <div className="flex min-h-28 w-full flex-col gap-2">
+                <textarea
+                  value={query}
+                  onChange={(event) => onQueryChange(event.target.value.slice(0, MAX_QUERY_LENGTH))}
+                  disabled={disabled}
+                  rows={4}
+                  maxLength={MAX_QUERY_LENGTH}
+                  className="field-shell query-shell-textarea min-h-28 w-full resize-y"
+                  placeholder="Describe the task for the orchestrator and specialist agents."
+                />
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Reasoning</span>
+                  <div className="reasoning-toggle-group">
+                    {REASONING_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        title={opt.hint}
+                        disabled={disabled}
+                        onClick={() => onReasoningEffortChange(opt.value)}
+                        className={`reasoning-toggle-button ${reasoningEffort === opt.value ? "reasoning-toggle-button-active" : ""}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               <div className="flex shrink-0 flex-col gap-2 xl:w-[13.5rem]">
                 <button type="submit" disabled={disabled || !query.trim()} className="action-button w-full">

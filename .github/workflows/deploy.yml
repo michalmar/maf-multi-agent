@@ -1,0 +1,95 @@
+# Deploy to Azure Container Apps
+#
+# Builds the Docker image in ACR (cloud build) and updates the Container App.
+# Uses OIDC federated credentials — no stored secrets for Azure auth.
+#
+# Required GitHub configuration:
+#   Secrets:  AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   Variables: ACR_NAME, APP_NAME, RESOURCE_GROUP
+
+name: Deploy to ACA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Override image tag (default: git SHA)"
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          TAG="${{ inputs.image_tag || github.sha }}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          VERSION=$(grep 'version' pyproject.toml | head -1 | cut -d'"' -f2)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build image in ACR
+        run: |
+          az acr build \
+            --registry ${{ vars.ACR_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image ${{ vars.APP_NAME }}:${{ steps.tag.outputs.tag }} \
+            --image ${{ vars.APP_NAME }}:latest \
+            --build-arg APP_VERSION=${{ steps.tag.outputs.version }} \
+            --build-arg GIT_SHA=${{ steps.tag.outputs.short_sha }} \
+            --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            .
+
+      - name: Deploy to Container App
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          containerAppName: ${{ vars.APP_NAME }}
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          imageToDeploy: ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.APP_NAME }}:${{ steps.tag.outputs.tag }}
+
+      - name: Health check
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ vars.APP_NAME }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "🌐 https://${FQDN}"
+          echo ""
+          # Wait for the new revision to become ready
+          for i in $(seq 1 12); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${FQDN}/api/agents" || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "⏳ Waiting for healthy response... (attempt $i, got HTTP $HTTP_CODE)"
+            sleep 10
+          done
+          echo "⚠️ Health check did not pass within 120s — verify manually"
+          exit 1

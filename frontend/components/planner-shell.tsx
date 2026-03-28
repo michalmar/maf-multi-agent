@@ -7,7 +7,7 @@ import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
 import { HistoryPanel } from "@/components/history-panel";
-import { QueryComposer } from "@/components/query-composer";
+import { QueryComposer, ReasoningEffort } from "@/components/query-composer";
 import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
 import { getAgentIdentity } from "@/lib/agent-metadata";
@@ -179,6 +179,7 @@ export function PlannerShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("low");
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // History / replay state
@@ -377,6 +378,7 @@ export function PlannerShell() {
           body: JSON.stringify({
             query,
             selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
+            reasoning_effort: reasoningEffort,
           }),
         });
 
@@ -419,7 +421,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, handleIncomingEvent, enabledAgents],
+    [closeStream, handleIncomingEvent, enabledAgents, reasoningEffort],
   );
 
   const handleLoadMock = useCallback(() => {
@@ -850,6 +852,8 @@ export function PlannerShell() {
           onQueryChange={setDraftQuery}
           onRun={handleRun}
           query={draftQuery}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={setReasoningEffort}
         />
 
         <AgentRosterGraph

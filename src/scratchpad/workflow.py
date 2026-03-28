@@ -35,6 +35,7 @@ async def run_scratchpad_workflow(
     agents_dir: Optional[str] = None,
     event_callback: EventCallback = None,
     selected_agents: Optional[list[str]] = None,
+    reasoning_effort: Optional[str] = "low",
 ) -> tuple[str, str]:
     """Run the full scratchpad workflow for a user query.
 
@@ -46,6 +47,7 @@ async def run_scratchpad_workflow(
         agents_dir: Directory with agent YAML definitions.
         event_callback: Optional callback for real-time event streaming.
         selected_agents: Optional list of agent names to include. If None, all agents are used.
+        reasoning_effort: Reasoning effort level: "high", "medium", "low", or "none".
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
@@ -110,11 +112,17 @@ async def run_scratchpad_workflow(
     logger.info("   Tools: %s", ", ".join(tool_names))
     logger.info("━" * 60)
 
+    # Build reasoning options based on the requested effort level
+    if reasoning_effort and reasoning_effort != "none":
+        default_options = {"reasoning": {"effort": reasoning_effort, "summary": "auto"}}
+    else:
+        default_options = {}
+
     facilitator = client.as_agent(
         name="facilitator",
         instructions=facilitator_prompt,
         tools=all_tools,
-        default_options={"reasoning": {"effort": "low", "summary": "auto"}},
+        default_options=default_options,
     )
 
     logger.info("━" * 60)
