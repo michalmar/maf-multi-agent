@@ -1720,3 +1720,13 @@ textarea {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Version footer ───────────────────────────────────────────── */
+.version-footer {
+  text-align: center;
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  opacity: 0.6;
+  padding: 8px 0 4px;
+}

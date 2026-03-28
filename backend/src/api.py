@@ -86,6 +86,16 @@ async def get_agents():
     return agents
 
 
+@app.get("/api/version")
+async def get_version():
+    """Return build version info injected at Docker build time."""
+    return {
+        "version": os.getenv("APP_VERSION", "dev"),
+        "git_sha": os.getenv("GIT_SHA", "unknown"),
+        "build_date": os.getenv("BUILD_DATE", "unknown"),
+    }
+
+
 def _event_to_sse(event: AgentEvent) -> str:
     """Serialize an AgentEvent to an SSE data line.
 

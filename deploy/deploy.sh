@@ -38,12 +38,19 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # ── Step 1: Build image in ACR ────────────────────────────────
+APP_VERSION=$(grep 'version' "$REPO_ROOT/backend/pyproject.toml" | head -1 | cut -d'"' -f2)
+GIT_SHA=$(git rev-parse --short HEAD)
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 echo "🔨 Building image in ACR (cloud build)..."
 az acr build \
     --registry "$ACR" \
     --resource-group "$RG" \
-    --image "${APP}:$(git rev-parse --short HEAD)" \
+    --image "${APP}:${GIT_SHA}" \
     --image "${APP}:latest" \
+    --build-arg "APP_VERSION=${APP_VERSION}" \
+    --build-arg "GIT_SHA=${GIT_SHA}" \
+    --build-arg "BUILD_DATE=${BUILD_DATE}" \
     --file Dockerfile \
     "$REPO_ROOT"
 

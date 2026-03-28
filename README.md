@@ -44,7 +44,7 @@ ClientSecretCredential ──► Fabric API
 
 **Key patterns:**
 - **Scratchpad Memory** — shared `TaskBoard` (progress tracking) and `SharedDocument` (collaborative output) accessible to all agents
-- **YAML-driven agents** — sub-agents defined declaratively in `agents/*.yaml`, auto-loaded as MAF `FunctionTool`s
+- **YAML-driven agents** — sub-agents defined declaratively in `backend/agents/*.yaml`, auto-loaded as MAF `FunctionTool`s
 - **Real-time streaming** — events from all agents propagated via SSE to the frontend (async dispatch with `asyncio.to_thread`)
 
 ## Prerequisites
@@ -85,6 +85,8 @@ The service principal is provisioned via Terraform (see `deploy/terraform/`) wit
 ### 2. Backend
 
 ```bash
+cd backend
+
 # Install dependencies (using uv)
 uv sync
 
@@ -110,26 +112,30 @@ The Next.js frontend rewrites `/api/*` requests to the backend at `http://localh
 ## Project Structure
 
 ```
-agents/              # YAML agent definitions (flights, hotels, websearch)
-src/
-  api.py             # FastAPI server + SSE streaming
-  orchestrator.py    # MAF orchestrator setup
-  agent_loader.py    # YAML agent parser + loader
-  events.py          # Event types and callback definitions
-  config.py          # Environment configuration
-  scratchpad/
-    workflow.py      # Main workflow entry point
-    dispatcher.py    # Async dispatch to Foundry agents
-    taskboard.py     # Task tracking scratchpad
-    shared_document.py  # Collaborative document scratchpad
+backend/
+  agents/              # YAML agent definitions
+  src/
+    api.py             # FastAPI server + SSE streaming
+    orchestrator.py    # MAF orchestrator setup
+    agent_loader.py    # YAML agent parser + loader
+    events.py          # Event types and callback definitions
+    config.py          # Environment configuration
+    scratchpad/
+      workflow.py      # Main workflow entry point
+      dispatcher.py    # Async dispatch to Foundry agents
+      taskboard.py     # Task tracking scratchpad
+      shared_document.py  # Collaborative document scratchpad
+  tests/               # Backend test suite
+  pyproject.toml       # Python dependencies
+  uv.lock
 frontend/
   app/
-    page.tsx         # Next.js App Router entry point
-    globals.css      # Global theme and layout styles
-  components/        # Query composer, roster, task board, workspace panels, etc.
-  lib/               # Typed models and UI metadata helpers
-docs/                # PRD and design documents
-tests/               # Backend test suite
+    page.tsx           # Next.js App Router entry point
+    globals.css        # Global theme and layout styles
+  components/          # Query composer, roster, task board, workspace panels, etc.
+  lib/                 # Typed models and UI metadata helpers
+deploy/                # Terraform IaC + deploy script
+docs/                  # PRD and design documents
 ```
 
 ## Usage

@@ -180,6 +180,7 @@ export function PlannerShell() {
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("low");
+  const [versionInfo, setVersionInfo] = useState<{ version: string; git_sha: string; build_date: string } | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // History / replay state
@@ -269,6 +270,14 @@ export function PlannerShell() {
 
     void loadFabricStatus();
     return () => abortController.abort();
+  }, []);
+
+  // Fetch version info on page load
+  useEffect(() => {
+    fetch("/api/version", { cache: "no-store" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setVersionInfo(data); })
+      .catch(() => {});
   }, []);
 
   const handleResumeFabric = useCallback(async () => {
@@ -887,6 +896,14 @@ export function PlannerShell() {
         <p className="sr-only" aria-live="polite">
           {streamLabel}
         </p>
+
+        {versionInfo ? (
+          <footer className="version-footer">
+            v{versionInfo.version}
+            {versionInfo.git_sha !== "unknown" ? ` (${versionInfo.git_sha})` : ""}
+            {versionInfo.build_date !== "unknown" ? ` · ${versionInfo.build_date.split("T")[0]}` : ""}
+          </footer>
+        ) : null}
       </main>
     </div>
   );
