@@ -3,21 +3,32 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  BACKEND,
+  validateRunId,
+  safeFetch,
+  safeJson,
+} from "../../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const BACKEND = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
-  const upstream = await fetch(`${BACKEND}/api/history/${runId}`, {
-    cache: "no-store",
-  });
 
+  const runIdError = validateRunId(runId);
+  if (runIdError) return runIdError;
+
+  const { response, error } = await safeFetch(
+    `${BACKEND}/api/history/${encodeURIComponent(runId)}`,
+    { cache: "no-store" },
+  );
+  if (error) return error;
+
+  const upstream = response!;
   if (!upstream.ok) {
     return NextResponse.json(
       { detail: "Session not found" },
@@ -25,7 +36,9 @@ export async function GET(
     );
   }
 
-  const data = await upstream.json();
+  const { data, error: jsonErr } = await safeJson(upstream);
+  if (jsonErr) return jsonErr;
+
   return NextResponse.json(data, { status: upstream.status });
 }
 
@@ -34,10 +47,17 @@ export async function DELETE(
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
-  const upstream = await fetch(`${BACKEND}/api/history/${runId}`, {
-    method: "DELETE",
-  });
 
+  const runIdError = validateRunId(runId);
+  if (runIdError) return runIdError;
+
+  const { response, error } = await safeFetch(
+    `${BACKEND}/api/history/${encodeURIComponent(runId)}`,
+    { method: "DELETE" },
+  );
+  if (error) return error;
+
+  const upstream = response!;
   if (!upstream.ok) {
     return NextResponse.json(
       { detail: "Delete failed" },
@@ -45,6 +65,8 @@ export async function DELETE(
     );
   }
 
-  const data = await upstream.json();
+  const { data, error: jsonErr } = await safeJson(upstream);
+  if (jsonErr) return jsonErr;
+
   return NextResponse.json(data, { status: upstream.status });
 }

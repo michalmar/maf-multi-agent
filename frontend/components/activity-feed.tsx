@@ -337,12 +337,13 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
           {running ? <span className="live-pill">Streaming</span> : null}
 
           {/* View mode toggle */}
-          <div className="tl-view-toggle">
+          <div className="tl-view-toggle" role="group" aria-label="View mode">
             <button
               type="button"
               className={`tl-view-btn ${viewMode === "timeline" ? "tl-view-btn-active" : ""}`}
               onClick={() => setViewMode("timeline")}
-              title="Timeline view"
+              aria-pressed={viewMode === "timeline"}
+              aria-label="Timeline view"
             >
               <List className="h-3.5 w-3.5" />
             </button>
@@ -350,7 +351,8 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
               type="button"
               className={`tl-view-btn ${viewMode === "swimlanes" ? "tl-view-btn-active" : ""}`}
               onClick={() => setViewMode("swimlanes")}
-              title="Swim-lane view"
+              aria-pressed={viewMode === "swimlanes"}
+              aria-label="Swim-lane view"
             >
               <Columns3 className="h-3.5 w-3.5" />
             </button>
@@ -376,6 +378,7 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
               <button
                 type="button"
                 className={`filter-pill ${typeFilter === null ? "filter-pill-active" : ""}`}
+                aria-pressed={typeFilter === null}
                 onClick={() => setTypeFilter(null)}
               >
                 All events
@@ -385,6 +388,7 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
                   key={type}
                   type="button"
                   className={`filter-pill ${typeFilter === type ? "filter-pill-active" : ""}`}
+                  aria-pressed={typeFilter === type}
                   onClick={() => setTypeFilter(typeFilter === type ? null : type)}
                 >
                   {EVENT_LABELS[type] || type}

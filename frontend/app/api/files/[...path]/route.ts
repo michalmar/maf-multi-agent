@@ -7,39 +7,42 @@
  */
 
 import { NextRequest } from "next/server";
+import { BACKEND, validatePathSegments, safeFetch } from "../../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const BACKEND_ORIGIN = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  const fileKey = path.join("/");
-  const url = `${BACKEND_ORIGIN}/api/files/${fileKey}`;
 
-  try {
-    const upstream = await fetch(url);
+  const pathError = validatePathSegments(path);
+  if (pathError) return pathError;
 
-    if (!upstream.ok) {
-      return new Response(upstream.statusText, { status: upstream.status });
-    }
+  const fileKey = path.map(encodeURIComponent).join("/");
+  const url = `${BACKEND}/api/files/${fileKey}`;
 
-    const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
-    const body = await upstream.arrayBuffer();
+  const { response, error } = await safeFetch(url, undefined, 60_000);
+  if (error) return error;
 
-    return new Response(body, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return new Response(`Backend file fetch failed: ${message}`, { status: 502 });
+  const upstream = response!;
+  if (!upstream.ok) {
+    return new Response(upstream.statusText, { status: upstream.status });
   }
+
+  const contentType =
+    upstream.headers.get("content-type") ?? "application/octet-stream";
+
+  // Stream the response instead of buffering the full arrayBuffer
+  const body = upstream.body;
+
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "private, no-store",
+    },
+  });
 }

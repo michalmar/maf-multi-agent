@@ -125,6 +125,7 @@ export function TaskBoard({ tasks, running, highlightedTask, onSelectTask }: Tas
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: index * 0.03 }}
                   onClick={() => onSelectTask(isActive ? null : task.id)}
+                  aria-pressed={isActive}
                   className={`task-card ${isActive ? "task-card-active" : ""}`}
                   style={{
                     borderColor: task.finished ? "rgba(101, 146, 121, 0.34)" : agent.border,

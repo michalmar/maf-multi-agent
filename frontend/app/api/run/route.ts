@@ -7,21 +7,34 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { BACKEND, safeFetch, safeJson } from "../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
-
 export async function POST(request: NextRequest) {
-  const body = await request.text();
+  let body: string;
+  try {
+    body = await request.text();
+    JSON.parse(body); // validate JSON
+  } catch {
+    return NextResponse.json(
+      { detail: "Request body must be valid JSON" },
+      { status: 400 },
+    );
+  }
 
-  const upstream = await fetch(`${BACKEND}/api/run`, {
+  const { response, error } = await safeFetch(`${BACKEND}/api/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
 
-  const data = await upstream.json();
+  if (error) return error;
+
+  const upstream = response!;
+  const { data, error: jsonErr } = await safeJson(upstream);
+  if (jsonErr) return jsonErr;
+
   return NextResponse.json(data, { status: upstream.status });
 }
