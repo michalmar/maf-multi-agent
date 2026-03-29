@@ -10,8 +10,8 @@ import { HistoryPanel } from "@/components/history-panel";
 import { QueryComposer, ReasoningEffort } from "@/components/query-composer";
 import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
+import { ToastContainer, useToast } from "@/components/toast";
 import { getAgentIdentity } from "@/lib/agent-metadata";
-import { getMaintenanceMockScenario } from "@/lib/mock-scenarios";
 import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 import {
   AgentDefinition,
@@ -184,7 +184,11 @@ export function PlannerShell() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const completedRef = useRef(false); // tracks whether the run completed normally
+  const completedRef = useRef(false);
+  const fabricResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Toast notifications (#13)
+  const { toasts, addToast, dismiss: dismissToast } = useToast();
 
   // History / replay state
   const [sidebarView, setSidebarView] = useState<"agents" | "history">("agents");
@@ -292,19 +296,35 @@ export function PlannerShell() {
       const resp = await fetch("/api/fabric/resume", { method: "POST" });
       if (resp.ok) {
         setFabricStatus((prev) => prev ? { ...prev, state: "Resuming" } : prev);
-        // Re-check status after a delay
-        setTimeout(async () => {
+        addToast("Fabric resume requested. Checking status in 15 seconds…", "info");
+        // Re-check status after a delay (tracked for cleanup)
+        fabricResumeTimerRef.current = setTimeout(async () => {
+          fabricResumeTimerRef.current = null;
           try {
             const check = await fetch("/api/fabric/status", { cache: "no-store" });
-            if (check.ok) setFabricStatus(await check.json());
+            if (check.ok) {
+              const data = await check.json();
+              setFabricStatus(data);
+              addToast("Fabric capacity status updated.", "success");
+            }
           } catch { /* ignore */ }
         }, 15000);
+      } else {
+        addToast("Failed to resume Fabric capacity.", "error");
       }
-    } catch { /* ignore */ }
-  }, []);
+    } catch {
+      addToast("Could not reach the backend to resume Fabric.", "error");
+    }
+  }, [addToast]);
 
   useEffect(() => {
-    return () => closeStream();
+    return () => {
+      closeStream();
+      if (fabricResumeTimerRef.current) {
+        clearTimeout(fabricResumeTimerRef.current);
+        fabricResumeTimerRef.current = null;
+      }
+    };
   }, [closeStream]);
 
   const handleToggleAgent = useCallback((agentName: string) => {
@@ -479,8 +499,10 @@ export function PlannerShell() {
     [closeStream, connectSSE, enabledAgents, reasoningEffort],
   );
 
-  const handleLoadMock = useCallback(() => {
+  const handleLoadMock = useCallback(async () => {
     closeStream();
+    // Lazy-load the large mock fixture to reduce initial bundle size
+    const { getMaintenanceMockScenario } = await import("@/lib/mock-scenarios");
     const scenario = getMaintenanceMockScenario();
 
     setRunSource("mock");
@@ -555,11 +577,14 @@ export function PlannerShell() {
         setRunId(snap.run_id);
         setStreamLabel(snap.stream_label || `Replay of run ${snap.run_id}`);
         setSidebarView("agents");
+        addToast("Session replay loaded.", "success");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load replay");
+        const msg = err instanceof Error ? err.message : "Failed to load replay";
+        setError(msg);
+        addToast(msg, "error");
       }
     },
-    [closeStream],
+    [closeStream, addToast],
   );
 
   const handleDeleteHistory = useCallback(
@@ -568,6 +593,7 @@ export function PlannerShell() {
         const res = await fetch(`/api/history/${deleteRunId}`, { method: "DELETE" });
         if (res.ok) {
           setHistoryItems((prev) => prev.filter((item) => item.run_id !== deleteRunId));
+          addToast("Session deleted.", "success");
           if (runId === deleteRunId) {
             setRunSource("live");
             setStatus("idle");
@@ -577,12 +603,14 @@ export function PlannerShell() {
             setResult("");
             setRunId(null);
           }
+        } else {
+          addToast("Failed to delete session.", "error");
         }
       } catch {
-        // silent
+        addToast("Could not reach backend to delete session.", "error");
       }
     },
-    [runId],
+    [runId, addToast],
   );
 
   const rosterAgents = useMemo(() => ensureOrchestratorFirst(agents), [agents]);
@@ -606,15 +634,18 @@ export function PlannerShell() {
     [activeAgent, rosterAgents],
   );
 
-  const completedTasks = tasks.filter((task) => task.finished).length;
-  const liveMetrics = [
-    { label: "Events", value: String(events.filter((event) => event.event_type !== "agent_streaming").length).padStart(2, "0") },
-    { label: "Tasks", value: `${completedTasks}/${tasks.length || 0}` },
-    { label: "Drafts", value: String(documents.length).padStart(2, "0") },
-    { label: "Elapsed", value: formatElapsed(events) },
-  ];
+  const completedTasks = useMemo(() => tasks.filter((task) => task.finished).length, [tasks]);
+  const liveMetrics = useMemo(
+    () => [
+      { label: "Events", value: String(events.filter((event) => event.event_type !== "agent_streaming").length).padStart(2, "0") },
+      { label: "Tasks", value: `${completedTasks}/${tasks.length || 0}` },
+      { label: "Drafts", value: String(documents.length).padStart(2, "0") },
+      { label: "Elapsed", value: formatElapsed(events) },
+    ],
+    [events, completedTasks, tasks.length, documents.length],
+  );
 
-  const selectedAgentSummary = selectedAgent
+  const selectedAgentSummary = useMemo(() => selectedAgent
     ? {
         title: selectedAgent.displayName,
         subtitle: selectedAgent.role,
@@ -638,13 +669,14 @@ export function PlannerShell() {
             title: "No active focus",
             subtitle: "Selection inspector",
             body: "Select an agent or task to narrow the activity feed and keep context in view while you inspect the run.",
-          };
+          },
+  [selectedAgent, highlightedTask, runSource]);
 
   const toggleTheme = () => {
     setTheme((current) => (current === "night" ? "daybreak" : "night"));
   };
 
-  const sourceChipStyle =
+  const sourceChipStyle = useMemo(() =>
     runSource === "mock" || runSource === "replay"
       ? {
           borderColor: "rgba(0, 184, 217, 0.18)",
@@ -655,7 +687,8 @@ export function PlannerShell() {
           borderColor: "rgba(99, 91, 255, 0.16)",
           background: "rgba(99, 91, 255, 0.08)",
           color: "var(--accent)",
-        };
+        },
+  [runSource]);
 
   const missionBriefCollapseMode: "idle" | "running" | "settled" | "mock" =
     runSource === "mock" || runSource === "replay" ? "mock" : status === "running" ? "running" : status === "done" ? "settled" : "idle";
@@ -879,7 +912,7 @@ export function PlannerShell() {
           {isMissionHeaderPinned ? (
             <div
               className="pointer-events-none fixed top-0 right-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6"
-              style={{ left: sidebarCollapsed ? 56 : 300 }}
+              style={{ left: "var(--sidebar-width)" }}
             >
               <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
             </div>
@@ -957,6 +990,8 @@ export function PlannerShell() {
           </footer>
         ) : null}
       </main>
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
