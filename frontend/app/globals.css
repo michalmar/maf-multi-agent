@@ -469,7 +469,8 @@ textarea {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.field-shell:focus {
+.field-shell:focus,
+.field-shell:focus-visible {
   border-color: rgba(99, 91, 255, 0.34);
   box-shadow:
     0 0 0 4px rgba(99, 91, 255, 0.12),
@@ -1719,6 +1720,23 @@ textarea {
 .reasoning-toggle-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Global focus-visible ring ────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid rgba(99, 91, 255, 0.6);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ── Version footer ───────────────────────────────────────────── */

@@ -182,6 +182,9 @@ export function PlannerShell() {
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("low");
   const [versionInfo, setVersionInfo] = useState<{ version: string; git_sha: string; build_date: string } | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completedRef = useRef(false); // tracks whether the run completed normally
 
   // History / replay state
   const [sidebarView, setSidebarView] = useState<"agents" | "history">("agents");
@@ -189,6 +192,10 @@ export function PlannerShell() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const closeStream = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -361,9 +368,72 @@ export function PlannerShell() {
     }
   }, []);
 
+  const connectSSE = useCallback(
+    (runIdValue: string) => {
+      const sseBase = process.env.NEXT_PUBLIC_BACKEND_API_URL || "";
+      const eventSource = new EventSource(`${sseBase}/api/stream/${runIdValue}`);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        reconnectAttemptRef.current = 0;
+        setStreamLabel("Live stream connected. Events will appear in the activity workspace.");
+        setError("");
+      };
+
+      eventSource.onmessage = (message) => {
+        try {
+          const parsed = JSON.parse(message.data) as AgentEvent | { event_type: "done" };
+          if (isDoneSignal(parsed)) {
+            completedRef.current = true;
+            closeStream();
+            setStatus((previous) => (previous === "error" ? previous : "done"));
+            setStreamLabel("Run closed cleanly. You can launch another mission at any time.");
+            return;
+          }
+          handleIncomingEvent(parsed);
+        } catch {
+          // Ignore unparseable SSE messages
+        }
+      };
+
+      eventSource.onerror = () => {
+        // Close this failed connection
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+
+        // Don't reconnect if the run already completed or was intentionally closed
+        if (completedRef.current) return;
+
+        const MAX_RETRIES = 5;
+        const attempt = reconnectAttemptRef.current;
+
+        if (attempt < MAX_RETRIES) {
+          reconnectAttemptRef.current = attempt + 1;
+          const delay = Math.min(1000 * 2 ** attempt, 16_000);
+          setStreamLabel(`Connection lost. Reconnecting (${attempt + 1}/${MAX_RETRIES})...`);
+
+          reconnectTimerRef.current = setTimeout(() => {
+            reconnectTimerRef.current = null;
+            connectSSE(runIdValue);
+          }, delay);
+        } else {
+          // Exhausted retries
+          setError("The event stream disconnected and could not reconnect after multiple attempts.");
+          setStatus((previous) => (previous === "done" ? previous : "error"));
+          setStreamLabel("Connection lost. Review the captured events or retry the mission.");
+        }
+      };
+    },
+    [closeStream, handleIncomingEvent],
+  );
+
   const handleRun = useCallback(
     async (query: string) => {
       closeStream();
+      completedRef.current = false;
+      reconnectAttemptRef.current = 0;
       setRunSource("live");
       setStatus("running");
       setEvents([]);
@@ -397,32 +467,8 @@ export function PlannerShell() {
 
         const payload = (await response.json()) as { run_id: string };
         setRunId(payload.run_id);
-        setStreamLabel("Live stream connected. Events will appear in the activity workspace.");
 
-        // Connect EventSource directly to the backend to bypass Next.js dev
-        // server response buffering that kills SSE real-time delivery.
-        const sseBase = process.env.NEXT_PUBLIC_BACKEND_API_URL || "";
-        const eventSource = new EventSource(`${sseBase}/api/stream/${payload.run_id}`);
-        eventSourceRef.current = eventSource;
-
-        eventSource.onmessage = (message) => {
-          const parsed = JSON.parse(message.data) as AgentEvent | { event_type: "done" };
-          if (isDoneSignal(parsed)) {
-            closeStream();
-            setStatus((previous) => (previous === "error" ? previous : "done"));
-            setStreamLabel("Run closed cleanly. You can launch another mission at any time.");
-            return;
-          }
-
-          handleIncomingEvent(parsed);
-        };
-
-        eventSource.onerror = () => {
-          closeStream();
-          setError("The event stream disconnected before the backend finished responding.");
-          setStatus((previous) => (previous === "done" ? previous : "error"));
-          setStreamLabel("Connection lost. Review the captured events or retry the mission.");
-        };
+        connectSSE(payload.run_id);
       } catch (runError) {
         closeStream();
         setStatus("error");
@@ -430,7 +476,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, handleIncomingEvent, enabledAgents, reasoningEffort],
+    [closeStream, connectSSE, enabledAgents, reasoningEffort],
   );
 
   const handleLoadMock = useCallback(() => {
@@ -689,6 +735,7 @@ export function PlannerShell() {
                 <button
                   key={item.id}
                   type="button"
+                  disabled={item.id !== "home"}
                   className={`mission-menu-button mission-menu-button-compact ${isActive ? "mission-menu-button-active" : ""}`}
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -708,7 +755,7 @@ export function PlannerShell() {
               type="button"
               onClick={toggleTheme}
               className="secondary-button secondary-button-compact"
-              title={theme === "night" ? "Day mode" : "Night mode"}
+              aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </button>
@@ -739,6 +786,7 @@ export function PlannerShell() {
                   <button
                     key={item.id}
                     type="button"
+                    disabled={item.id !== "home"}
                     className={`mission-menu-button ${isActive ? "mission-menu-button-active" : ""}`}
                     aria-current={isActive ? "page" : undefined}
                   >
@@ -751,7 +799,7 @@ export function PlannerShell() {
               type="button"
               onClick={toggleTheme}
               className="secondary-button secondary-button-compact"
-              title={theme === "night" ? "Day mode" : "Night mode"}
+              aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </button>
@@ -768,9 +816,11 @@ export function PlannerShell() {
     <div className="flex min-h-screen">
       <aside className={`sidebar-rail ${sidebarCollapsed ? "sidebar-rail-collapsed" : ""}`}>
         {!sidebarCollapsed ? (
-          <div className="sidebar-view-tabs">
+          <div className="sidebar-view-tabs" role="tablist" aria-label="Sidebar view">
             <button
               type="button"
+              role="tab"
+              aria-selected={sidebarView === "agents"}
               className={`sidebar-view-tab ${sidebarView === "agents" ? "sidebar-view-tab-active" : ""}`}
               onClick={() => setSidebarView("agents")}
             >
@@ -778,6 +828,8 @@ export function PlannerShell() {
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={sidebarView === "history"}
               className={`sidebar-view-tab ${sidebarView === "history" ? "sidebar-view-tab-active" : ""}`}
               onClick={() => setSidebarView("history")}
             >

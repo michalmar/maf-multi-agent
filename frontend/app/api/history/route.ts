@@ -2,22 +2,14 @@
  * Proxy for GET /api/history — list saved session snapshots.
  */
 
-import { NextResponse } from "next/server";
+import { proxyJsonGet, BACKEND } from "../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
-
 export async function GET() {
-  const upstream = await fetch(`${BACKEND}/api/history`, {
-    cache: "no-store",
+  return proxyJsonGet(`${BACKEND}/api/history`, {
+    fallback: [], // graceful degradation: empty list when backend is down
+    errorDetail: "Failed to fetch history",
   });
-
-  if (!upstream.ok) {
-    return NextResponse.json([], { status: upstream.status });
-  }
-
-  const data = await upstream.json();
-  return NextResponse.json(data, { status: upstream.status });
 }

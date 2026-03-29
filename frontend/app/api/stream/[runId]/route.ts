@@ -8,23 +8,31 @@
  */
 
 import http from "node:http";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { validateRunId, BACKEND } from "../../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const BACKEND_ORIGIN = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
+const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 min for long agent runs
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
-  const url = `${BACKEND_ORIGIN}/api/stream/${runId}`;
+
+  const runIdError = validateRunId(runId);
+  if (runIdError) return runIdError;
+
+  const url = `${BACKEND}/api/stream/${encodeURIComponent(runId)}`;
 
   // Use node:http for true chunk-by-chunk streaming (no internal buffering)
   return new Promise<Response>((resolve) => {
-    const req = http.get(url, { headers: { Accept: "text/event-stream" } }, (res) => {
+    const req = http.get(
+      url,
+      { headers: { Accept: "text/event-stream" }, timeout: UPSTREAM_TIMEOUT_MS },
+      (res) => {
       if (res.statusCode !== 200) {
         // Consume response to free the socket
         res.resume();
@@ -64,6 +72,11 @@ export async function GET(
 
     req.on("error", (err) => {
       resolve(new Response(`Backend connection failed: ${err.message}`, { status: 502 }));
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(new Response("Backend stream timed out", { status: 504 }));
     });
   });
 }

@@ -133,6 +133,7 @@ export function QueryComposer({
                         type="button"
                         title={opt.hint}
                         disabled={disabled}
+                        aria-pressed={reasoningEffort === opt.value}
                         onClick={() => onReasoningEffortChange(opt.value)}
                         className={`reasoning-toggle-button ${reasoningEffort === opt.value ? "reasoning-toggle-button-active" : ""}`}
                       >

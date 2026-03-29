@@ -3,11 +3,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  BACKEND,
+  validateRunId,
+  safeFetch,
+  safeJson,
+} from "../../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const BACKEND = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
 
 export async function GET(
   _request: NextRequest,
@@ -15,10 +19,16 @@ export async function GET(
 ) {
   const { runId } = await params;
 
-  const upstream = await fetch(`${BACKEND}/api/result/${runId}`, {
-    cache: "no-store",
-  });
+  const runIdError = validateRunId(runId);
+  if (runIdError) return runIdError;
 
+  const { response, error } = await safeFetch(
+    `${BACKEND}/api/result/${encodeURIComponent(runId)}`,
+    { cache: "no-store" },
+  );
+  if (error) return error;
+
+  const upstream = response!;
   if (!upstream.ok) {
     return NextResponse.json(
       { detail: "Result not found" },
@@ -26,6 +36,8 @@ export async function GET(
     );
   }
 
-  const data = await upstream.json();
+  const { data, error: jsonErr } = await safeJson(upstream);
+  if (jsonErr) return jsonErr;
+
   return NextResponse.json(data, { status: upstream.status });
 }

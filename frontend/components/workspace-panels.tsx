@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, FileText, GitCompare, Radio, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -14,19 +14,40 @@ function SandboxImage({ src, alt, ...rest }: React.ImgHTMLAttributes<HTMLImageEl
   const [expanded, setExpanded] = useState(false);
   const imgSrc = typeof src === "string" ? src : undefined;
 
+  useEffect(() => {
+    if (!expanded) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [expanded]);
+
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imgSrc}
-        alt={alt ?? "Agent generated image"}
-        loading="lazy"
+      <button
+        type="button"
         onClick={() => setExpanded(true)}
-        className="sandbox-image"
-        {...rest}
-      />
+        className="sandbox-image-trigger"
+        aria-label={`Expand image: ${alt ?? "Agent generated image"}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imgSrc}
+          alt={alt ?? "Agent generated image"}
+          loading="lazy"
+          className="sandbox-image"
+          {...rest}
+        />
+      </button>
       {expanded && imgSrc ? (
-        <div className="sandbox-lightbox" onClick={() => setExpanded(false)}>
+        <div
+          className="sandbox-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={alt ?? "Image preview"}
+          onClick={() => setExpanded(false)}
+        >
           <div className="sandbox-lightbox-inner" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imgSrc} alt={alt ?? "Agent generated image"} className="sandbox-lightbox-img" />
@@ -145,19 +166,27 @@ export function WorkspacePanels({
   }, [currentDocument, previousDocument]);
 
   const copyText = async (value: string, target: "document" | "result") => {
-    await navigator.clipboard.writeText(value);
-    setCopiedTarget(target);
-    window.setTimeout(() => setCopiedTarget((current) => (current === target ? null : current)), 1600);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedTarget(target);
+      window.setTimeout(() => setCopiedTarget((current) => (current === target ? null : current)), 1600);
+    } catch {
+      // Clipboard API may fail in insecure contexts — silently degrade
+    }
   };
 
   const downloadResult = () => {
-    const blob = new Blob([result], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "mission-result.md";
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([result], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "mission-result.md";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Download creation can fail in restricted environments
+    }
   };
 
   return (
@@ -171,7 +200,7 @@ export function WorkspacePanels({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workspace panels">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -179,6 +208,9 @@ export function WorkspacePanels({
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`workspace-panel-${tab.id}`}
                 onClick={() => onTabChange(tab.id)}
                 className={`tab-pill ${active ? "tab-pill-active" : ""}`}
               >
@@ -193,16 +225,18 @@ export function WorkspacePanels({
 
       <div className="mt-4 min-h-[28rem]">
         {activeTab === "activity" ? (
-          <ActivityFeed
+          <div role="tabpanel" id="workspace-panel-activity">
+            <ActivityFeed
             activeAgent={activeAgent}
             events={events}
             highlightedTask={highlightedTask}
             running={running}
           />
+          </div>
         ) : null}
 
         {activeTab === "document" ? (
-          <div className="space-y-5">
+          <div role="tabpanel" id="workspace-panel-document" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 {documents.length > 0 ? (
@@ -282,7 +316,7 @@ export function WorkspacePanels({
         ) : null}
 
         {activeTab === "result" ? (
-          <div className="space-y-5">
+          <div role="tabpanel" id="workspace-panel-result" className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-[var(--text-secondary)]">
                 {status === "done"
