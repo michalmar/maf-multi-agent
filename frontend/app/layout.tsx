@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans, Sora } from "next/font/google";
 import "./globals.css";
@@ -30,6 +30,12 @@ const themeBootstrap = `
     document.documentElement.setAttribute('data-theme', 'daybreak');
   }
 `;
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "Wired Orchestra",

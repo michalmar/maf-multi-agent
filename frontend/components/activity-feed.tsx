@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -305,8 +305,11 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const feedEndRef = useRef<HTMLDivElement>(null);
+  const feedContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledRef = useRef(false);
 
-  const filteredEvents = useMemo(() => {
+   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
       if (event.event_type === "agent_streaming") return false;
       if (activeAgent && event.source !== activeAgent) return false;
@@ -323,6 +326,35 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
     }
     return Array.from(types);
   }, [events]);
+
+  // Auto-scroll: follow new events if user is near the bottom
+  useEffect(() => {
+    if (!running || userScrolledRef.current) return;
+    feedEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [filteredEvents.length, running]);
+
+  // Detect manual scroll to pause auto-scroll
+  useEffect(() => {
+    const container = feedContainerRef.current?.closest(".tl-feed, .space-y-5");
+    if (!container) return;
+    const handleScroll = () => {
+      const el = container as HTMLElement;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      userScrolledRef.current = !nearBottom;
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Reset scroll tracking when a new run starts
+  useEffect(() => {
+    if (running) userScrolledRef.current = false;
+  }, [running]);
+
+  const scrollToLatest = () => {
+    userScrolledRef.current = false;
+    feedEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
 
   return (
     <div className="space-y-5">
@@ -400,26 +432,45 @@ export function ActivityFeed({ events, running, activeAgent, highlightedTask }: 
       </AnimatePresence>
 
       {/* Content */}
-      {filteredEvents.length > 0 ? (
-        viewMode === "timeline" ? (
-          <div className="tl-feed">
-            {filteredEvents.map((event, index) => (
-              <FeedRow
-                key={`${event.timestamp}-${event.source}-${index}`}
-                event={event}
-                highlightedTask={highlightedTask}
-                isLive={running && index === filteredEvents.length - 1}
-              />
-            ))}
-          </div>
+      <div ref={feedContainerRef}>
+        {filteredEvents.length > 0 ? (
+          viewMode === "timeline" ? (
+            <div className="tl-feed">
+              {filteredEvents.map((event, index) => (
+                <FeedRow
+                  key={`${event.timestamp}-${event.source}-${index}`}
+                  event={event}
+                  highlightedTask={highlightedTask}
+                  isLive={running && index === filteredEvents.length - 1}
+                />
+              ))}
+              <div ref={feedEndRef} />
+            </div>
+          ) : (
+            <>
+              <SwimLanes events={filteredEvents} running={running} />
+              <div ref={feedEndRef} />
+            </>
+          )
         ) : (
-          <SwimLanes events={filteredEvents} running={running} />
-        )
-      ) : (
-        <div className="workspace-empty px-5 py-10 text-center text-sm leading-7 text-[var(--text-secondary)]">
-          {running ? "Connected — waiting for the first event." : "Run a mission to populate the activity timeline."}
+          <div className="workspace-empty px-5 py-10 text-center text-sm leading-7 text-[var(--text-secondary)]">
+            {running ? "Connected — waiting for the first event." : "Run a mission to populate the activity timeline."}
+          </div>
+        )}
+      </div>
+
+      {/* Jump to latest button — shown when user scrolled away during streaming */}
+      {running && userScrolledRef.current && filteredEvents.length > 3 ? (
+        <div className="sticky bottom-2 flex justify-center">
+          <button
+            type="button"
+            onClick={scrollToLatest}
+            className="action-button !rounded-full !px-4 !py-2 !text-xs shadow-lg"
+          >
+            ↓ Jump to latest
+          </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
