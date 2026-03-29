@@ -24,7 +24,12 @@ const monoFont = IBM_Plex_Mono({
 const themeBootstrap = `
   try {
     const savedTheme = window.localStorage.getItem('maf-theme');
-    const theme = savedTheme === 'night' ? 'night' : 'daybreak';
+    let theme;
+    if (savedTheme === 'night' || savedTheme === 'daybreak') {
+      theme = savedTheme;
+    } else {
+      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'daybreak';
+    }
     document.documentElement.setAttribute('data-theme', theme);
   } catch (error) {
     document.documentElement.setAttribute('data-theme', 'daybreak');

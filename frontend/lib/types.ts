@@ -4,6 +4,21 @@ export type WorkspaceTab = "activity" | "document" | "result";
 export type AgentStatus = "idle" | "working" | "done" | "error";
 export type RunSource = "live" | "mock" | "replay";
 
+export type EventType =
+  | "workflow_started"
+  | "reasoning"
+  | "tool_decision"
+  | "tasks_created"
+  | "task_completed"
+  | "document_updated"
+  | "agent_started"
+  | "agent_streaming"
+  | "agent_completed"
+  | "agent_error"
+  | "output"
+  | "workflow_completed"
+  | "done";
+
 export interface AgentDefinition {
   name: string;
   display_name: string;
@@ -56,7 +71,7 @@ export interface EventData {
 }
 
 export interface AgentEvent {
-  event_type: string;
+  event_type: EventType | (string & {});
   source: string;
   data: EventData;
   timestamp: number;
@@ -76,7 +91,7 @@ export interface HistoryItem {
   run_id: string;
   query: string;
   timestamp: string;
-  status: string;
+  status: RunStatus | (string & {});
   event_count: number;
   has_result: boolean;
 }
@@ -85,7 +100,7 @@ export interface SessionSnapshot {
   run_id: string;
   query: string;
   timestamp: string;
-  status: string;
+  status: RunStatus | (string & {});
   agents: AgentDefinition[];
   events: AgentEvent[];
   tasks: TaskItem[];

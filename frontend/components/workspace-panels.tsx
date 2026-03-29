@@ -154,8 +154,9 @@ export function WorkspacePanels({
     { id: "result" as const, label: "Result", icon: Sparkles, badge: result ? 1 : 0 },
   ];
 
-  const currentDocumentIndex = selectedDocumentIndex ?? Math.max(documents.length - 1, 0);
-  const currentDocument = documents[currentDocumentIndex];
+  const rawIndex = selectedDocumentIndex ?? Math.max(documents.length - 1, 0);
+  const currentDocumentIndex = Math.min(Math.max(rawIndex, 0), Math.max(documents.length - 1, 0));
+  const currentDocument = documents.length > 0 ? documents[currentDocumentIndex] : undefined;
   const previousDocument = currentDocumentIndex > 0 ? documents[currentDocumentIndex - 1] : null;
 
   const diffLines = useMemo(() => {

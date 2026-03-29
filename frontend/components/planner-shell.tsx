@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, HelpCircle, History, Home, MoonStar, Settings2, SunMedium } from "lucide-react";
+import { AlertTriangle, History, Home, MoonStar, SunMedium } from "lucide-react";
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
@@ -24,11 +24,10 @@ import {
   RunStatus,
   SessionSnapshot,
   TaskItem,
-  ThemeMode,
   WorkspaceTab,
 } from "@/lib/types";
-
-const THEME_STORAGE_KEY = "maf-theme";
+import { useTheme } from "@/hooks/use-theme";
+import { usePinnedHeader } from "@/hooks/use-pinned-header";
 
 const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
   idle: {
@@ -67,8 +66,6 @@ const RUN_SOURCE_COPY: Record<RunSource, { label: string; description: string }>
 const MISSION_MENU_ITEMS = [
   { id: "home", label: "Home", icon: Home },
   { id: "history", label: "History", icon: History },
-  { id: "settings", label: "Settings", icon: Settings2 },
-  { id: "help", label: "Help", icon: HelpCircle },
 ] as const;
 
 function ensureOrchestratorFirst(agents: AgentDefinition[]) {
@@ -157,9 +154,7 @@ function isDoneSignal(payload: AgentEvent | { event_type: "done" }): payload is 
 }
 
 export function PlannerShell() {
-  const missionHeaderContainerRef = useRef<HTMLDivElement | null>(null);
-  const missionHeaderRef = useRef<HTMLElement | null>(null);
-  const [theme, setTheme] = useState<ThemeMode>("daybreak");
+  const { theme, toggleTheme } = useTheme();
   const [runSource, setRunSource] = useState<RunSource>("live");
   const [status, setStatus] = useState<RunStatus>("idle");
   const [events, setEvents] = useState<AgentEvent[]>([]);
@@ -174,8 +169,6 @@ export function PlannerShell() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("activity");
   const [runId, setRunId] = useState<string | null>(null);
   const [streamLabel, setStreamLabel] = useState("Proxy ready. Submit a brief to begin streaming.");
-  const [missionHeaderHeight, setMissionHeaderHeight] = useState(0);
-  const [isMissionHeaderPinned, setIsMissionHeaderPinned] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
@@ -189,6 +182,14 @@ export function PlannerShell() {
 
   // Toast notifications (#13)
   const { toasts, addToast, dismiss: dismissToast } = useToast();
+
+  // Pinned header tracking
+  const {
+    containerRef: missionHeaderContainerRef,
+    headerRef: missionHeaderRef,
+    height: missionHeaderHeight,
+    isPinned: isMissionHeaderPinned,
+  } = usePinnedHeader([theme, runId, status, runSource]);
 
   // History / replay state
   const [sidebarView, setSidebarView] = useState<"agents" | "history">("agents");
@@ -205,26 +206,6 @@ export function PlannerShell() {
       eventSourceRef.current = null;
     }
   }, []);
-
-  useEffect(() => {
-    try {
-      const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme === "daybreak" || savedTheme === "night") {
-        setTheme(savedTheme);
-      }
-    } catch (storageError) {
-      console.warn("Unable to restore theme", storageError);
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch (storageError) {
-      console.warn("Unable to persist theme", storageError);
-    }
-  }, [theme]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -672,10 +653,6 @@ export function PlannerShell() {
           },
   [selectedAgent, highlightedTask, runSource]);
 
-  const toggleTheme = () => {
-    setTheme((current) => (current === "night" ? "daybreak" : "night"));
-  };
-
   const sourceChipStyle = useMemo(() =>
     runSource === "mock" || runSource === "replay"
       ? {
@@ -702,46 +679,6 @@ export function PlannerShell() {
           ? "Settled"
           : "Ready";
 
-  useEffect(() => {
-    const missionHeader = missionHeaderRef.current;
-    if (!missionHeader) {
-      return;
-    }
-
-    const updateMissionHeaderHeight = () => {
-      setMissionHeaderHeight(Math.round(missionHeader.getBoundingClientRect().height));
-    };
-
-    updateMissionHeaderHeight();
-
-    const observer = new ResizeObserver(updateMissionHeaderHeight);
-    observer.observe(missionHeader);
-
-    return () => observer.disconnect();
-  }, [theme, runId, status, runSource, isMissionHeaderPinned]);
-
-  useEffect(() => {
-    const missionHeaderContainer = missionHeaderContainerRef.current;
-    if (!missionHeaderContainer) {
-      return;
-    }
-
-    const stickyTop = 12;
-    const updatePinnedState = () => {
-      const nextPinned = missionHeaderContainer.getBoundingClientRect().top <= stickyTop;
-      setIsMissionHeaderPinned((previous) => (previous === nextPinned ? previous : nextPinned));
-    };
-
-    updatePinnedState();
-    window.addEventListener("scroll", updatePinnedState, { passive: true });
-    window.addEventListener("resize", updatePinnedState);
-
-    return () => {
-      window.removeEventListener("scroll", updatePinnedState);
-      window.removeEventListener("resize", updatePinnedState);
-    };
-  }, []);
-
   const missionHeaderPanel = (
     <header
       ref={missionHeaderRef}
@@ -763,14 +700,18 @@ export function PlannerShell() {
           <nav className="mission-menu mission-menu-compact" aria-label="Mission control">
             {MISSION_MENU_ITEMS.map((item) => {
               const Icon = item.icon;
-              const isActive = item.id === "home";
+              const isActive = item.id === "home" ? true : item.id === "history" && sidebarView === "history";
               return (
                 <button
                   key={item.id}
                   type="button"
-                  disabled={item.id !== "home"}
+                  onClick={item.id === "history" ? () => {
+                    setSidebarView((v) => v === "history" ? "agents" : "history");
+                    if (sidebarCollapsed) setSidebarCollapsed(false);
+                  } : undefined}
                   className={`mission-menu-button mission-menu-button-compact ${isActive ? "mission-menu-button-active" : ""}`}
-                  aria-current={isActive ? "page" : undefined}
+                  aria-current={item.id === "home" ? "page" : undefined}
+                  aria-pressed={item.id === "history" ? sidebarView === "history" : undefined}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {item.label}
@@ -814,14 +755,18 @@ export function PlannerShell() {
             <nav className="mission-menu" aria-label="Mission control">
               {MISSION_MENU_ITEMS.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.id === "home";
+                const isActive = item.id === "home" ? true : item.id === "history" && sidebarView === "history";
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    disabled={item.id !== "home"}
+                    onClick={item.id === "history" ? () => {
+                      setSidebarView((v) => v === "history" ? "agents" : "history");
+                      if (sidebarCollapsed) setSidebarCollapsed(false);
+                    } : undefined}
                     className={`mission-menu-button ${isActive ? "mission-menu-button-active" : ""}`}
-                    aria-current={isActive ? "page" : undefined}
+                    aria-current={item.id === "home" ? "page" : undefined}
+                    aria-pressed={item.id === "history" ? sidebarView === "history" : undefined}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {item.label}
