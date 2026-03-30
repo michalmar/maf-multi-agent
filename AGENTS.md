@@ -1,6 +1,6 @@
 # AGENTS.md — MAF Multi-Agent Architecture
 
-> Auto-generated from the current implementation. Last updated: 2026-03-28.
+> Auto-generated from the current implementation. Last updated: 2026-03-30.
 
 ---
 
@@ -88,17 +88,25 @@ Invoked via the Azure AI Foundry Responses API (conversations). Each call:
 **Client:** `src/foundry_client.py` → `run_foundry_agent()`
 
 #### Fabric MCP Agents
-Invoked via direct HTTP calls to the Fabric Data Agent MCP endpoint using JSON-RPC protocol with `DefaultAzureCredential` (Azure CLI locally, Managed Identity in ACA).
+Invoked via direct HTTP calls to the Fabric Data Agent MCP endpoint using JSON-RPC protocol. Fabric Data Agent **requires user identity tokens** — service principal and managed identity tokens are rejected at the data query layer.
+
+**Authentication flow:**
+1. User signs in via MSAL in the browser (Entra SPA app with `DataAgent.Execute.All` delegated permission)
+2. Frontend acquires a Fabric-scoped user token silently (or via redirect)
+3. Token is passed in the `POST /api/run` request body as `user_token`
+4. Backend threads the token through: `api.py → workflow.py → dispatcher.py → fabric_mcp_client.py`
+5. MCP client uses the user token as Bearer for all Fabric API calls
+6. Falls back to `DefaultAzureCredential` (Managed Identity) when no user token is provided — sufficient for MCP handshake but not data queries
 
 **Client:** `src/fabric_mcp_client.py` → `run_fabric_mcp()`
-**Auth:** `DefaultAzureCredential` with cached tokens (thread-safe)
+**Frontend auth:** `frontend/lib/msal-config.ts`, `frontend/hooks/use-fabric-token.ts`
 
 ---
 
 ## Communication Flow
 
 ```
-User Query
+User Query + MSAL Token (from browser)
     │
     ▼
 Facilitator (orchestrator)
@@ -120,6 +128,7 @@ Facilitator (orchestrator)
     │       │
     │       ▼
     │   Fabric MCP "fabric-data-agent"
+    │   (uses MSAL user token as Bearer)
     │       │
     │       ▼
     │   Specialist writes to SharedDocument
@@ -201,6 +210,8 @@ All events are streamed via SSE to the frontend.
 | `AZURE_CLIENT_ID` | Managed identity client ID (for ACA) | — |
 | `FABRIC_CAPACITY_RESOURCE_ID` | ARM resource ID for Fabric capacity status | — |
 | `FABRIC_DATA_AGENT_MCP_URL` | Fabric Data Agent MCP endpoint | — |
+| `NEXT_PUBLIC_MSAL_CLIENT_ID` | MSAL SPA app client ID (build-time) | hardcoded in `msal-config.ts` |
+| `NEXT_PUBLIC_MSAL_TENANT_ID` | Entra tenant ID (build-time) | hardcoded in `msal-config.ts` |
 
 ---
 
@@ -235,7 +246,11 @@ All events are streamed via SSE to the frontend.
 ├── frontend/                   # Next.js App Router frontend
 │   ├── app/                    # Pages + API route handlers
 │   ├── components/             # React components
-│   └── lib/                    # Types, metadata, starter prompts
+│   │   └── auth-provider.tsx   # MSAL authentication provider
+│   ├── hooks/                  # React hooks
+│   │   └── use-fabric-token.ts # Fabric token acquisition hook
+│   └── lib/                    # Types, metadata, MSAL config
+│       └── msal-config.ts      # MSAL client + scope configuration
 ├── deploy/                     # Deployment infrastructure
 │   ├── deploy.sh               # ACR build + ACA update script
 │   └── terraform/              # IaC (ACR, ACA, managed identity)

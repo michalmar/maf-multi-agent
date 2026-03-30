@@ -78,17 +78,29 @@ resource "azurerm_role_assignment" "fabric_capacity_contributor" {
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
-# ── Fabric Data Agent — Managed Identity access ──────────────
-# With DefaultAzureCredential the Container App's Managed Identity
-# is used to call the Fabric MCP endpoint — no separate SP needed.
+# ── Fabric Data Agent — Authentication ────────────────────────
+# Fabric Data Agent requires **user identity tokens** for data queries.
+# Service principal / managed identity tokens are rejected at the data layer.
+#
+# Architecture:
+#   - Frontend acquires a Fabric-scoped user token via MSAL (browser login)
+#   - Token is passed through: POST /api/run → workflow → dispatcher → MCP client
+#   - MCP client uses the user token as Bearer for Fabric API calls
+#   - DefaultAzureCredential (MI) is used as fallback for MCP handshake only
+#
+# The MSAL SPA app registration is created outside Terraform (az ad app create).
+# NEXT_PUBLIC_MSAL_CLIENT_ID and NEXT_PUBLIC_MSAL_TENANT_ID are build-time
+# Next.js variables with hardcoded defaults in frontend/lib/msal-config.ts.
 #
 # Post-apply manual steps:
-#   1. In Fabric Admin Portal → Tenant settings → enable
-#      "Service principals can use Fabric APIs"
-#   2. Add the Managed Identity to your Fabric workspace:
+#   1. Add the Managed Identity to your Fabric workspace (for MCP handshake):
 #      Fabric Portal → Workspace settings → Manage access →
-#      Add the MI (use managed_identity_principal_id output) as
-#      Member or Contributor
+#      Add the MI (use managed_identity_principal_id output) as Admin
+#   2. Create an Entra SPA app registration with:
+#      - Redirect URIs: http://localhost:3000, https://<aca-fqdn>
+#      - Delegated permission: Fabric DataAgent.Execute.All
+#      - Admin consent granted
+#   3. Update frontend/lib/msal-config.ts with the app's client ID + tenant ID
 
 # ── Container App (starts with hello-world, updated by deploy.sh) ─
 resource "azurerm_container_app" "main" {
