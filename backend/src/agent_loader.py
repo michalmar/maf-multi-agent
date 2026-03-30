@@ -26,13 +26,20 @@ DEFAULT_AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 
 @dataclass(frozen=True)
 class McpAuthConfig:
-    """Authentication configuration for MCP agents using service principal."""
+    """Authentication configuration for MCP agents.
 
-    type: str  # "service_principal"
-    tenant_id_env: str
-    client_id_env: str
-    client_secret_env: str
-    scope: str
+    Supports two modes:
+    - ``default_credential``: Uses DefaultAzureCredential (Azure CLI locally,
+      Managed Identity in ACA). No extra env vars needed.
+    - ``service_principal``: Uses ClientSecretCredential with explicit SP
+      credentials from env vars.
+    """
+
+    type: str  # "default_credential" or "service_principal"
+    tenant_id_env: str = ""
+    client_id_env: str = ""
+    client_secret_env: str = ""
+    scope: str = "https://api.fabric.microsoft.com/.default"
 
 
 @dataclass(frozen=True)
@@ -74,13 +81,22 @@ def parse_agent_yaml(path: Path) -> AgentDefinition:
     mcp_auth = None
     if agent_type == "mcp":
         auth_data = data["mcp_auth"]
-        mcp_auth = McpAuthConfig(
-            type=auth_data["type"],
-            tenant_id_env=auth_data["tenant_id_env"],
-            client_id_env=auth_data["client_id_env"],
-            client_secret_env=auth_data["client_secret_env"],
-            scope=auth_data["scope"],
-        )
+        auth_type = auth_data["type"]
+        if auth_type == "default_credential":
+            mcp_auth = McpAuthConfig(
+                type="default_credential",
+                scope=auth_data.get("scope", "https://api.fabric.microsoft.com/.default"),
+            )
+        elif auth_type == "service_principal":
+            mcp_auth = McpAuthConfig(
+                type="service_principal",
+                tenant_id_env=auth_data["tenant_id_env"],
+                client_id_env=auth_data["client_id_env"],
+                client_secret_env=auth_data["client_secret_env"],
+                scope=auth_data["scope"],
+            )
+        else:
+            raise ValueError(f"Agent YAML {path.name}: unknown mcp_auth type '{auth_type}'")
 
     return AgentDefinition(
         name=data["name"],
@@ -153,11 +169,12 @@ def _make_mcp_tool_func(agent_def: AgentDefinition):
         result = run_fabric_mcp(
             mcp_url_env=_agent_def.mcp_url_env,
             mcp_tool_name=_agent_def.mcp_tool_name,
+            task=task,
+            auth_mode=auth.type,
             tenant_id_env=auth.tenant_id_env,
             client_id_env=auth.client_id_env,
             client_secret_env=auth.client_secret_env,
             scope=auth.scope,
-            task=task,
         )
         elapsed = time.perf_counter() - t0
 

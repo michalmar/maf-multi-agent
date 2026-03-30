@@ -28,19 +28,9 @@ output "managed_identity_client_id" {
   value       = azurerm_user_assigned_identity.main.client_id
 }
 
-# ── Fabric Data Agent SP outputs ──────────────────────────────
+# ── Fabric Data Agent outputs ─────────────────────────────────
 
-output "fabric_sp_client_id" {
-  description = "Fabric Data Agent service principal client (application) ID"
-  value       = var.enable_fabric_data_agent ? azuread_application.fabric_data_agent[0].client_id : ""
-}
-
-output "fabric_sp_tenant_id" {
-  description = "Tenant ID for the Fabric Data Agent service principal"
-  value       = var.enable_fabric_data_agent ? data.azuread_client_config.current[0].tenant_id : ""
-}
-
-output "fabric_sp_display_name" {
-  description = "Display name of the Fabric Data Agent app registration"
-  value       = var.enable_fabric_data_agent ? azuread_application.fabric_data_agent[0].display_name : ""
+output "fabric_managed_identity_principal_id" {
+  description = "Principal ID to add to the Fabric workspace for MCP access"
+  value       = azurerm_user_assigned_identity.main.principal_id
 }

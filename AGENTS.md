@@ -88,10 +88,10 @@ Invoked via the Azure AI Foundry Responses API (conversations). Each call:
 **Client:** `src/foundry_client.py` → `run_foundry_agent()`
 
 #### Fabric MCP Agents
-Invoked via direct HTTP calls to the Fabric Data Agent MCP endpoint using JSON-RPC protocol with service principal authentication.
+Invoked via direct HTTP calls to the Fabric Data Agent MCP endpoint using JSON-RPC protocol with `DefaultAzureCredential` (Azure CLI locally, Managed Identity in ACA).
 
 **Client:** `src/fabric_mcp_client.py` → `run_fabric_mcp()`
-**Auth:** `ClientSecretCredential` with cached tokens (thread-safe)
+**Auth:** `DefaultAzureCredential` with cached tokens (thread-safe)
 
 ---
 
@@ -180,15 +180,12 @@ All events are streamed via SSE to the frontend.
    # mcp_url_env: MY_AGENT_MCP_URL
    # mcp_tool_name: my-tool
    # mcp_auth:
-   #   type: service_principal
-   #   tenant_id_env: ...
-   #   client_id_env: ...
-   #   client_secret_env: ...
-   #   scope: ...
+   #   type: default_credential          # uses Azure CLI / Managed Identity
+   #   scope: https://api.fabric.microsoft.com/.default
    ```
 
 2. **For Foundry type:** Deploy the agent in Azure AI Foundry portal.
-3. **For MCP type:** Configure service principal credentials in environment variables.
+3. **For MCP type:** Set the MCP URL env var. Auth uses `DefaultAzureCredential` (Azure CLI locally, Managed Identity in ACA).
 4. **Restart the app** — the agent is auto-discovered by `agent_loader.py` and a dispatch tool is generated for the facilitator.
 
 ---
@@ -204,9 +201,6 @@ All events are streamed via SSE to the frontend.
 | `AZURE_CLIENT_ID` | Managed identity client ID (for ACA) | — |
 | `FABRIC_CAPACITY_RESOURCE_ID` | ARM resource ID for Fabric capacity status | — |
 | `FABRIC_DATA_AGENT_MCP_URL` | Fabric Data Agent MCP endpoint | — |
-| `FABRIC_SP_TENANT_ID` | Service principal tenant ID | — |
-| `FABRIC_SP_CLIENT_ID` | Service principal client ID | — |
-| `FABRIC_SP_CLIENT_SECRET` | Service principal secret | — |
 
 ---
 

@@ -1,8 +1,12 @@
-"""Fabric Data Agent MCP client with service principal authentication.
+"""Fabric Data Agent MCP client with flexible authentication.
 
 Calls the Fabric Data Agent MCP endpoint directly via HTTP using
-JSON-RPC protocol. Authenticates with ClientSecretCredential (service
-principal) and caches tokens until near-expiry.
+JSON-RPC protocol. Supports two auth modes:
+
+- ``default_credential``: Uses DefaultAzureCredential which resolves to
+  Azure CLI locally and Managed Identity in ACA. Recommended.
+- ``service_principal``: Uses ClientSecretCredential with explicit SP
+  credentials. Legacy fallback.
 
 Mirrors the interface of foundry_client.run_foundry_agent() so it can
 be used as a drop-in replacement in agent_loader.py and dispatcher.py.
@@ -20,7 +24,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import httpx
-from azure.identity import ClientSecretCredential
+from azure.identity import ClientSecretCredential, DefaultAzureCredential, ManagedIdentityCredential
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -46,31 +50,64 @@ class _CachedToken:
     expires_at: float  # time.time() based
 
 
-# Module-level token cache keyed by (tenant_id, client_id, scope)
-_token_cache: dict[tuple[str, str, str], _CachedToken] = {}
+# Module-level token cache keyed by cache_key string
+_token_cache: dict[str, _CachedToken] = {}
 _token_lock = threading.Lock()
-# Reusable credentials keyed by (tenant_id, client_id) — avoids connection pool leaks
-_credentials: dict[tuple[str, str], ClientSecretCredential] = {}
+# Reusable credentials — avoids connection pool leaks
+_sp_credentials: dict[tuple[str, str], ClientSecretCredential] = {}
+_default_credential: Optional[DefaultAzureCredential] = None
 
 
-def _get_token(tenant_id: str, client_id: str, client_secret: str, scope: str) -> str:
-    """Acquire a Fabric API token, using cache when possible. Thread-safe."""
-    cache_key = (tenant_id, client_id, scope)
+def _get_token_default_credential(scope: str) -> str:
+    """Acquire a Fabric API token via DefaultAzureCredential. Thread-safe.
+
+    Resolves to Azure CLI locally, Managed Identity in ACA.
+    """
+    global _default_credential
+    cache_key = f"default:{scope}"
     with _token_lock:
         cached = _token_cache.get(cache_key)
         if cached and cached.expires_at > time.time() + TOKEN_REFRESH_BUFFER_SECONDS:
             return cached.token
 
-        # Reuse credential to avoid HTTP connection pool leaks
+        if _default_credential is None:
+            managed_identity_client_id = os.environ.get("AZURE_CLIENT_ID", "")
+            if managed_identity_client_id:
+                _default_credential = DefaultAzureCredential(
+                    managed_identity_client_id=managed_identity_client_id,
+                )
+                logger.info("🔑 Using DefaultAzureCredential with managed_identity_client_id=%s", managed_identity_client_id[:8] + "...")
+            else:
+                _default_credential = DefaultAzureCredential()
+                logger.info("🔑 Using DefaultAzureCredential (auto-resolve)")
+
+        token_response = _default_credential.get_token(scope)
+
+        _token_cache[cache_key] = _CachedToken(
+            token=token_response.token,
+            expires_at=token_response.expires_on,
+        )
+        logger.info("🔑 Fabric token acquired via DefaultAzureCredential (expires in %.0fs)", token_response.expires_on - time.time())
+        return token_response.token
+
+
+def _get_token_sp(tenant_id: str, client_id: str, client_secret: str, scope: str) -> str:
+    """Acquire a Fabric API token via service principal. Thread-safe."""
+    cache_key = f"sp:{tenant_id}:{client_id}:{scope}"
+    with _token_lock:
+        cached = _token_cache.get(cache_key)
+        if cached and cached.expires_at > time.time() + TOKEN_REFRESH_BUFFER_SECONDS:
+            return cached.token
+
         cred_key = (tenant_id, client_id)
-        credential = _credentials.get(cred_key)
+        credential = _sp_credentials.get(cred_key)
         if credential is None:
             credential = ClientSecretCredential(
                 tenant_id=tenant_id,
                 client_id=client_id,
                 client_secret=client_secret,
             )
-            _credentials[cred_key] = credential
+            _sp_credentials[cred_key] = credential
 
         token_response = credential.get_token(scope)
 
@@ -245,13 +282,14 @@ def _parse_mcp_response(text: str) -> dict:
 def run_fabric_mcp(
     mcp_url_env: str,
     mcp_tool_name: str,
-    tenant_id_env: str,
-    client_id_env: str,
-    client_secret_env: str,
-    scope: str,
     task: str,
     event_callback: EventCallback = None,
     source_name: str = "",
+    auth_mode: str = "default_credential",
+    tenant_id_env: str = "",
+    client_id_env: str = "",
+    client_secret_env: str = "",
+    scope: str = FABRIC_API_SCOPE,
 ) -> str:
     """Invoke a Fabric Data Agent MCP tool synchronously.
 
@@ -261,13 +299,14 @@ def run_fabric_mcp(
     Args:
         mcp_url_env: Env var name containing the MCP endpoint URL.
         mcp_tool_name: The tool name for the JSON-RPC tools/call request.
-        tenant_id_env: Env var name for the SP tenant ID.
-        client_id_env: Env var name for the SP client ID.
-        client_secret_env: Env var name for the SP client secret.
-        scope: OAuth scope for the Fabric API token.
         task: The user question/task to send.
         event_callback: Optional callback for real-time event streaming.
         source_name: Name to identify the source agent in events.
+        auth_mode: "default_credential" (recommended) or "service_principal".
+        tenant_id_env: Env var name for the SP tenant ID (SP mode only).
+        client_id_env: Env var name for the SP client ID (SP mode only).
+        client_secret_env: Env var name for the SP client secret (SP mode only).
+        scope: OAuth scope for the Fabric API token.
 
     Returns:
         The MCP tool's text response.
@@ -289,12 +328,15 @@ def run_fabric_mcp(
 
     # Resolve environment variables
     mcp_url = _resolve_env(mcp_url_env)
-    tenant_id = _resolve_env(tenant_id_env)
-    client_id = _resolve_env(client_id_env)
-    client_secret = _resolve_env(client_secret_env)
 
-    # Acquire (or reuse cached) SP token
-    token = _get_token(tenant_id, client_id, client_secret, scope)
+    # Acquire token based on auth mode
+    if auth_mode == "service_principal":
+        tenant_id = _resolve_env(tenant_id_env)
+        client_id = _resolve_env(client_id_env)
+        client_secret = _resolve_env(client_secret_env)
+        token = _get_token_sp(tenant_id, client_id, client_secret, scope)
+    else:
+        token = _get_token_default_credential(scope)
 
     # Thread-safe queue for cross-thread event bridging
     eq: Optional[queue.Queue] = queue.Queue() if event_callback else None
