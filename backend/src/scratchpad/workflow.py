@@ -49,7 +49,7 @@ async def run_scratchpad_workflow(
         event_callback: Optional callback for real-time event streaming.
         selected_agents: Optional list of agent names to include. If None, all agents are used.
         reasoning_effort: Reasoning effort level: "high", "medium", "low", or "none".
-        user_token: MSAL-acquired Fabric user token for MCP agents.
+        user_token: Fabric user token from Easy Auth or local dev.
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """

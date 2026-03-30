@@ -31,6 +31,6 @@ output "managed_identity_client_id" {
 # ── Fabric Data Agent outputs ─────────────────────────────────
 
 output "fabric_managed_identity_principal_id" {
-  description = "Principal ID to add to the Fabric workspace as Admin (needed for MCP handshake; data queries use MSAL user tokens)"
+  description = "Principal ID to add to the Fabric workspace as Admin (needed for MCP handshake; data queries use Easy Auth user tokens)"
   value       = azurerm_user_assigned_identity.main.principal_id
 }
