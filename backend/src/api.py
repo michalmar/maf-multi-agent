@@ -54,6 +54,7 @@ class RunRequest(BaseModel):
     query: str
     selected_agents: list[str] | None = None
     reasoning_effort: str | None = "low"  # "high", "medium", "low", or "none"
+    user_token: str | None = None  # MSAL-acquired Fabric user token
 
 
 class RunResponse(BaseModel):
@@ -157,7 +158,7 @@ async def start_run(req: RunRequest):
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort))
+    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, req.user_token))
 
     return RunResponse(run_id=run_id)
 
@@ -169,6 +170,7 @@ async def _run_workflow(
     selected_agents: list[str] | None = None,
     collected_events: list[dict] | None = None,
     reasoning_effort: str | None = "low",
+    user_token: str | None = None,
 ):
     """Execute the scratchpad workflow and push events to the queue."""
     queue = _runs[run_id]
@@ -180,6 +182,7 @@ async def _run_workflow(
             query, event_callback=event_callback,
             selected_agents=selected_agents,
             reasoning_effort=reasoning_effort,
+            user_token=user_token,
         )
 
         # Save outputs to per-run folder: output/{run_id}/

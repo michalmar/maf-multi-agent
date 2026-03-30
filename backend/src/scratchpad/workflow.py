@@ -36,6 +36,7 @@ async def run_scratchpad_workflow(
     event_callback: EventCallback = None,
     selected_agents: Optional[list[str]] = None,
     reasoning_effort: Optional[str] = "low",
+    user_token: Optional[str] = None,
 ) -> tuple[str, str]:
     """Run the full scratchpad workflow for a user query.
 
@@ -48,6 +49,7 @@ async def run_scratchpad_workflow(
         event_callback: Optional callback for real-time event streaming.
         selected_agents: Optional list of agent names to include. If None, all agents are used.
         reasoning_effort: Reasoning effort level: "high", "medium", "low", or "none".
+        user_token: MSAL-acquired Fabric user token for MCP agents.
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
@@ -85,6 +87,7 @@ async def run_scratchpad_workflow(
         taskboard, document, agents_dir,
         event_callback=event_callback,
         selected_agents=selected_agents,
+        user_token=user_token,
     )
 
     all_tools = facilitator_tools.get_tools() + dispatch_tools
