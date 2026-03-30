@@ -130,6 +130,7 @@ def _event_to_sse(event: AgentEvent) -> str:
 async def start_run(req: RunRequest):
     """Start a new scratchpad workflow run. Returns a run_id for SSE streaming."""
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
+    logger.info("🚀 RUN %s | user_token=%s", run_id, "present" if req.user_token else "absent")
     queue: asyncio.Queue = asyncio.Queue()
     _runs[run_id] = queue
 

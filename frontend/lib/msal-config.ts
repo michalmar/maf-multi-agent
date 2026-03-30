@@ -32,4 +32,4 @@ export const msalConfig: Configuration = {
 };
 
 /** Scopes requested when acquiring a Fabric token. */
-export const fabricScopes = ["https://api.fabric.microsoft.com/DataAgent.Execute.All"];
+export const fabricScopes = ["https://api.fabric.microsoft.com/.default"];
