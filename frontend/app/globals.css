@@ -4,13 +4,13 @@
   --font-display: sans-serif;
   --font-body: sans-serif;
   --font-mono: monospace;
-  --bg: #f6f9fc;
-  --bg-panel: rgba(255, 255, 255, 0.82);
-  --bg-panel-strong: rgba(255, 255, 255, 0.96);
-  --surface-soft: rgba(244, 247, 252, 0.88);
-  --surface-elevated: rgba(255, 255, 255, 0.98);
-  --border-soft: rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.14);
+  --bg: #f4f7fb;
+  --bg-panel: rgba(255, 255, 255, 0.52);
+  --bg-panel-strong: rgba(255, 255, 255, 0.68);
+  --surface-soft: rgba(244, 247, 252, 0.6);
+  --surface-elevated: rgba(255, 255, 255, 0.7);
+  --border-soft: rgba(255, 255, 255, 0.5);
+  --border-strong: rgba(15, 23, 42, 0.1);
   --text-primary: #0a2540;
   --text-secondary: #425466;
   --text-muted: #6b7c93;
@@ -22,7 +22,7 @@
   --danger: #d14343;
   --code-bg: #0b1730;
   --code-text: #d7e7ff;
-  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-panel: 0 8px 32px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
   --shadow-elevated: 0 6px 18px rgba(99, 91, 255, 0.09);
 
   /* Legacy aliases — referenced by sidebar-view-tabs, history-panel, sandbox-image */
@@ -35,12 +35,12 @@
 
 [data-theme="night"] {
   --bg: #0a1628;
-  --bg-panel: rgba(11, 24, 44, 0.84);
-  --bg-panel-strong: rgba(12, 28, 50, 0.94);
-  --surface-soft: rgba(20, 35, 58, 0.82);
-  --surface-elevated: rgba(13, 28, 49, 0.98);
-  --border-soft: rgba(190, 209, 255, 0.12);
-  --border-strong: rgba(190, 209, 255, 0.2);
+  --bg-panel: rgba(11, 24, 44, 0.55);
+  --bg-panel-strong: rgba(12, 28, 50, 0.68);
+  --surface-soft: rgba(20, 35, 58, 0.55);
+  --surface-elevated: rgba(13, 28, 49, 0.65);
+  --border-soft: rgba(190, 209, 255, 0.14);
+  --border-strong: rgba(190, 209, 255, 0.22);
   --text-primary: #edf4ff;
   --text-secondary: #b8c7df;
   --text-muted: #89a0c5;
@@ -52,7 +52,7 @@
   --danger: #ff8c8c;
   --code-bg: #08111f;
   --code-text: #d7e7ff;
-  --shadow-panel: 0 10px 28px rgba(2, 8, 20, 0.28);
+  --shadow-panel: 0 10px 28px rgba(2, 8, 20, 0.28), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
   --shadow-elevated: 0 8px 22px rgba(99, 91, 255, 0.14);
 
   --foreground: var(--text-primary);
@@ -73,36 +73,22 @@ html[data-theme="night"] {
 
 body {
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at top left, rgba(99, 91, 255, 0.16), transparent 30%),
-    radial-gradient(circle at 88% 8%, rgba(10, 124, 255, 0.14), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 22%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-body), sans-serif;
 }
 
-body::before,
-body::after {
+body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
+  background: url("/bg-glass.svg") center / cover no-repeat;
+  opacity: 0.85;
 }
 
-body::before {
-  background-image:
-    linear-gradient(rgba(99, 91, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 91, 255, 0.04) 1px, transparent 1px);
-  background-size: 96px 96px;
-  opacity: 0.4;
-  mask-image: radial-gradient(circle at center, black 52%, transparent 100%);
-}
-
-body::after {
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.64), transparent 34%),
-    radial-gradient(circle at 30% 100%, rgba(0, 184, 217, 0.12), transparent 26%);
+[data-theme="night"] body::before {
+  opacity: 0.5;
 }
 
 * {
@@ -147,10 +133,11 @@ textarea {
 .panel-shell {
   position: relative;
   border: 1px solid var(--border-soft);
-  background: linear-gradient(180deg, var(--bg-panel-strong), var(--bg-panel));
+  background: var(--bg-panel);
   border-radius: 12px;
   box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(28px);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
 }
 
 .panel-shell::before {
@@ -159,12 +146,12 @@ textarea {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 24%);
-  opacity: 0.6;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 30%);
+  opacity: 0.5;
 }
 
 [data-theme="night"] .panel-shell::before {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 22%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 25%);
 }
 
 .panel-shell > * {
@@ -174,11 +161,11 @@ textarea {
 
 .panel-shell-danger {
   border-color: rgba(209, 67, 67, 0.22);
-  background: linear-gradient(180deg, rgba(255, 244, 245, 0.96), rgba(255, 248, 248, 0.9));
+  background: rgba(255, 244, 245, 0.55);
 }
 
 [data-theme="night"] .panel-shell-danger {
-  background: linear-gradient(180deg, rgba(63, 19, 29, 0.94), rgba(39, 16, 24, 0.88));
+  background: rgba(63, 19, 29, 0.55);
 }
 
 .query-shell {
@@ -336,15 +323,15 @@ textarea {
 }
 
 .mission-menu-button-active {
-  border-color: rgba(99, 91, 255, 0.14);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 255, 0.92));
+  border-color: rgba(99, 91, 255, 0.18);
+  background: rgba(255, 255, 255, 0.65);
   color: var(--accent);
   box-shadow: 0 4px 10px rgba(99, 91, 255, 0.08);
 }
 
 [data-theme="night"] .mission-menu-button-active {
   border-color: rgba(125, 168, 255, 0.18);
-  background: linear-gradient(180deg, rgba(35, 47, 84, 0.96), rgba(19, 29, 58, 0.92));
+  background: rgba(35, 47, 84, 0.55);
 }
 
 .mission-menu-compact {
@@ -1254,8 +1241,9 @@ textarea {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   border-right: 1px solid var(--border-soft);
-  background: linear-gradient(180deg, var(--bg-panel-strong), var(--bg-panel));
-  backdrop-filter: blur(28px);
+  background: var(--bg-panel);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
   transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1), min-width 250ms cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   z-index: 30;
