@@ -9,7 +9,7 @@ A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the or
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Web UI (React)                    │
-│          Next.js · Tailwind CSS · SSE               │
+│       Next.js · Tailwind CSS · SSE · MSAL auth      │
 └──────────────────────┬──────────────────────────────┘
                        │ SSE / REST
 ┌──────────────────────▼──────────────────────────────┐
@@ -34,13 +34,13 @@ A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the or
    │                             │
    ▼                             │
 Fabric Data Agent MCP            │
-(Service Principal auth)         │
-ClientSecretCredential ──► Fabric API
+(MSAL user token passthrough)    │
+User identity ──► Fabric API
 ```
 
 **Two agent execution paths (YAML-driven):**
 - **`type: foundry`** (default) — delegates to Azure AI Foundry Prompt Agents via Responses API using managed identity
-- **`type: mcp`** — calls Fabric Data Agent MCP endpoint directly via HTTP JSON-RPC with service principal authentication
+- **`type: mcp`** — calls Fabric Data Agent MCP endpoint directly via HTTP JSON-RPC with MSAL user token authentication (Fabric requires user identity for data queries)
 
 **Key patterns:**
 - **Scratchpad Memory** — shared `TaskBoard` (progress tracking) and `SharedDocument` (collaborative output) accessible to all agents
@@ -53,7 +53,7 @@ ClientSecretCredential ──► Fabric API
 - Node.js 18+
 - Azure AI Foundry project with deployed Prompt Agents (`OperationsEngineering`, `Coder`, `WebSearch`)
 - Azure OpenAI deployment (e.g. `gpt-5.2`) for the orchestrator
-- *(Optional)* Fabric Data Agent with MCP endpoint + Entra ID service principal for data analysis
+- *(Optional)* Fabric Data Agent with MCP endpoint + Entra ID SPA app registration for MSAL user auth
 
 ## Setup
 
@@ -75,12 +75,18 @@ To enable the data analyst agent with Fabric MCP, add:
 
 ```env
 FABRIC_DATA_AGENT_MCP_URL=https://api.fabric.microsoft.com/v1/mcp/workspaces/<id>/dataagents/<id>/agent
-FABRIC_SP_TENANT_ID=<entra-tenant-id>
-FABRIC_SP_CLIENT_ID=<service-principal-client-id>
-FABRIC_SP_CLIENT_SECRET=<service-principal-client-secret>
 ```
 
-The service principal is provisioned via Terraform (see `deploy/terraform/`) with `enable_fabric_data_agent = true`. Post-apply: grant admin consent for Power BI API permissions and add the SP to your Fabric workspace.
+Authentication uses **MSAL user tokens** — Fabric Data Agent requires user identity for data queries (service principals and managed identities are rejected at the data layer).
+
+**Setup steps:**
+1. Create an Entra ID SPA app registration (`az ad app create`)
+2. Add SPA redirect URIs: `http://localhost:3000` and your ACA FQDN
+3. Add delegated permission: `Fabric DataAgent.Execute.All` + grant admin consent
+4. Update `frontend/lib/msal-config.ts` with your app's client ID and tenant ID
+5. Add the Container App's Managed Identity to your Fabric workspace as **Admin** (needed for MCP handshake)
+
+Users sign in via MSAL in the browser. The token flows through the backend to the Fabric MCP client. See `deploy/terraform/` for infrastructure setup.
 
 ### 2. Backend
 
@@ -132,8 +138,13 @@ frontend/
   app/
     page.tsx           # Next.js App Router entry point
     globals.css        # Global theme and layout styles
-  components/          # Query composer, roster, task board, workspace panels, etc.
-  lib/                 # Typed models and UI metadata helpers
+  components/
+    auth-provider.tsx  # MSAL authentication provider
+  hooks/
+    use-fabric-token.ts # Fabric token acquisition hook
+  lib/
+    msal-config.ts     # MSAL client + scope configuration
+    types.ts           # Typed models and UI metadata helpers
 deploy/                # Terraform IaC + deploy script
 docs/                  # PRD and design documents
 ```
