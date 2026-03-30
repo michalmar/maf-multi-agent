@@ -79,13 +79,14 @@ Please provide detailed recommendations for each task. Be specific with names, p
                     run_fabric_mcp,
                     mcp_url_env=agent_def.mcp_url_env,
                     mcp_tool_name=agent_def.mcp_tool_name,
+                    task=full_prompt,
+                    event_callback=event_callback,
+                    source_name=agent_def.name,
+                    auth_mode=auth.type,
                     tenant_id_env=auth.tenant_id_env,
                     client_id_env=auth.client_id_env,
                     client_secret_env=auth.client_secret_env,
                     scope=auth.scope,
-                    task=full_prompt,
-                    event_callback=event_callback,
-                    source_name=agent_def.name,
                 )
             else:
                 response = await asyncio.to_thread(

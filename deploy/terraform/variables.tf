@@ -54,7 +54,7 @@ variable "ai_services_resource_id" {
 # ── Fabric Data Agent (service principal) ─────────────────────
 
 variable "enable_fabric_data_agent" {
-  description = "Create a service principal for Fabric Data Agent MCP access"
+  description = "Enable Fabric Data Agent MCP integration (injects MCP URL env var into Container App)"
   type        = bool
   default     = false
 }

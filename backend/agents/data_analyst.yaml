@@ -1,5 +1,6 @@
 # Data Analyst specialist agent
-# Calls the Fabric Data Agent MCP endpoint directly with service principal auth
+# Calls the Fabric Data Agent MCP endpoint with DefaultAzureCredential
+# (Azure CLI locally, Managed Identity in ACA)
 
 name: data_analyst_tool
 display_name: Data Analyst
@@ -20,8 +21,5 @@ task_description: >
 mcp_url_env: FABRIC_DATA_AGENT_MCP_URL
 mcp_tool_name: fabric-data-agent
 mcp_auth:
-  type: service_principal
-  tenant_id_env: FABRIC_SP_TENANT_ID
-  client_id_env: FABRIC_SP_CLIENT_ID
-  client_secret_env: FABRIC_SP_CLIENT_SECRET
+  type: default_credential
   scope: https://api.fabric.microsoft.com/.default
