@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, History, Home, MoonStar, SunMedium } from "lucide-react";
+import { AlertTriangle, History, Home, LogIn, LogOut, MoonStar, SunMedium } from "lucide-react";
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
@@ -28,6 +28,7 @@ import {
 } from "@/lib/types";
 import { useTheme } from "@/hooks/use-theme";
 import { usePinnedHeader } from "@/hooks/use-pinned-header";
+import { useFabricToken } from "@/hooks/use-fabric-token";
 
 const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
   idle: {
@@ -182,6 +183,9 @@ export function PlannerShell() {
 
   // Toast notifications (#13)
   const { toasts, addToast, dismiss: dismissToast } = useToast();
+
+  // MSAL — acquire Fabric user token for Data Agent
+  const { acquireToken, login, logout, isAuthenticated, accountName } = useFabricToken();
 
   // Pinned header tracking
   const {
@@ -450,6 +454,9 @@ export function PlannerShell() {
       setStreamLabel("Mission submitted. Waiting for the SSE stream to attach.");
 
       try {
+        // Acquire Fabric user token (silent or popup) — null if MSAL not ready
+        const userToken = await acquireToken();
+
         const response = await fetch("/api/run", {
           method: "POST",
           headers: {
@@ -459,6 +466,7 @@ export function PlannerShell() {
             query,
             selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
             reasoning_effort: reasoningEffort,
+            ...(userToken ? { user_token: userToken } : {}),
           }),
         });
 
@@ -477,7 +485,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, connectSSE, enabledAgents, reasoningEffort],
+    [closeStream, connectSSE, enabledAgents, reasoningEffort, acquireToken],
   );
 
   const handleLoadMock = useCallback(async () => {
@@ -733,6 +741,15 @@ export function PlannerShell() {
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </button>
+            <button
+              type="button"
+              onClick={isAuthenticated ? logout : login}
+              className="secondary-button secondary-button-compact"
+              aria-label={isAuthenticated ? "Sign out" : "Sign in"}
+              title={isAuthenticated ? `Signed in as ${accountName}` : "Sign in for Fabric"}
+            >
+              {isAuthenticated ? <LogOut className="h-3.5 w-3.5" /> : <LogIn className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
       ) : (
@@ -780,6 +797,15 @@ export function PlannerShell() {
               aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={isAuthenticated ? logout : login}
+              className="secondary-button secondary-button-compact"
+              aria-label={isAuthenticated ? `Sign out (${accountName})` : "Sign in to Fabric"}
+              title={isAuthenticated ? `Signed in as ${accountName}` : "Sign in for Fabric Data Agent"}
+            >
+              {isAuthenticated ? <LogOut className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
             </button>
             </nav>
 

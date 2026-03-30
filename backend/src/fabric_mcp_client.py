@@ -290,6 +290,7 @@ def run_fabric_mcp(
     client_id_env: str = "",
     client_secret_env: str = "",
     scope: str = FABRIC_API_SCOPE,
+    user_token: Optional[str] = None,
 ) -> str:
     """Invoke a Fabric Data Agent MCP tool synchronously.
 
@@ -307,6 +308,8 @@ def run_fabric_mcp(
         client_id_env: Env var name for the SP client ID (SP mode only).
         client_secret_env: Env var name for the SP client secret (SP mode only).
         scope: OAuth scope for the Fabric API token.
+        user_token: Pre-acquired user Bearer token (from MSAL frontend).
+            When provided, skips credential-based token acquisition.
 
     Returns:
         The MCP tool's text response.
@@ -329,8 +332,11 @@ def run_fabric_mcp(
     # Resolve environment variables
     mcp_url = _resolve_env(mcp_url_env)
 
-    # Acquire token based on auth mode
-    if auth_mode == "service_principal":
+    # Acquire token: prefer user_token from MSAL, fall back to credential-based
+    if user_token:
+        token = user_token
+        logger.info("🔑 Using pre-acquired user token from MSAL frontend")
+    elif auth_mode == "service_principal":
         tenant_id = _resolve_env(tenant_id_env)
         client_id = _resolve_env(client_id_env)
         client_secret = _resolve_env(client_secret_env)

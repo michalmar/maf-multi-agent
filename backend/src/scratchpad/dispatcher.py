@@ -31,6 +31,7 @@ def _make_dispatch_func(
     taskboard: TaskBoard,
     document: SharedDocument,
     event_callback: EventCallback = None,
+    user_token: Optional[str] = None,
 ):
     """Create an async dispatch closure for a specific specialist agent.
 
@@ -87,6 +88,7 @@ Please provide detailed recommendations for each task. Be specific with names, p
                     client_id_env=auth.client_id_env,
                     client_secret_env=auth.client_secret_env,
                     scope=auth.scope,
+                    user_token=user_token,
                 )
             else:
                 response = await asyncio.to_thread(
@@ -140,6 +142,7 @@ def create_dispatch_tools(
     agents_dir: Optional[str] = None,
     event_callback: EventCallback = None,
     selected_agents: Optional[list[str]] = None,
+    user_token: Optional[str] = None,
 ) -> list[FunctionTool]:
     """Create dispatch FunctionTool objects for each agent defined in YAML.
 
@@ -169,6 +172,7 @@ def create_dispatch_tools(
 
             dispatch_func = _make_dispatch_func(
                 agent_def, taskboard, document, event_callback,
+                user_token=user_token,
             )
 
             tool = FunctionTool(

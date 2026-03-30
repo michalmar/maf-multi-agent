@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans, Sora } from "next/font/google";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 const displayFont = Sora({
@@ -58,7 +59,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script id="theme-bootstrap" strategy="beforeInteractive">
           {themeBootstrap}
         </Script>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
