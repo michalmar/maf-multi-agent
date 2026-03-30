@@ -58,7 +58,7 @@ export function useToast() {
 const LEVEL_STYLES: Record<ToastLevel, { icon: typeof Info; color: string; bg: string }> = {
   success: { icon: CheckCircle2, color: "var(--success, #0f9f7c)", bg: "rgba(15,159,124,0.10)" },
   error: { icon: AlertTriangle, color: "var(--danger, #d14343)", bg: "rgba(209,67,67,0.10)" },
-  info: { icon: Info, color: "var(--accent, #635bff)", bg: "rgba(99,91,255,0.10)" },
+  info: { icon: Info, color: "var(--accent, #0e9aa7)", bg: "rgba(14,154,167,0.10)" },
 };
 
 export function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
