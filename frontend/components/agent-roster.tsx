@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Zap } from "lucide-react";
 import { getAgentIdentity, getStatusTone } from "@/lib/agent-metadata";
 import { AgentDefinition, AgentStatus, FabricStatus, RunSource } from "@/lib/types";
 
@@ -46,12 +46,25 @@ function fabricStatusIndicator(status: FabricStatus | null, collapsed: boolean, 
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1" title={`Fabric: ${label} (${status.sku ?? ""})`}>
-        <span
-          className="flex h-5 w-5 items-center justify-center rounded-full text-[10px]"
-          style={{ background: bg, color }}
-        >
-          ⚡
-        </span>
+        {isPaused ? (
+          <button
+            type="button"
+            onClick={onResume}
+            className="flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:brightness-110"
+            style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
+            title="Resume Fabric capacity"
+            aria-label="Resume Fabric capacity"
+          >
+            <Play className="h-2.5 w-2.5 fill-current" />
+          </button>
+        ) : (
+          <span
+            className="flex h-5 w-5 items-center justify-center rounded-full"
+            style={{ background: bg, color }}
+          >
+            <Zap className="h-2.5 w-2.5" />
+          </span>
+        )}
       </div>
     );
   }
@@ -82,12 +95,12 @@ function fabricStatusIndicator(status: FabricStatus | null, collapsed: boolean, 
         <button
           type="button"
           onClick={onResume}
-          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors hover:brightness-110"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:brightness-110"
           style={{ color: "#22c55e", background: "rgba(34,197,94,0.15)" }}
           title="Resume Fabric capacity"
+          aria-label="Resume Fabric capacity"
         >
-          <Play className="h-3 w-3 fill-current" />
-          Resume
+          <Play className="h-3.5 w-3.5 fill-current" />
         </button>
       )}
     </div>
