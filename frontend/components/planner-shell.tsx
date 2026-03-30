@@ -741,15 +741,6 @@ export function PlannerShell() {
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={isAuthenticated ? logout : login}
-              className="secondary-button secondary-button-compact"
-              aria-label={isAuthenticated ? "Sign out" : "Sign in"}
-              title={isAuthenticated ? `Signed in as ${accountName}` : "Sign in for Fabric"}
-            >
-              {isAuthenticated ? <LogOut className="h-3.5 w-3.5" /> : <LogIn className="h-3.5 w-3.5" />}
-            </button>
           </div>
         </div>
       ) : (
@@ -798,15 +789,6 @@ export function PlannerShell() {
             >
               {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={isAuthenticated ? logout : login}
-              className="secondary-button secondary-button-compact"
-              aria-label={isAuthenticated ? `Sign out (${accountName})` : "Sign in to Fabric"}
-              title={isAuthenticated ? `Signed in as ${accountName}` : "Sign in for Fabric Data Agent"}
-            >
-              {isAuthenticated ? <LogOut className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-            </button>
             </nav>
 
             
@@ -819,6 +801,7 @@ export function PlannerShell() {
   return (
     <div className="flex min-h-screen">
       <aside className={`sidebar-rail ${sidebarCollapsed ? "sidebar-rail-collapsed" : ""}`}>
+        <div className="sidebar-content">
         {!sidebarCollapsed ? (
           <div className="sidebar-view-tabs" role="tablist" aria-label="Sidebar view">
             <button
@@ -872,6 +855,36 @@ export function PlannerShell() {
             loading={historyLoading}
           />
         )}
+        </div>
+
+        {/* User profile indicator — pinned to sidebar bottom */}
+        <div className={`sidebar-user-profile ${sidebarCollapsed ? "sidebar-user-profile-collapsed" : ""}`}>
+          {isAuthenticated ? (
+            <button type="button" onClick={logout} className="sidebar-user-btn" title={`Sign out ${accountName}`}>
+              <span className="sidebar-user-avatar">
+                {accountName ? accountName.charAt(0).toUpperCase() : "U"}
+              </span>
+              {!sidebarCollapsed && (
+                <span className="sidebar-user-info">
+                  <span className="sidebar-user-name">{accountName ?? "User"}</span>
+                  <span className="sidebar-user-status">Signed in · Fabric</span>
+                </span>
+              )}
+            </button>
+          ) : (
+            <button type="button" onClick={login} className="sidebar-user-btn" title="Sign in for Fabric Data Agent">
+              <span className="sidebar-user-avatar sidebar-user-avatar-anon">
+                <LogIn className="h-3.5 w-3.5" />
+              </span>
+              {!sidebarCollapsed && (
+                <span className="sidebar-user-info">
+                  <span className="sidebar-user-name">Sign in</span>
+                  <span className="sidebar-user-status">Required for Data Agent</span>
+                </span>
+              )}
+            </button>
+          )}
+        </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
