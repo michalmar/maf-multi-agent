@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ChevronDown, FlaskConical, LoaderCircle, Send } from "lucide-react";
+import { ChevronDown, Factory, FlaskConical, LoaderCircle, Send, Wrench, type LucideIcon } from "lucide-react";
 import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 
 export type ReasoningEffort = "high" | "medium" | "low" | "none";
+
+const STARTER_ICONS: Record<string, LucideIcon> = { Wrench, Factory };
 
 interface QueryComposerProps {
   collapseMode: "idle" | "running" | "settled" | "mock";
@@ -159,25 +161,28 @@ export function QueryComposer({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {STARTER_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt.title}
-                  type="button"
-                  title={prompt.query}
-                  aria-label={`${prompt.title}. ${prompt.query}`}
-                  onClick={() => onQueryChange(prompt.query)}
-                  disabled={disabled}
-                  className="starter-pill"
-                >
-                  <span className="flex items-start gap-2.5 text-left">
-                    <span className="starter-pill-icon">{prompt.icon}</span>
-                    <span className="flex flex-col gap-1">
-                      <span className="starter-pill-title">{prompt.title}</span>
-                      <span className="starter-pill-copy">{prompt.subtitle}</span>
+              {STARTER_PROMPTS.map((prompt) => {
+                const Icon = STARTER_ICONS[prompt.icon];
+                return (
+                  <button
+                    key={prompt.title}
+                    type="button"
+                    title={prompt.query}
+                    aria-label={`${prompt.title}. ${prompt.query}`}
+                    onClick={() => onQueryChange(prompt.query)}
+                    disabled={disabled}
+                    className="starter-pill"
+                  >
+                    <span className="flex items-start gap-2.5 text-left">
+                      {Icon && <Icon className="starter-pill-icon" />}
+                      <span className="flex flex-col gap-1">
+                        <span className="starter-pill-title">{prompt.title}</span>
+                        <span className="starter-pill-copy">{prompt.subtitle}</span>
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
