@@ -24,9 +24,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Forward Easy Auth token header if present (ACA injects it after login)
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const easyAuthToken = request.headers.get("x-ms-token-aad-access-token");
+  if (easyAuthToken) {
+    headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"] = easyAuthToken;
+  }
+
   const { response, error } = await safeFetch(`${BACKEND}/api/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body,
   });
 

@@ -82,25 +82,33 @@ resource "azurerm_role_assignment" "fabric_capacity_contributor" {
 # Fabric Data Agent requires **user identity tokens** for data queries.
 # Service principal / managed identity tokens are rejected at the data layer.
 #
-# Architecture:
-#   - Frontend acquires a Fabric-scoped user token via MSAL (browser login)
-#   - Token is passed through: POST /api/run → workflow → dispatcher → MCP client
-#   - MCP client uses the user token as Bearer for Fabric API calls
-#   - DefaultAzureCredential (MI) is used as fallback for MCP handshake only
+# Architecture (ACA Easy Auth):
+#   - ACA Easy Auth (Microsoft Entra provider) gates the entire app
+#   - User authenticates via Entra ID login; session managed by Easy Auth cookie
+#   - Easy Auth injects X-MS-TOKEN-AAD-ACCESS-TOKEN header into every request
+#   - Next.js route handler forwards the header to the FastAPI backend
+#   - Backend reads the header and threads the token to Fabric MCP client
+#   - DefaultAzureCredential (MI) is used as fallback for local dev only
 #
-# The MSAL SPA app registration is created outside Terraform (az ad app create).
-# NEXT_PUBLIC_MSAL_CLIENT_ID and NEXT_PUBLIC_MSAL_TENANT_ID are build-time
-# Next.js variables with hardcoded defaults in frontend/lib/msal-config.ts.
+# Easy Auth is configured via Azure CLI / ARM API (not Terraform) because
+# the azurerm provider doesn't yet fully support all auth settings.
 #
 # Post-apply manual steps:
 #   1. Add the Managed Identity to your Fabric workspace (for MCP handshake):
 #      Fabric Portal → Workspace settings → Manage access →
 #      Add the MI (use managed_identity_principal_id output) as Admin
-#   2. Create an Entra SPA app registration with:
-#      - Redirect URIs: http://localhost:3000, https://<aca-fqdn>
-#      - Delegated permission: Fabric DataAgent.Execute.All
+#   2. Create an Entra Web app registration:
+#      - Redirect URI: https://<aca-fqdn>/.auth/login/aad/callback
+#      - Client secret (store in ACA secret: microsoft-provider-authentication-secret)
+#      - Delegated permissions: Fabric DataAgent.Execute.All + Graph openid/profile/User.Read
 #      - Admin consent granted
-#   3. Update frontend/lib/msal-config.ts with the app's client ID + tenant ID
+#   3. Create a storage account + blob container for Easy Auth token store
+#   4. Grant MI Storage Blob Data Contributor on the token store account
+#   5. Configure ACA Easy Auth via ARM REST API (2024-10-02-preview):
+#      - Identity provider: Microsoft Entra
+#      - Login parameters: scope=openid profile email https://api.fabric.microsoft.com/.default
+#      - Token store: blob storage with MI
+#      - Unauthenticated action: RedirectToLoginPage
 
 # ── Container App (starts with hello-world, updated by deploy.sh) ─
 resource "azurerm_container_app" "main" {

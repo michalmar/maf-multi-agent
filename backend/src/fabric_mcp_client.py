@@ -308,7 +308,7 @@ def run_fabric_mcp(
         client_id_env: Env var name for the SP client ID (SP mode only).
         client_secret_env: Env var name for the SP client secret (SP mode only).
         scope: OAuth scope for the Fabric API token.
-        user_token: Pre-acquired user Bearer token (from MSAL frontend).
+        user_token: Pre-acquired user Bearer token (from Easy Auth header or body).
             When provided, skips credential-based token acquisition.
 
     Returns:
@@ -332,10 +332,10 @@ def run_fabric_mcp(
     # Resolve environment variables
     mcp_url = _resolve_env(mcp_url_env)
 
-    # Acquire token: prefer user_token from MSAL, fall back to credential-based
+    # Acquire token: prefer user_token from Easy Auth, fall back to credential-based
     if user_token:
         token = user_token
-        logger.info("🔑 Using pre-acquired user token from MSAL frontend")
+        logger.info("🔑 Using pre-acquired user token (Easy Auth / body)")
     elif auth_mode == "service_principal":
         tenant_id = _resolve_env(tenant_id_env)
         client_id = _resolve_env(client_id_env)

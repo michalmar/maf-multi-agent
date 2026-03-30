@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, History, Home, LogIn, LogOut, MoonStar, SunMedium } from "lucide-react";
+import { AlertTriangle, History, Home, LogOut, MoonStar, SunMedium } from "lucide-react";
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
@@ -28,7 +28,6 @@ import {
 } from "@/lib/types";
 import { useTheme } from "@/hooks/use-theme";
 import { usePinnedHeader } from "@/hooks/use-pinned-header";
-import { useFabricToken } from "@/hooks/use-fabric-token";
 
 const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
   idle: {
@@ -184,8 +183,23 @@ export function PlannerShell() {
   // Toast notifications (#13)
   const { toasts, addToast, dismiss: dismissToast } = useToast();
 
-  // MSAL — acquire Fabric user token for Data Agent
-  const { acquireToken, login, logout, isAuthenticated, accountName } = useFabricToken();
+  // Easy Auth — user info from ACA /.auth/me endpoint
+  const [easyAuthUser, setEasyAuthUser] = useState<{ name: string; email: string } | null>(null);
+  useEffect(() => {
+    fetch("/.auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const claims = data[0]?.user_claims ?? [];
+          const name = claims.find((c: { typ: string }) => c.typ === "name")?.val ?? "";
+          const email = claims.find((c: { typ: string }) =>
+            c.typ === "preferred_username" || c.typ === "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+          )?.val ?? "";
+          setEasyAuthUser({ name: name || email, email });
+        }
+      })
+      .catch(() => {}); // Not in ACA (local dev) — ignore
+  }, []);
 
   // Pinned header tracking
   const {
@@ -454,9 +468,6 @@ export function PlannerShell() {
       setStreamLabel("Mission submitted. Waiting for the SSE stream to attach.");
 
       try {
-        // Acquire Fabric user token (silent or popup) — null if MSAL not ready
-        const userToken = await acquireToken();
-
         const response = await fetch("/api/run", {
           method: "POST",
           headers: {
@@ -466,7 +477,6 @@ export function PlannerShell() {
             query,
             selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
             reasoning_effort: reasoningEffort,
-            ...(userToken ? { user_token: userToken } : {}),
           }),
         });
 
@@ -485,7 +495,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, connectSSE, enabledAgents, reasoningEffort, acquireToken],
+    [closeStream, connectSSE, enabledAgents, reasoningEffort],
   );
 
   const handleLoadMock = useCallback(async () => {
@@ -859,30 +869,30 @@ export function PlannerShell() {
 
         {/* User profile indicator — pinned to sidebar bottom */}
         <div className={`sidebar-user-profile ${sidebarCollapsed ? "sidebar-user-profile-collapsed" : ""}`}>
-          {isAuthenticated ? (
-            <button type="button" onClick={logout} className="sidebar-user-btn" title={`Sign out ${accountName}`}>
+          {easyAuthUser ? (
+            <a href="/.auth/logout" className="sidebar-user-btn" title={`Sign out ${easyAuthUser.name}`}>
               <span className="sidebar-user-avatar">
-                {accountName ? accountName.charAt(0).toUpperCase() : "U"}
+                {easyAuthUser.name.charAt(0).toUpperCase()}
               </span>
               {!sidebarCollapsed && (
                 <span className="sidebar-user-info">
-                  <span className="sidebar-user-name">{accountName ?? "User"}</span>
-                  <span className="sidebar-user-status">Signed in · Fabric</span>
+                  <span className="sidebar-user-name">{easyAuthUser.name}</span>
+                  <span className="sidebar-user-status">
+                    <LogOut className="h-3 w-3 inline mr-1" />Sign out
+                  </span>
                 </span>
               )}
-            </button>
+            </a>
           ) : (
-            <button type="button" onClick={login} className="sidebar-user-btn" title="Sign in for Fabric Data Agent">
-              <span className="sidebar-user-avatar sidebar-user-avatar-anon">
-                <LogIn className="h-3.5 w-3.5" />
-              </span>
+            <span className="sidebar-user-btn" title="User">
+              <span className="sidebar-user-avatar sidebar-user-avatar-anon">U</span>
               {!sidebarCollapsed && (
                 <span className="sidebar-user-info">
-                  <span className="sidebar-user-name">Sign in</span>
-                  <span className="sidebar-user-status">Required for Data Agent</span>
+                  <span className="sidebar-user-name">Local Dev</span>
+                  <span className="sidebar-user-status">No Easy Auth</span>
                 </span>
               )}
-            </button>
+            </span>
           )}
         </div>
       </aside>

@@ -51,10 +51,10 @@ variable "ai_services_resource_id" {
   default     = ""
 }
 
-# ── Fabric Data Agent (MSAL user auth) ────────────────────────
+# ── Fabric Data Agent (Easy Auth user identity) ──────────────
 
 variable "enable_fabric_data_agent" {
-  description = "Enable Fabric Data Agent MCP integration. Injects MCP URL env var into the Container App. Requires MSAL SPA app registration for user auth (see main.tf comments)."
+  description = "Enable Fabric Data Agent MCP integration. Injects MCP URL env var into the Container App. Requires ACA Easy Auth with Entra ID for user identity (see main.tf comments)."
   type        = bool
   default     = false
 }

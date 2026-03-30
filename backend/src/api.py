@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -54,7 +54,7 @@ class RunRequest(BaseModel):
     query: str
     selected_agents: list[str] | None = None
     reasoning_effort: str | None = "low"  # "high", "medium", "low", or "none"
-    user_token: str | None = None  # MSAL-acquired Fabric user token
+    user_token: str | None = None  # Fabric user token (Easy Auth header or body)
 
 
 class RunResponse(BaseModel):
@@ -127,10 +127,22 @@ def _event_to_sse(event: AgentEvent) -> str:
 
 
 @app.post("/api/run", response_model=RunResponse)
-async def start_run(req: RunRequest):
+async def start_run(req: RunRequest, request: Request):
     """Start a new scratchpad workflow run. Returns a run_id for SSE streaming."""
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
-    logger.info("🚀 RUN %s | user_token=%s", run_id, "present" if req.user_token else "absent")
+
+    # Resolve Fabric user token: Easy Auth header (ACA) > body field (local dev) > None
+    user_token = (
+        request.headers.get("X-MS-TOKEN-AAD-ACCESS-TOKEN")
+        or req.user_token
+        or None
+    )
+    token_source = (
+        "easyauth-header" if request.headers.get("X-MS-TOKEN-AAD-ACCESS-TOKEN")
+        else "body" if req.user_token
+        else "absent"
+    )
+    logger.info("🚀 RUN %s | user_token=%s", run_id, token_source)
     queue: asyncio.Queue = asyncio.Queue()
     _runs[run_id] = queue
 
@@ -159,7 +171,7 @@ async def start_run(req: RunRequest):
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, req.user_token))
+    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, user_token))
 
     return RunResponse(run_id=run_id)
 
