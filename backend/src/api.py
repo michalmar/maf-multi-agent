@@ -142,7 +142,7 @@ async def start_run(req: RunRequest, request: Request):
         else "body" if req.user_token
         else "absent"
     )
-    logger.info("🚀 RUN %s | user_token=%s", run_id, token_source)
+    logger.warning("🚀 RUN %s | user_token=%s | token_len=%d", run_id, token_source, len(user_token) if user_token else 0)
     queue: asyncio.Queue = asyncio.Queue()
     _runs[run_id] = queue
 
