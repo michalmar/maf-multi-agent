@@ -37,5 +37,5 @@ output "easyauth_app_registration_id" {
 
 output "easyauth_token_store_account" {
   description = "Token store storage account name"
-  value       = var.enable_easy_auth ? azurerm_storage_account.tokenstore[0].name : ""
+  value       = var.enable_easy_auth ? local.easyauth_storage_name : ""
 }
