@@ -5,6 +5,17 @@
 # Automates verification and prints the single manual step
 # that cannot be automated (Fabric workspace access).
 #
+# For EXISTING deployments with manually-configured Easy Auth:
+#   Import the auth config into state BEFORE running terraform apply:
+#
+#   cd deploy/terraform
+#   terraform import 'azapi_resource.easyauth[0]' \
+#     '/subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.App/containerApps/<app>/authConfigs/current'
+#
+#   After apply, you can delete the old manually-created resources:
+#   - Old app registration (if Terraform created a new one)
+#   - Old storage account (if Terraform created a new one)
+#
 # Usage:
 #   cd deploy && ./post_infra_deploy.sh
 #
