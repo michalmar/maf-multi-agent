@@ -183,22 +183,20 @@ export function PlannerShell() {
   // Toast notifications (#13)
   const { toasts, addToast, dismiss: dismissToast } = useToast();
 
-  // Easy Auth — user info from ACA /.auth/me endpoint
+  // Easy Auth — user info via internal API that reads X-MS-CLIENT-PRINCIPAL header
   const [easyAuthUser, setEasyAuthUser] = useState<{ name: string; email: string } | null>(null);
   useEffect(() => {
-    fetch("/.auth/me")
-      .then((r) => (r.ok ? r.json() : null))
+    fetch("/api/auth")
+      .then((r) => {
+        if (r.status === 204) return null; // local dev — no Easy Auth
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          const claims = data[0]?.user_claims ?? [];
-          const name = claims.find((c: { typ: string }) => c.typ === "name")?.val ?? "";
-          const email = claims.find((c: { typ: string }) =>
-            c.typ === "preferred_username" || c.typ === "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-          )?.val ?? "";
-          setEasyAuthUser({ name: name || email, email });
+        if (data && data.name) {
+          setEasyAuthUser(data);
         }
       })
-      .catch(() => {}); // Not in ACA (local dev) — ignore
+      .catch(() => {}); // Ignore failures
   }, []);
 
   // Pinned header tracking
