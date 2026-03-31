@@ -51,10 +51,10 @@ variable "ai_services_resource_id" {
   default     = ""
 }
 
-# ── Fabric Data Agent (Easy Auth user identity) ──────────────
+# ── Fabric Data Agent ─────────────────────────────────────────
 
 variable "enable_fabric_data_agent" {
-  description = "Enable Fabric Data Agent MCP integration. Injects MCP URL env var into the Container App. Requires ACA Easy Auth with Entra ID for user identity (see main.tf comments)."
+  description = "Enable Fabric Data Agent MCP integration. Injects MCP URL env var into the Container App."
   type        = bool
   default     = false
 }
@@ -67,6 +67,22 @@ variable "fabric_data_agent_mcp_url" {
 
 variable "fabric_capacity_resource_id" {
   description = "Full ARM resource ID of the Fabric capacity (for status checks). Leave empty to disable."
+  type        = string
+  default     = ""
+}
+
+# ── Easy Auth (ACA Entra ID login) ────────────────────────────
+# Gates the entire app behind Entra ID login and provides user tokens
+# for Fabric Data Agent (which requires user identity for data queries).
+
+variable "enable_easy_auth" {
+  description = "Enable ACA Easy Auth with Entra ID. Creates app registration, token store, and auth config. Required for Fabric Data Agent in production."
+  type        = bool
+  default     = false
+}
+
+variable "easyauth_storage_account_name" {
+  description = "Storage account name for Easy Auth token store (globally unique, alphanumeric, 3-24 chars). Auto-generated from app_name if empty."
   type        = string
   default     = ""
 }
