@@ -468,7 +468,13 @@ export function PlannerShell() {
       try {
         // Refresh Easy Auth tokens before each run to prevent expired Fabric tokens.
         // ACA Easy Auth doesn't auto-refresh; the client must call /.auth/refresh.
-        await fetch("/.auth/refresh").catch(() => {});
+        // Requires offline_access scope in login parameters.
+        const refreshRes = await fetch("/.auth/refresh").catch(() => null);
+        if (refreshRes && refreshRes.status === 403) {
+          // Refresh token expired/invalid — force re-login
+          window.location.href = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(window.location.pathname);
+          return;
+        }
 
         const response = await fetch("/api/run", {
           method: "POST",

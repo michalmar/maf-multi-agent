@@ -380,7 +380,7 @@ resource "azapi_resource" "easyauth" {
           }
           login = {
             loginParameters = [
-              "scope=openid profile email https://api.fabric.microsoft.com/.default"
+              "scope=openid profile email offline_access https://api.fabric.microsoft.com/.default"
             ]
           }
         }
