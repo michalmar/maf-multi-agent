@@ -712,7 +712,7 @@ textarea {
   height: 26px;
   min-width: 26px;
   border-radius: 6px;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   z-index: 1;
   transition: transform 180ms ease, box-shadow 180ms ease;
   box-shadow: none;
