@@ -335,20 +335,6 @@ def run_fabric_mcp(
     # Acquire token: prefer user_token from Easy Auth, fall back to credential-based
     if user_token:
         token = user_token
-        # DIAG: decode JWT to check expiration and type
-        try:
-            import base64
-            parts = token.split(".")
-            payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
-            claims = json.loads(base64.b64decode(payload))
-            token_exp = claims.get("exp", 0)
-            token_iat = claims.get("iat", 0)
-            token_aud = claims.get("aud", "?")
-            token_idtyp = claims.get("idtyp", "?")
-            time_left = token_exp - time.time()
-            logger.warning("🔑 DIAG user_token: aud=%s idtyp=%s exp_in=%.0fs iat=%s", token_aud, token_idtyp, time_left, token_iat)
-        except Exception as e:
-            logger.warning("🔑 DIAG user_token decode failed: %s (len=%d)", e, len(token))
         logger.info("🔑 Using pre-acquired user token (Easy Auth / body)")
     elif auth_mode == "service_principal":
         tenant_id = _resolve_env(tenant_id_env)
@@ -356,7 +342,6 @@ def run_fabric_mcp(
         client_secret = _resolve_env(client_secret_env)
         token = _get_token_sp(tenant_id, client_id, client_secret, scope)
     else:
-        logger.warning("🔑 DIAG: NO user_token provided, falling back to DefaultAzureCredential")
         token = _get_token_default_credential(scope)
 
     # Thread-safe queue for cross-thread event bridging

@@ -466,6 +466,10 @@ export function PlannerShell() {
       setStreamLabel("Mission submitted. Waiting for the SSE stream to attach.");
 
       try {
+        // Refresh Easy Auth tokens before each run to prevent expired Fabric tokens.
+        // ACA Easy Auth doesn't auto-refresh; the client must call /.auth/refresh.
+        await fetch("/.auth/refresh").catch(() => {});
+
         const response = await fetch("/api/run", {
           method: "POST",
           headers: {
