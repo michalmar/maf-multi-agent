@@ -207,27 +207,48 @@ resource "azuread_service_principal_delegated_permission_grant" "graph" {
 # ── Token Store (blob storage for Easy Auth session tokens) ───
 # public_network_access MUST be enabled: the Easy Auth sidecar runs as an
 # ACA platform component outside the customer VNet.
+#
+# Uses azapi instead of azurerm because tenant policy forces
+# allowSharedKeyAccess=false, and the azurerm provider requires shared
+# key access for its data-plane polling during create/import.
 
-resource "azurerm_storage_account" "tokenstore" {
-  count                         = var.enable_easy_auth ? 1 : 0
-  name                          = local.easyauth_storage_name
-  resource_group_name           = azurerm_resource_group.main.name
-  location                      = azurerm_resource_group.main.location
-  account_tier                  = "Standard"
-  account_replication_type      = "LRS"
-  public_network_access_enabled = true
+resource "azapi_resource" "tokenstore_account" {
+  count     = var.enable_easy_auth ? 1 : 0
+  type      = "Microsoft.Storage/storageAccounts@2023-05-01"
+  name      = local.easyauth_storage_name
+  parent_id = azurerm_resource_group.main.id
+  location  = azurerm_resource_group.main.location
+
+  body = {
+    kind = "StorageV2"
+    sku = {
+      name = "Standard_LRS"
+    }
+    properties = {
+      publicNetworkAccess       = "Enabled"
+      allowSharedKeyAccess      = false
+      minimumTlsVersion         = "TLS1_2"
+      supportsHttpsTrafficOnly  = true
+    }
+  }
 }
 
-resource "azurerm_storage_container" "tokenstore" {
-  count                 = var.enable_easy_auth ? 1 : 0
-  name                  = "tokenstore"
-  storage_account_id    = azurerm_storage_account.tokenstore[0].id
-  container_access_type = "private"
+resource "azapi_resource" "tokenstore_container" {
+  count     = var.enable_easy_auth ? 1 : 0
+  type      = "Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01"
+  name      = "tokenstore"
+  parent_id = "${azapi_resource.tokenstore_account[0].id}/blobServices/default"
+
+  body = {
+    properties = {
+      publicAccess = "None"
+    }
+  }
 }
 
 resource "azurerm_role_assignment" "tokenstore_blob" {
   count                = var.enable_easy_auth ? 1 : 0
-  scope                = azurerm_storage_account.tokenstore[0].id
+  scope                = azapi_resource.tokenstore_account[0].id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
@@ -321,6 +342,12 @@ resource "azurerm_container_app" "main" {
       latest_revision = true
     }
   }
+  # Image is managed by deploy.sh / CI — don't let Terraform revert it
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image,
+    ]
+  }
 }
 
 # ── ACA Easy Auth Configuration (ARM API) ─────────────────────
@@ -359,7 +386,7 @@ resource "azapi_resource" "easyauth" {
         tokenStore = {
           enabled = true
           azureBlobStorage = {
-            blobContainerUri          = "https://${azurerm_storage_account.tokenstore[0].name}.blob.core.windows.net/${azurerm_storage_container.tokenstore[0].name}"
+            blobContainerUri          = "https://${local.easyauth_storage_name}.blob.core.windows.net/tokenstore"
             managedIdentityResourceId = azurerm_user_assigned_identity.main.id
           }
         }
@@ -368,6 +395,7 @@ resource "azapi_resource" "easyauth" {
   }
 
   depends_on = [
+    azapi_resource.tokenstore_container,
     azurerm_role_assignment.tokenstore_blob,
     azuread_service_principal_delegated_permission_grant.fabric,
     azuread_service_principal_delegated_permission_grant.graph,
