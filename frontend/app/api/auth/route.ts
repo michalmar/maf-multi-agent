@@ -43,7 +43,11 @@ export async function GET(request: NextRequest) {
       principalName ??
       "";
 
-    return NextResponse.json({ name: name || email, email });
+    return NextResponse.json({
+      name: name || email,
+      email,
+      hasAccessToken: !!request.headers.get("x-ms-token-aad-access-token"),
+    });
   } catch {
     return NextResponse.json({
       name: principalName ?? "User",
