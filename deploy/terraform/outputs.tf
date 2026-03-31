@@ -19,7 +19,7 @@ output "container_app_fqdn" {
 }
 
 output "managed_identity_principal_id" {
-  description = "Principal ID of the managed identity — use for additional RBAC assignments"
+  description = "Principal ID of the managed identity — add to Fabric workspace as Admin"
   value       = azurerm_user_assigned_identity.main.principal_id
 }
 
@@ -28,9 +28,14 @@ output "managed_identity_client_id" {
   value       = azurerm_user_assigned_identity.main.client_id
 }
 
-# ── Fabric Data Agent outputs ─────────────────────────────────
+# ── Easy Auth outputs ─────────────────────────────────────────
 
-output "fabric_managed_identity_principal_id" {
-  description = "Principal ID to add to the Fabric workspace as Admin (needed for MCP handshake; data queries use Easy Auth user tokens)"
-  value       = azurerm_user_assigned_identity.main.principal_id
+output "easyauth_app_registration_id" {
+  description = "App registration client ID for Easy Auth"
+  value       = var.enable_easy_auth ? azuread_application.easyauth[0].client_id : ""
+}
+
+output "easyauth_token_store_account" {
+  description = "Token store storage account name"
+  value       = var.enable_easy_auth ? azurerm_storage_account.tokenstore[0].name : ""
 }

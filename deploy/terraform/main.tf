@@ -6,12 +6,38 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 2.0"
+    }
   }
 }
 
 provider "azurerm" {
   features {}
   subscription_id = var.subscription_id
+}
+
+provider "azuread" {}
+provider "azapi" {}
+
+data "azuread_client_config" "current" {}
+
+locals {
+  # Predict ACA FQDN from the environment domain (avoids circular dependency
+  # with the app registration that needs the FQDN for redirect URI).
+  aca_fqdn = "${var.app_name}.${azurerm_container_app_environment.main.default_domain}"
+
+  # Token store storage account name: strip hyphens from app name, append "auth"
+  easyauth_storage_name = (
+    var.easyauth_storage_account_name != ""
+    ? var.easyauth_storage_account_name
+    : substr("${replace(var.app_name, "-", "")}auth", 0, 24)
+  )
 }
 
 # ── Resource Group ────────────────────────────────────────────
@@ -69,8 +95,6 @@ resource "azurerm_role_assignment" "ai_developer" {
 }
 
 # Grant Contributor on the Fabric capacity resource (for status check + resume)
-# Scoped to the single capacity resource — NOT the subscription or resource group.
-# Needed actions: Microsoft.Fabric/capacities/read, .../resume/action
 resource "azurerm_role_assignment" "fabric_capacity_contributor" {
   count                = var.fabric_capacity_resource_id != "" ? 1 : 0
   scope                = var.fabric_capacity_resource_id
@@ -78,39 +102,135 @@ resource "azurerm_role_assignment" "fabric_capacity_contributor" {
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
-# ── Fabric Data Agent — Authentication ────────────────────────
+# ══════════════════════════════════════════════════════════════
+# Easy Auth — Entra ID login + Fabric Data Agent token
+# ══════════════════════════════════════════════════════════════
+#
 # Fabric Data Agent requires **user identity tokens** for data queries.
-# Service principal / managed identity tokens are rejected at the data layer.
+# MI/SP tokens are rejected at the data layer.
 #
-# Architecture (ACA Easy Auth):
-#   - ACA Easy Auth (Microsoft Entra provider) gates the entire app
-#   - User authenticates via Entra ID login; session managed by Easy Auth cookie
-#   - Easy Auth injects X-MS-TOKEN-AAD-ACCESS-TOKEN header into every request
-#   - Next.js route handler forwards the header to the FastAPI backend
-#   - Backend reads the header and threads the token to Fabric MCP client
-#   - DefaultAzureCredential (MI) is used as fallback for local dev only
+# This section creates:
+#   1. Entra app registration (Web, with client secret)
+#   2. Admin consent grants for Fabric + Graph delegated permissions
+#   3. Storage account + blob container for token store
+#   4. ACA Easy Auth config via ARM API (azapi)
 #
-# Easy Auth is configured via Azure CLI / ARM API (not Terraform) because
-# the azurerm provider doesn't yet fully support all auth settings.
-#
-# Post-apply manual steps:
-#   1. Add the Managed Identity to your Fabric workspace (for MCP handshake):
-#      Fabric Portal → Workspace settings → Manage access →
-#      Add the MI (use managed_identity_principal_id output) as Admin
-#   2. Create an Entra Web app registration:
-#      - Redirect URI: https://<aca-fqdn>/.auth/login/aad/callback
-#      - Client secret (store in ACA secret: microsoft-provider-authentication-secret)
-#      - Delegated permissions: Fabric DataAgent.Execute.All + Graph openid/profile/User.Read
-#      - Admin consent granted
-#   3. Create a storage account + blob container for Easy Auth token store
-#   4. Grant MI Storage Blob Data Contributor on the token store account
-#   5. Configure ACA Easy Auth via ARM REST API (2024-10-02-preview):
-#      - Identity provider: Microsoft Entra
-#      - Login parameters: scope=openid profile email https://api.fabric.microsoft.com/.default
-#      - Token store: blob storage with MI
-#      - Unauthenticated action: RedirectToLoginPage
+# After apply, ONE manual step remains:
+#   - Add the MI to your Fabric workspace as Admin (see post_infra_deploy.sh)
 
-# ── Container App (starts with hello-world, updated by deploy.sh) ─
+# ── App Registration ──────────────────────────────────────────
+
+resource "azuread_application" "easyauth" {
+  count        = var.enable_easy_auth ? 1 : 0
+  display_name = "${var.app_name}-easyauth"
+
+  web {
+    redirect_uris = [
+      "https://${local.aca_fqdn}/.auth/login/aad/callback"
+    ]
+  }
+
+  # Fabric: DataAgent.Execute.All (delegated)
+  required_resource_access {
+    resource_app_id = "00000009-0000-0000-c000-000000000000" # Microsoft Fabric
+    resource_access {
+      id   = "c6756612-6853-4145-a661-90c1d045b2dc" # DataAgent.Execute.All
+      type = "Scope"
+    }
+  }
+
+  # Graph: openid, profile, email, User.Read (delegated)
+  required_resource_access {
+    resource_app_id = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
+    resource_access {
+      id   = "37f7f235-527c-4136-accd-4a02d197296e" # openid
+      type = "Scope"
+    }
+    resource_access {
+      id   = "14dad69e-099b-42c9-810b-d002981feec1" # profile
+      type = "Scope"
+    }
+    resource_access {
+      id   = "64a6cdd6-aab1-4aaf-94b8-3cc8405e90d0" # email
+      type = "Scope"
+    }
+    resource_access {
+      id   = "e1fe6dd8-ba31-4d61-89e7-88639da4683d" # User.Read
+      type = "Scope"
+    }
+  }
+}
+
+resource "azuread_service_principal" "easyauth" {
+  count     = var.enable_easy_auth ? 1 : 0
+  client_id = azuread_application.easyauth[0].client_id
+}
+
+resource "azuread_application_password" "easyauth" {
+  count          = var.enable_easy_auth ? 1 : 0
+  application_id = azuread_application.easyauth[0].id
+  display_name      = "ACA Easy Auth"
+  end_date          = timeadd(timestamp(), "17520h") # ~2 years
+}
+
+# ── Admin Consent Grants ──────────────────────────────────────
+# These grant delegated permissions on behalf of all users in the tenant.
+
+data "azuread_service_principal" "fabric" {
+  count     = var.enable_easy_auth ? 1 : 0
+  client_id = "00000009-0000-0000-c000-000000000000"
+}
+
+data "azuread_service_principal" "graph" {
+  count     = var.enable_easy_auth ? 1 : 0
+  client_id = "00000003-0000-0000-c000-000000000000"
+}
+
+resource "azuread_service_principal_delegated_permission_grant" "fabric" {
+  count                                = var.enable_easy_auth ? 1 : 0
+  service_principal_object_id          = azuread_service_principal.easyauth[0].object_id
+  resource_service_principal_object_id = data.azuread_service_principal.fabric[0].object_id
+  claim_values                         = ["DataAgent.Execute.All"]
+}
+
+resource "azuread_service_principal_delegated_permission_grant" "graph" {
+  count                                = var.enable_easy_auth ? 1 : 0
+  service_principal_object_id          = azuread_service_principal.easyauth[0].object_id
+  resource_service_principal_object_id = data.azuread_service_principal.graph[0].object_id
+  claim_values                         = ["openid", "profile", "User.Read", "email"]
+}
+
+# ── Token Store (blob storage for Easy Auth session tokens) ───
+# public_network_access MUST be enabled: the Easy Auth sidecar runs as an
+# ACA platform component outside the customer VNet.
+
+resource "azurerm_storage_account" "tokenstore" {
+  count                         = var.enable_easy_auth ? 1 : 0
+  name                          = local.easyauth_storage_name
+  resource_group_name           = azurerm_resource_group.main.name
+  location                      = azurerm_resource_group.main.location
+  account_tier                  = "Standard"
+  account_replication_type      = "LRS"
+  public_network_access_enabled = true
+}
+
+resource "azurerm_storage_container" "tokenstore" {
+  count                 = var.enable_easy_auth ? 1 : 0
+  name                  = "tokenstore"
+  storage_account_id    = azurerm_storage_account.tokenstore[0].id
+  container_access_type = "private"
+}
+
+resource "azurerm_role_assignment" "tokenstore_blob" {
+  count                = var.enable_easy_auth ? 1 : 0
+  scope                = azurerm_storage_account.tokenstore[0].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+# ── Container App ─────────────────────────────────────────────
+# Starts with hello-world image; deploy.sh pushes the real image.
+
 resource "azurerm_container_app" "main" {
   name                         = var.app_name
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -125,6 +245,15 @@ resource "azurerm_container_app" "main" {
   registry {
     server   = azurerm_container_registry.main.login_server
     identity = azurerm_user_assigned_identity.main.id
+  }
+
+  # Easy Auth client secret (only when auth is enabled)
+  dynamic "secret" {
+    for_each = var.enable_easy_auth ? [1] : []
+    content {
+      name  = "microsoft-provider-authentication-secret"
+      value = azuread_application_password.easyauth[0].value
+    }
   }
 
   template {
@@ -188,4 +317,55 @@ resource "azurerm_container_app" "main" {
       latest_revision = true
     }
   }
+}
+
+# ── ACA Easy Auth Configuration (ARM API) ─────────────────────
+# Uses azapi because the azurerm provider doesn't support the full
+# auth config (token store with MI, login parameters, etc.).
+
+resource "azapi_resource" "easyauth" {
+  count     = var.enable_easy_auth ? 1 : 0
+  type      = "Microsoft.App/containerApps/authConfigs@2024-10-02-preview"
+  name      = "current"
+  parent_id = azurerm_container_app.main.id
+
+  body = {
+    properties = {
+      platform = {
+        enabled = true
+      }
+      globalValidation = {
+        unauthenticatedClientAction = "RedirectToLoginPage"
+      }
+      identityProviders = {
+        azureActiveDirectory = {
+          registration = {
+            clientId                = azuread_application.easyauth[0].client_id
+            clientSecretSettingName = "microsoft-provider-authentication-secret"
+            openIdIssuer            = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
+          }
+          login = {
+            loginParameters = [
+              "scope=openid profile email https://api.fabric.microsoft.com/.default"
+            ]
+          }
+        }
+      }
+      login = {
+        tokenStore = {
+          enabled = true
+          azureBlobStorage = {
+            blobContainerUri          = "https://${azurerm_storage_account.tokenstore[0].name}.blob.core.windows.net/${azurerm_storage_container.tokenstore[0].name}"
+            managedIdentityResourceId = azurerm_user_assigned_identity.main.id
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    azurerm_role_assignment.tokenstore_blob,
+    azuread_service_principal_delegated_permission_grant.fabric,
+    azuread_service_principal_delegated_permission_grant.graph,
+  ]
 }
