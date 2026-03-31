@@ -90,16 +90,19 @@ jobs:
               --name ${{ vars.APP_NAME }} \
               --resource-group ${{ vars.RESOURCE_GROUP }} \
               --query "[0].properties.runningState" -o tsv 2>/dev/null || echo "unknown")
-            if [ "$STATUS" = "Running" ]; then
-              echo "✅ Revision is running (attempt $i)"
-              break
-            fi
+            case "$STATUS" in
+              Running|RunningAtMaxScale)
+                echo "✅ Revision is healthy (attempt $i, status: $STATUS)"
+                HEALTHY=true
+                break
+                ;;
+            esac
             echo "⏳ Waiting for revision... (attempt $i, status: $STATUS)"
             sleep 10
           done
 
-          if [ "$STATUS" != "Running" ]; then
-            echo "❌ Revision did not reach Running state within 180s"
+          if [ "${HEALTHY:-}" != "true" ]; then
+            echo "❌ Revision did not reach a healthy state within 180s (last: $STATUS)"
             exit 1
           fi
 
