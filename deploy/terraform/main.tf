@@ -170,7 +170,11 @@ resource "azuread_application_password" "easyauth" {
   count          = var.enable_easy_auth ? 1 : 0
   application_id = azuread_application.easyauth[0].id
   display_name      = "ACA Easy Auth"
-  end_date          = timeadd(timestamp(), "17520h") # ~2 years
+  end_date          = timeadd(plantimestamp(), "17520h") # ~2 years
+
+  lifecycle {
+    ignore_changes = [end_date]
+  }
 }
 
 # ── Admin Consent Grants ──────────────────────────────────────

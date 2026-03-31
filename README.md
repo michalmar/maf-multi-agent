@@ -79,17 +79,12 @@ FABRIC_DATA_AGENT_MCP_URL=https://api.fabric.microsoft.com/v1/mcp/workspaces/<id
 
 Authentication uses **ACA Easy Auth** — the entire app is gated behind Entra ID login. Easy Auth injects user tokens into request headers, which the backend uses for Fabric API calls. Service principals and managed identities are rejected by Fabric at the data layer.
 
-**Setup steps (deployed):**
-1. Create an Entra ID Web app registration with a client secret
-2. Add redirect URI: `https://<aca-fqdn>/.auth/login/aad/callback`
-3. Add delegated permissions: `Fabric DataAgent.Execute.All`, `openid`, `profile`, `User.Read` + grant admin consent
-4. Create a storage account + blob container for token store; grant MI `Storage Blob Data Contributor`
-5. Configure ACA Easy Auth via ARM API (2024-10-02-preview) with Entra provider + token store + Fabric scope in login parameters
-6. Add the Container App's Managed Identity to your Fabric workspace as **Admin** (needed for MCP handshake)
+**Setup (automated via Terraform):**
+Set `enable_easy_auth = true` and `enable_fabric_data_agent = true` in `terraform.tfvars`, then run `terraform apply`. This creates the Entra app registration, client secret, admin consent grants, token store, and ACA auth config automatically.
+
+After apply, run `./deploy/post_infra_deploy.sh` — the only manual step is adding the MI to your Fabric workspace as Admin.
 
 **Local development:** Easy Auth is not available locally. `DefaultAzureCredential` (via `az login`) is used as fallback — ensure your Azure CLI user has Fabric workspace access.
-
-See `deploy/terraform/` for infrastructure setup.
 
 ### 2. Backend
 
