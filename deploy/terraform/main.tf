@@ -128,6 +128,9 @@ resource "azuread_application" "easyauth" {
     redirect_uris = [
       "https://${local.aca_fqdn}/.auth/login/aad/callback"
     ]
+    implicit_grant {
+      id_token_issuance_enabled = true
+    }
   }
 
   # Fabric: DataAgent.Execute.All (delegated)
