@@ -712,10 +712,10 @@ textarea {
   height: 26px;
   min-width: 26px;
   border-radius: 6px;
-  background: var(--surface-elevated);
+  background: transparent;
   z-index: 1;
   transition: transform 180ms ease, box-shadow 180ms ease;
-  box-shadow: 0 0 0 3px var(--surface-elevated);
+  box-shadow: none;
   color: var(--text-secondary);
 }
 
@@ -828,13 +828,13 @@ textarea {
 
 @keyframes tl-node-pulse {
   0% {
-    box-shadow: 0 0 0 3px var(--surface-elevated), 0 0 0 3px transparent;
+    box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 0 3px var(--surface-elevated), 0 0 0 10px rgba(14, 154, 167, 0.16);
+    box-shadow: 0 0 0 6px rgba(14, 154, 167, 0.14);
   }
   100% {
-    box-shadow: 0 0 0 3px var(--surface-elevated), 0 0 0 3px transparent;
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 

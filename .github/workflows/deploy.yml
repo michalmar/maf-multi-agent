@@ -81,15 +81,33 @@ jobs:
             --query "properties.configuration.ingress.fqdn" -o tsv)
           echo "🌐 https://${FQDN}"
           echo ""
-          # Wait for the new revision to become ready
-          for i in $(seq 1 12); do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${FQDN}/api/agents" || true)
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Health check passed (attempt $i)"
-              exit 0
+
+          # Wait for the latest revision to become running/ready.
+          # The app is behind Entra ID Easy Auth so unauthenticated HTTP
+          # requests return 302/401 — use the ACA revision status instead.
+          for i in $(seq 1 18); do
+            STATUS=$(az containerapp revision list \
+              --name ${{ vars.APP_NAME }} \
+              --resource-group ${{ vars.RESOURCE_GROUP }} \
+              --query "[0].properties.runningState" -o tsv 2>/dev/null || echo "unknown")
+            if [ "$STATUS" = "Running" ]; then
+              echo "✅ Revision is running (attempt $i)"
+              break
             fi
-            echo "⏳ Waiting for healthy response... (attempt $i, got HTTP $HTTP_CODE)"
+            echo "⏳ Waiting for revision... (attempt $i, status: $STATUS)"
             sleep 10
           done
-          echo "⚠️ Health check did not pass within 120s — verify manually"
-          exit 1
+
+          if [ "$STATUS" != "Running" ]; then
+            echo "❌ Revision did not reach Running state within 180s"
+            exit 1
+          fi
+
+          # Verify the container is reachable (302/401 = app + Easy Auth OK)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${FQDN}" || true)
+          echo "🔒 HTTP response: $HTTP_CODE (302/401 expected — Entra ID auth is active)"
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "❌ App is not reachable"
+            exit 1
+          fi
+          echo "✅ Deploy verified"
