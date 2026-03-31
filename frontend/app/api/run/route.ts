@@ -30,8 +30,6 @@ export async function POST(request: NextRequest) {
   if (easyAuthToken) {
     headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"] = easyAuthToken;
   }
-  console.log(`[run proxy] easyauth access_token=${easyAuthToken ? "present" : "ABSENT"}, principal=${request.headers.get("x-ms-client-principal") ? "present" : "ABSENT"}`);
-
   const { response, error } = await safeFetch(`${BACKEND}/api/run`, {
     method: "POST",
     headers,

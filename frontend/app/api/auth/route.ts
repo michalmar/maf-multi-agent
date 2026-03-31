@@ -43,26 +43,11 @@ export async function GET(request: NextRequest) {
       principalName ??
       "";
 
-    return NextResponse.json({
-      name: name || email,
-      email,
-      _debug: {
-        hasAccessToken: !!request.headers.get("x-ms-token-aad-access-token"),
-        hasIdToken: !!request.headers.get("x-ms-token-aad-id-token"),
-        hasPrincipal: true,
-        claimTypes: claims.map((c) => c.typ),
-      },
-    });
+    return NextResponse.json({ name: name || email, email });
   } catch {
     return NextResponse.json({
       name: principalName ?? "User",
       email: principalName ?? "",
-      _debug: {
-        hasAccessToken: !!request.headers.get("x-ms-token-aad-access-token"),
-        hasIdToken: !!request.headers.get("x-ms-token-aad-id-token"),
-        hasPrincipal: true,
-        parseError: true,
-      },
     });
   }
 }
