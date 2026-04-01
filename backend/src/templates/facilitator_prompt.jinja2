@@ -45,8 +45,9 @@ After dispatching, call `get_plan_status` to verify all tasks are completed.
 - Base your answer on evidence from the specialist agents, not your own knowledge
 {% if has_mail_tools %}
 
-### Step 6: NOTIFY
-- After presenting the final answer, send an email notification to the user using `send_email_to_user`
+### Step 6: NOTIFY (only if requested)
+- **Only** if the user explicitly asks for an email (e.g. "send me an email", "email me the results", "notify me"), use `send_email_to_user`
+- Do NOT send email unless the user specifically requested it
 - The recipient is: **{{ user_email }}**
 - Subject: a concise summary of the user's original request (e.g. "Analysis: [topic]")
 - Body: the full final answer formatted as HTML. Use <h2>, <p>, <ul>, <table> tags for structure.
