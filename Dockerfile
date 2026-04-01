@@ -1,5 +1,5 @@
 # ── Stage 1: Backend dependencies ─────────────────────────────
-FROM python:3.11-slim AS backend-build
+FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim AS backend-build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
@@ -15,7 +15,7 @@ COPY backend/src ./src
 COPY backend/agents ./agents
 
 # ── Stage 2: Frontend build ───────────────────────────────────
-FROM node:22-alpine AS frontend-build
+FROM mcr.microsoft.com/mirror/docker/library/node:20-bookworm-slim AS frontend-build
 
 WORKDIR /app
 COPY frontend ./frontend
@@ -25,7 +25,7 @@ ENV BACKEND_API_URL=http://127.0.0.1:8000
 RUN cd frontend && npm run build
 
 # ── Stage 3: Runtime ──────────────────────────────────────────
-FROM python:3.11-slim
+FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim
 
 ARG APP_VERSION="dev"
 ARG GIT_SHA="unknown"
