@@ -4,10 +4,15 @@ import { join } from "path";
 
 export async function GET() {
   try {
-    // In production the file is at the container root; in dev it's one level up from frontend/
+    // Next.js standalone server.js does process.chdir(__dirname), so cwd varies:
+    // - Docker:  /app/frontend-standalone/frontend/  (standalone chdir)
+    // - Dev:     /path/to/project/frontend/          (npm run dev)
+    // CHANGELOG.md lives at the project root (/app/ in Docker, ../ from frontend/ in dev)
+    const cwd = process.cwd();
     const paths = [
-      join(process.cwd(), "CHANGELOG.md"),
-      join(process.cwd(), "..", "CHANGELOG.md"),
+      join(cwd, "CHANGELOG.md"),
+      join(cwd, "..", "CHANGELOG.md"),
+      join(cwd, "..", "..", "CHANGELOG.md"),
     ];
 
     for (const p of paths) {
