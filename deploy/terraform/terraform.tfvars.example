@@ -28,3 +28,14 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 
 # enable_easy_auth = true
 # easyauth_storage_account_name = ""  # auto-generated if empty
+#
+# When Easy Auth is enabled, Terraform also creates:
+#   - {app_name}-App-Users security group (controls who can log in)
+#   - {app_name}-Data-Users security group (controls Fabric data access)
+#   - appRoleAssignmentRequired = true (only assigned users/groups can log in)
+#
+# After apply:
+#   1. Run ./post_infra_deploy.sh
+#   2. Add the MI to your Fabric workspace as Admin
+#   3. Add the Data-Users group to Fabric workspace as Viewer
+#   4. Use ./add_user.sh to onboard users

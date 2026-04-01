@@ -39,3 +39,23 @@ output "easyauth_token_store_account" {
   description = "Token store storage account name"
   value       = var.enable_easy_auth ? local.easyauth_storage_name : ""
 }
+
+output "app_users_group_id" {
+  description = "Object ID of the App-Users security group — members can log in"
+  value       = var.enable_easy_auth ? azuread_group.app_users[0].object_id : ""
+}
+
+output "app_users_group_name" {
+  description = "Display name of the App-Users security group"
+  value       = var.enable_easy_auth ? azuread_group.app_users[0].display_name : ""
+}
+
+output "data_users_group_id" {
+  description = "Object ID of the Data-Users security group — members get Fabric data access"
+  value       = var.enable_easy_auth ? azuread_group.data_users[0].object_id : ""
+}
+
+output "data_users_group_name" {
+  description = "Display name of the Data-Users security group"
+  value       = var.enable_easy_auth ? azuread_group.data_users[0].display_name : ""
+}
