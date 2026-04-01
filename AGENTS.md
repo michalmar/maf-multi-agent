@@ -247,10 +247,40 @@ All events are streamed via SSE to the frontend.
 │   ├── hooks/                  # React hooks (theme, pinned header)
 │   └── lib/                    # Types, metadata, starter prompts
 ├── deploy/                     # Deployment infrastructure
+│   ├── add_user.sh             # User onboarding script
 │   ├── deploy.sh               # ACR build + ACA update script
 │   └── terraform/              # IaC (ACR, ACA, managed identity)
 ├── .github/workflows/          # CI/CD
 │   └── deploy.yml              # GitHub Actions → ACA deployment
+├── CHANGELOG.md                # User-facing release notes (shown in "What's New" modal)
 ├── Dockerfile                  # Multi-stage (Python + Node.js)
 └── supervisord.conf            # Runs backend + frontend in one container
+```
+
+---
+
+## Changelog Convention
+
+The `CHANGELOG.md` file in the project root powers the **"What's New"** modal in the frontend UI (sparkle ✦ icon in the header).
+
+### Rules
+
+1. **Update `CHANGELOG.md` with every merge/commit to `main`** that changes user-visible behavior.
+2. Use the format `## [YYYY-MM-DD] — Short Title` for each release section.
+3. Group changes under `### Added`, `### Changed`, `### Fixed`, or `### Removed`.
+4. Each bullet should start with a **bold summary** followed by a dash and description.
+5. Keep entries concise — users see this in a modal, not a full page.
+6. The frontend reads the file via `/api/changelog` and renders it with ReactMarkdown.
+
+### Example entry
+
+```markdown
+## [2026-04-15] — Agent Memory & Caching
+
+### Added
+- **Conversation memory** — Agents can now reference previous runs within the same session.
+- **Response caching** — Repeated queries return cached results instantly.
+
+### Fixed
+- **SSE reconnection** — Stream now auto-reconnects on network interruption.
 ```
