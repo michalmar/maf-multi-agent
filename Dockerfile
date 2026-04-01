@@ -49,6 +49,9 @@ COPY --from=frontend-build /app/frontend/.next/standalone ./frontend-standalone
 COPY --from=frontend-build /app/frontend/.next/static ./frontend-standalone/frontend/.next/static
 COPY --from=frontend-build /app/frontend/public ./frontend-standalone/frontend/public
 
+# Changelog (served by /api/changelog route in the frontend)
+COPY CHANGELOG.md ./CHANGELOG.md
+
 # Supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
