@@ -39,3 +39,8 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 #   2. Add the MI to your Fabric workspace as Admin
 #   3. Add the Data-Users group to Fabric workspace as Viewer
 #   4. Use ./add_user.sh to onboard users
+
+# ── Email notifications ────────────────────────────────────────
+# Sender mailbox for Graph Mail API notifications. Leave empty to disable.
+# Requires Mail.Send app permission on the managed identity.
+# mail_sender_address = "admin@contoso.com"
