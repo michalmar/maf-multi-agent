@@ -336,6 +336,20 @@ def run_fabric_mcp(
     if user_token:
         token = user_token
         logger.info("🔑 Using pre-acquired user token (Easy Auth / body)")
+        # Log token claims for diagnostics (decode JWT payload without verification)
+        try:
+            import base64, json as _json
+            parts = token.split(".")
+            if len(parts) >= 2:
+                payload = parts[1] + "=" * (-len(parts[1]) % 4)  # pad base64
+                claims = _json.loads(base64.urlsafe_b64decode(payload))
+                logger.info(
+                    "🔑 Token claims: aud=%s, scp=%s, upn=%s, appid=%s, exp=%s",
+                    claims.get("aud"), claims.get("scp"), claims.get("upn"),
+                    claims.get("appid") or claims.get("azp"), claims.get("exp"),
+                )
+        except Exception as e:
+            logger.warning("🔑 Could not decode token for diagnostics: %s", e)
     elif auth_mode == "service_principal":
         tenant_id = _resolve_env(tenant_id_env)
         client_id = _resolve_env(client_id_env)

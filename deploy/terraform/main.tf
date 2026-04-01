@@ -165,8 +165,38 @@ resource "azuread_application" "easyauth" {
 }
 
 resource "azuread_service_principal" "easyauth" {
-  count     = var.enable_easy_auth ? 1 : 0
-  client_id = azuread_application.easyauth[0].client_id
+  count                        = var.enable_easy_auth ? 1 : 0
+  client_id                    = azuread_application.easyauth[0].client_id
+  app_role_assignment_required = true # Only assigned users/groups can authenticate
+}
+
+# ── Security Groups ───────────────────────────────────────────
+# MAF-App-Users: members can log in to the app.
+# MAF-Data-Users: members get Fabric workspace access for Data Agent queries.
+# Add users to these groups to onboard them (see deploy/add_user.sh).
+
+resource "azuread_group" "app_users" {
+  count            = var.enable_easy_auth ? 1 : 0
+  display_name     = "${var.app_name}-App-Users"
+  description      = "Members can log in to the ${var.app_name} app"
+  security_enabled = true
+  owners           = [data.azuread_client_config.current.object_id]
+}
+
+resource "azuread_group" "data_users" {
+  count            = var.enable_easy_auth ? 1 : 0
+  display_name     = "${var.app_name}-Data-Users"
+  description      = "Members get Fabric workspace access for Data Agent queries via ${var.app_name}"
+  security_enabled = true
+  owners           = [data.azuread_client_config.current.object_id]
+}
+
+# Assign the App-Users group to the Enterprise Application (Default Access role)
+resource "azuread_app_role_assignment" "app_users" {
+  count               = var.enable_easy_auth ? 1 : 0
+  app_role_id         = "00000000-0000-0000-0000-000000000000" # Default Access
+  principal_object_id = azuread_group.app_users[0].object_id
+  resource_object_id  = azuread_service_principal.easyauth[0].object_id
 }
 
 resource "azuread_application_password" "easyauth" {
@@ -377,6 +407,12 @@ resource "azapi_resource" "easyauth" {
             clientId                = azuread_application.easyauth[0].client_id
             clientSecretSettingName = "microsoft-provider-authentication-secret"
             openIdIssuer            = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
+          }
+          validation = {
+            allowedAudiences = [
+              azuread_application.easyauth[0].client_id,
+              "api://${azuread_application.easyauth[0].client_id}"
+            ]
           }
           login = {
             loginParameters = [
