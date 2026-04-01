@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
   if (easyAuthToken) {
     headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"] = easyAuthToken;
   }
+  // Forward principal name for user email extraction in the backend
+  const principalName = request.headers.get("x-ms-client-principal-name");
+  if (principalName) {
+    headers["X-MS-CLIENT-PRINCIPAL-NAME"] = principalName;
+  }
   const { response, error } = await safeFetch(`${BACKEND}/api/run`, {
     method: "POST",
     headers,

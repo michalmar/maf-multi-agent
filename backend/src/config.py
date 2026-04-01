@@ -13,6 +13,11 @@ class Config:
     azure_openai_endpoint: str
     azure_openai_chat_deployment_name: str
     azure_openai_summary_deployment_name: str
+    mail_sender_address: str  # Admin mailbox for Graph Mail.Send (empty = disabled)
+
+    @property
+    def mail_enabled(self) -> bool:
+        return bool(self.mail_sender_address)
 
 
 def load_config() -> Config:
@@ -27,4 +32,5 @@ def load_config() -> Config:
         azure_openai_summary_deployment_name=os.environ.get(
             "AZURE_OPENAI_SUMMARY_DEPLOYMENT_NAME", "gpt-4.1-nano"
         ),
+        mail_sender_address=os.environ.get("MAIL_SENDER_ADDRESS", ""),
     )

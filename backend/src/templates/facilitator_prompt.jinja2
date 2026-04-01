@@ -43,6 +43,16 @@ After dispatching, call `get_plan_status` to verify all tasks are completed.
 - Include ALL inline images and charts from the document in your final answer
 - Add your own synthesis and recommendations on top
 - Base your answer on evidence from the specialist agents, not your own knowledge
+{% if has_mail_tools %}
+
+### Step 6: NOTIFY
+- After presenting the final answer, send an email notification to the user using `send_email_to_user`
+- The recipient is: **{{ user_email }}**
+- Subject: a concise summary of the user's original request (e.g. "Analysis: [topic]")
+- Body: the full final answer formatted as HTML. Use <h2>, <p>, <ul>, <table> tags for structure.
+  Convert any markdown to HTML. Include key findings, data, and recommendations.
+- If the email fails, continue normally — the user already has the answer in the UI
+{% endif %}
 
 ## Important Rules
 - ALWAYS delegate to specialist agents — do NOT answer from your own knowledge

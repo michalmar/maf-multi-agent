@@ -16,6 +16,7 @@ from src.scratchpad.taskboard import TaskBoard
 from src.scratchpad.shared_document import SharedDocument
 from src.scratchpad.facilitator_tools import FacilitatorTools
 from src.scratchpad.dispatcher import create_dispatch_tools
+from src.scratchpad.mail_tools import MailTools
 from src.summary import SummaryService
 
 logger = logging.getLogger(__name__)
@@ -23,11 +24,15 @@ logger = logging.getLogger(__name__)
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 
-def _build_facilitator_prompt(dispatch_tools) -> str:
+def _build_facilitator_prompt(dispatch_tools, has_mail_tools: bool = False, user_email: str = "") -> str:
     """Render the facilitator system prompt from Jinja2 template."""
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), keep_trailing_newline=True)
     template = env.get_template("facilitator_prompt.jinja2")
-    return template.render(dispatch_tools=dispatch_tools)
+    return template.render(
+        dispatch_tools=dispatch_tools,
+        has_mail_tools=has_mail_tools,
+        user_email=user_email,
+    )
 
 
 async def run_scratchpad_workflow(
@@ -37,11 +42,12 @@ async def run_scratchpad_workflow(
     selected_agents: Optional[list[str]] = None,
     reasoning_effort: Optional[str] = "low",
     user_token: Optional[str] = None,
+    user_email: Optional[str] = None,
 ) -> tuple[str, str]:
     """Run the full scratchpad workflow for a user query.
 
     Creates TaskBoard + SharedDocument, builds Facilitator agent with
-    FacilitatorTools + dispatch tools, and runs the agent.
+    FacilitatorTools + dispatch tools (+ optional mail tools), and runs the agent.
 
     Args:
         query: The user's travel planning question.
@@ -50,6 +56,7 @@ async def run_scratchpad_workflow(
         selected_agents: Optional list of agent names to include. If None, all agents are used.
         reasoning_effort: Reasoning effort level: "high", "medium", "low", or "none".
         user_token: Fabric user token from Easy Auth or local dev.
+        user_email: Logged-in user's email for email notifications.
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
@@ -92,11 +99,27 @@ async def run_scratchpad_workflow(
 
     all_tools = facilitator_tools.get_tools() + dispatch_tools
 
+    # Add mail tools if configured (MAIL_SENDER_ADDRESS set + user email available)
+    has_mail_tools = False
+    if config.mail_enabled and user_email:
+        mail_tools = MailTools(user_email=user_email, config=config)
+        all_tools = all_tools + mail_tools.get_tools()
+        has_mail_tools = True
+        logger.info("📧 Mail tools enabled: sender=%s, recipient=%s", config.mail_sender_address, user_email)
+    elif not config.mail_enabled:
+        logger.info("📧 Mail tools disabled (MAIL_SENDER_ADDRESS not set)")
+    else:
+        logger.info("📧 Mail tools disabled (no user email available)")
+
     if not dispatch_tools:
         raise RuntimeError("No dispatch tools created. Check agents/ directory.")
 
     # Build dynamic facilitator prompt from template
-    facilitator_prompt = _build_facilitator_prompt(dispatch_tools)
+    facilitator_prompt = _build_facilitator_prompt(
+        dispatch_tools,
+        has_mail_tools=has_mail_tools,
+        user_email=user_email or "",
+    )
 
     # Create the Facilitator agent
     client = AzureOpenAIResponsesClient(
