@@ -86,3 +86,11 @@ variable "easyauth_storage_account_name" {
   type        = string
   default     = ""
 }
+
+# ── Email notifications ───────────────────────────────────────
+
+variable "mail_sender_address" {
+  description = "Admin mailbox for sending email notifications via Graph API. Leave empty to disable. Requires Mail.Send app permission on the managed identity."
+  type        = string
+  default     = ""
+}

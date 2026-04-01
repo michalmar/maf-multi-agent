@@ -485,6 +485,7 @@ export function PlannerShell() {
             query,
             selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
             reasoning_effort: reasoningEffort,
+            user_email: easyAuthUser?.email || undefined,
           }),
         });
 

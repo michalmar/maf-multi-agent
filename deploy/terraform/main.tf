@@ -362,6 +362,15 @@ resource "azurerm_container_app" "main" {
           value = var.fabric_data_agent_mcp_url
         }
       }
+
+      # Graph Mail notifications — only injected when configured
+      dynamic "env" {
+        for_each = var.mail_sender_address != "" ? [1] : []
+        content {
+          name  = "MAIL_SENDER_ADDRESS"
+          value = var.mail_sender_address
+        }
+      }
     }
   }
 
