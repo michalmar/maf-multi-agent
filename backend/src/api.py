@@ -26,6 +26,22 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _extract_email_from_token(token: str | None) -> str | None:
+    """Decode email from a JWT access token without verification (best-effort)."""
+    if not token:
+        return None
+    try:
+        import base64
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload = parts[1] + "=" * (-len(parts[1]) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+        return claims.get("preferred_username") or claims.get("upn") or None
+    except Exception:
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize logging and observability on startup."""
@@ -55,6 +71,7 @@ class RunRequest(BaseModel):
     selected_agents: list[str] | None = None
     reasoning_effort: str | None = "low"  # "high", "medium", "low", or "none"
     user_token: str | None = None  # Fabric user token (Easy Auth header or body)
+    user_email: str | None = None  # Logged-in user's email (for email notifications)
 
 
 class RunResponse(BaseModel):
@@ -142,7 +159,15 @@ async def start_run(req: RunRequest, request: Request):
         else "body" if req.user_token
         else "absent"
     )
-    logger.info("🚀 RUN %s | user_token=%s", run_id, token_source)
+
+    # Resolve user email: Easy Auth principal header > body field > JWT decode
+    user_email = (
+        request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        or req.user_email
+        or _extract_email_from_token(user_token)
+    )
+
+    logger.info("🚀 RUN %s | user_token=%s | user_email=%s", run_id, token_source, user_email or "absent")
     queue: asyncio.Queue = asyncio.Queue()
     _runs[run_id] = queue
 
@@ -171,7 +196,7 @@ async def start_run(req: RunRequest, request: Request):
         loop.call_soon_threadsafe(queue.put_nowait, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, user_token))
+    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, user_token, user_email))
 
     return RunResponse(run_id=run_id)
 
@@ -184,6 +209,7 @@ async def _run_workflow(
     collected_events: list[dict] | None = None,
     reasoning_effort: str | None = "low",
     user_token: str | None = None,
+    user_email: str | None = None,
 ):
     """Execute the scratchpad workflow and push events to the queue."""
     queue = _runs[run_id]
@@ -196,6 +222,7 @@ async def _run_workflow(
             selected_agents=selected_agents,
             reasoning_effort=reasoning_effort,
             user_token=user_token,
+            user_email=user_email,
         )
 
         # Save outputs to per-run folder: output/{run_id}/
