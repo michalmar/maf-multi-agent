@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, History, Home, LogOut, MoonStar, SunMedium } from "lucide-react";
+import { AlertTriangle, History, Home, LogOut, MoonStar, Sparkles, SunMedium } from "lucide-react";
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
@@ -11,6 +11,7 @@ import { QueryComposer, ReasoningEffort } from "@/components/query-composer";
 import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
 import { ToastContainer, useToast } from "@/components/toast";
+import { WhatsNewModal } from "@/components/whats-new-modal";
 import { getAgentIdentity } from "@/lib/agent-metadata";
 import { STARTER_PROMPTS } from "@/lib/starter-prompts";
 import {
@@ -174,6 +175,7 @@ export function PlannerShell() {
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("low");
   const [versionInfo, setVersionInfo] = useState<{ version: string; git_sha: string; build_date: string } | null>(null);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -754,6 +756,16 @@ export function PlannerShell() {
 
             <button
               type="button"
+              onClick={() => setWhatsNewOpen(true)}
+              className="secondary-button secondary-button-compact"
+              aria-label="What's new"
+              title="What's new"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={toggleTheme}
               className="secondary-button secondary-button-compact"
               aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
@@ -800,6 +812,15 @@ export function PlannerShell() {
                   </button>
                 );
               })}
+              <button
+              type="button"
+              onClick={() => setWhatsNewOpen(true)}
+              className="secondary-button secondary-button-compact"
+              aria-label="What's new"
+              title="What's new"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
               <button
               type="button"
               onClick={toggleTheme}
@@ -994,6 +1015,7 @@ export function PlannerShell() {
         ) : null}
       </main>
 
+      <WhatsNewModal isOpen={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
