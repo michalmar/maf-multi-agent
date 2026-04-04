@@ -81,6 +81,7 @@ interface WorkspacePanelsProps {
   running: boolean;
   status: RunStatus;
   onTabChange: (tab: WorkspaceTab) => void;
+  runId?: string | null;
 }
 
 interface DiffLine {
@@ -143,6 +144,7 @@ export function WorkspacePanels({
   running,
   status,
   onTabChange,
+  runId,
 }: WorkspacePanelsProps) {
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -194,7 +196,12 @@ export function WorkspacePanels({
     <section className="panel-shell p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(183,193,212,0.14)] pb-4">
         <div>
-          <p className="eyebrow">Workspace</p>
+          <div className="flex items-center gap-2">
+            <p className="eyebrow">Workspace</p>
+            {runId ? (
+              <span className="workspace-run-badge" title={runId}>{runId}</span>
+            ) : null}
+          </div>
           <h2 className="section-title mt-2">Evidence, drafts, and final output</h2>
           <p className="section-copy mt-2 max-w-2xl">
             Review activity, inspect draft revisions, and read the final markdown output without changing any of the underlying orchestration behavior.

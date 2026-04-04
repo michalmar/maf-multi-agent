@@ -279,6 +279,58 @@ textarea {
   box-shadow: 0 0 18px currentColor;
 }
 
+/* Blinking dot for streaming state */
+.status-chip-streaming::before {
+  animation: status-blink 1s ease-in-out infinite;
+}
+
+@keyframes status-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 18px currentColor; }
+  50% { opacity: 0.25; box-shadow: 0 0 4px currentColor; }
+}
+
+/* Text fill progress effect for streaming state */
+.status-chip-streaming {
+  position: relative;
+  overflow: hidden;
+  background: rgba(14, 154, 167, 0.08);
+}
+
+.status-chip-streaming::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(14, 154, 167, 0.18) 0%,
+    rgba(14, 154, 167, 0.04) 50%,
+    rgba(14, 154, 167, 0.18) 100%
+  );
+  background-size: 200% 100%;
+  animation: streaming-sweep 1.8s ease-in-out infinite;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+@keyframes streaming-sweep {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Workspace run ID badge */
+.workspace-run-badge {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 .mission-menu {
   display: inline-flex;
   flex-wrap: wrap;
