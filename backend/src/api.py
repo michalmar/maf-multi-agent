@@ -60,6 +60,14 @@ def _resolve_user_email(request: Request) -> str | None:
     )
 
 
+def _is_super_user(user_email: str | None) -> bool:
+    """Check if the authenticated user is the configured super-user."""
+    if not user_email:
+        return False
+    su = os.environ.get("SUPER_USER_EMAIL", "")
+    return bool(su and user_email.lower().strip() == su.lower().strip())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize logging and observability on startup."""
@@ -556,22 +564,28 @@ def _validate_user_run(run_id: str, user_email: str | None) -> str:
     return resolved
 
 
-@app.get("/api/history")
-async def list_history(request: Request):
-    """List saved session snapshots for the authenticated user, newest first."""
-    user_email = _resolve_user_email(request)
+def _find_run_dir_any_user(run_id: str) -> str | None:
+    """Search all user directories for a run_id (super-user access)."""
+    if not _SAFE_RUN_ID_RE.match(run_id):
+        return None
     output_dir = _get_output_dir()
+    if not os.path.isdir(output_dir):
+        return None
+    for user_entry in os.listdir(output_dir):
+        user_path = os.path.join(output_dir, user_entry)
+        if not os.path.isdir(user_path):
+            continue
+        candidate = os.path.join(user_path, run_id)
+        if os.path.isdir(candidate) and os.path.isfile(os.path.join(candidate, "session.json")):
+            return candidate
+    return None
 
-    if user_email:
-        scan_dir = os.path.join(output_dir, _safe_user_dir(user_email))
-    else:
-        # No user identity — scan all top-level run folders (local dev / legacy)
-        scan_dir = output_dir
 
-    items = []
+def _list_sessions_in_dir(scan_dir: str, include_user: bool = False) -> list[dict]:
+    """List session snapshots in a directory, newest first."""
+    items: list[dict] = []
     if not os.path.isdir(scan_dir):
         return items
-
     for entry in sorted(os.listdir(scan_dir), reverse=True):
         if not _SAFE_RUN_ID_RE.match(entry):
             continue
@@ -581,25 +595,66 @@ async def list_history(request: Request):
         try:
             with open(session_path) as f:
                 snap = json.load(f)
-            items.append({
+            item: dict = {
                 "run_id": snap.get("run_id", entry),
                 "query": snap.get("query", "")[:200],
                 "timestamp": snap.get("timestamp", ""),
                 "status": snap.get("status", "unknown"),
                 "event_count": len(snap.get("events", [])),
                 "has_result": bool(snap.get("result")),
-            })
+            }
+            if include_user:
+                item["user_email"] = snap.get("user_email")
+            items.append(item)
         except Exception:
             continue
-
     return items
+
+
+@app.get("/api/history")
+async def list_history(request: Request):
+    """List saved session snapshots for the authenticated user, newest first."""
+    user_email = _resolve_user_email(request)
+    output_dir = _get_output_dir()
+    is_su = _is_super_user(user_email)
+
+    if is_su:
+        # Super-user: scan all user directories
+        items: list[dict] = []
+        if os.path.isdir(output_dir):
+            for user_entry in os.listdir(output_dir):
+                user_path = os.path.join(output_dir, user_entry)
+                if not os.path.isdir(user_path):
+                    continue
+                # Skip non-session dirs (e.g. sandbox_files)
+                if user_entry == "sandbox_files":
+                    continue
+                items.extend(_list_sessions_in_dir(user_path, include_user=True))
+        # Sort all items newest first by run_id (YYYYMMDD-HHMMSS prefix)
+        items.sort(key=lambda x: x["run_id"], reverse=True)
+        return items
+
+    if user_email:
+        scan_dir = os.path.join(output_dir, _safe_user_dir(user_email))
+    else:
+        # No user identity — scan all top-level run folders (local dev / legacy)
+        scan_dir = output_dir
+
+    return _list_sessions_in_dir(scan_dir)
 
 
 @app.get("/api/history/{run_id}")
 async def get_history_session(run_id: str, request: Request):
     """Load a complete session snapshot for replay (scoped to authenticated user)."""
     user_email = _resolve_user_email(request)
-    run_dir = _validate_user_run(run_id, user_email)
+
+    if _is_super_user(user_email):
+        run_dir = _find_run_dir_any_user(run_id)
+        if not run_dir:
+            raise HTTPException(status_code=404, detail="Session not found")
+    else:
+        run_dir = _validate_user_run(run_id, user_email)
+
     session_path = os.path.join(run_dir, "session.json")
     if not os.path.isfile(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -613,7 +668,14 @@ async def delete_history_session(run_id: str, request: Request):
     """Delete a saved session and its output folder (scoped to authenticated user)."""
     import shutil
     user_email = _resolve_user_email(request)
-    run_dir = _validate_user_run(run_id, user_email)
+
+    if _is_super_user(user_email):
+        run_dir = _find_run_dir_any_user(run_id)
+        if not run_dir:
+            raise HTTPException(status_code=404, detail="Session not found")
+    else:
+        run_dir = _validate_user_run(run_id, user_email)
+
     if not os.path.isdir(run_dir):
         raise HTTPException(status_code=404, detail="Session not found")
     shutil.rmtree(run_dir)

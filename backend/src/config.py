@@ -14,6 +14,7 @@ class Config:
     azure_openai_chat_deployment_name: str
     azure_openai_summary_deployment_name: str
     mail_sender_address: str  # Admin mailbox for Graph Mail.Send (empty = disabled)
+    super_user_email: str  # Super-user who can view all users' history (empty = disabled)
 
     @property
     def mail_enabled(self) -> bool:
@@ -33,4 +34,5 @@ def load_config() -> Config:
             "AZURE_OPENAI_SUMMARY_DEPLOYMENT_NAME", "gpt-4.1-nano"
         ),
         mail_sender_address=os.environ.get("MAIL_SENDER_ADDRESS", ""),
+        super_user_email=os.environ.get("SUPER_USER_EMAIL", ""),
     )

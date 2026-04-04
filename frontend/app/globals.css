@@ -1717,6 +1717,22 @@ textarea {
   color: var(--muted);
 }
 
+.history-item-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft, rgba(99, 102, 241, 0.1));
+  padding: 1px 7px 1px 5px;
+  border-radius: 9px;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .history-item-meta .status-done {
   color: var(--success);
 }
