@@ -46,6 +46,7 @@ User identity ──► Fabric API
 - **Scratchpad Memory** — shared `TaskBoard` (progress tracking) and `SharedDocument` (collaborative output) accessible to all agents
 - **YAML-driven agents** — sub-agents defined declaratively in `backend/agents/*.yaml`, auto-loaded as MAF `FunctionTool`s
 - **Real-time streaming** — events from all agents propagated via SSE to the frontend (async dispatch with `asyncio.to_thread`)
+- **Email notifications** — facilitator can email results to the logged-in user via Microsoft Graph when explicitly requested
 
 ## Prerequisites
 
@@ -54,6 +55,7 @@ User identity ──► Fabric API
 - Azure AI Foundry project with deployed Prompt Agents (`OperationsEngineering`, `Coder`, `WebSearch`)
 - Azure OpenAI deployment (e.g. `gpt-5.2`) for the orchestrator
 - *(Optional)* Fabric Data Agent with MCP endpoint + ACA Easy Auth (Entra ID) for user authentication
+- *(Optional)* Shared/admin mailbox + Managed Identity with `Mail.Send` application permission for email notifications
 
 ## Setup
 
@@ -85,6 +87,21 @@ Set `enable_easy_auth = true` and `enable_fabric_data_agent = true` in `terrafor
 After apply, run `./deploy/post_infra_deploy.sh` — the only manual step is adding the MI to your Fabric workspace as Admin.
 
 **Local development:** Easy Auth is not available locally. `DefaultAzureCredential` (via `az login`) is used as fallback — ensure your Azure CLI user has Fabric workspace access.
+
+#### Email Notifications (optional)
+
+The facilitator can email results to the logged-in user when explicitly asked (e.g. *"email me the results"*). To enable:
+
+```env
+MAIL_SENDER_ADDRESS=admin-mailbox@yourdomain.com
+```
+
+**Requirements:**
+- A shared or admin mailbox to send from (`MAIL_SENDER_ADDRESS`)
+- The Managed Identity (or `az login` user locally) must have **`Mail.Send`** application permission on Microsoft Graph
+- User email is resolved automatically from Easy Auth headers (`X-MS-CLIENT-PRINCIPAL-NAME`) or the access token
+
+The feature is disabled when `MAIL_SENDER_ADDRESS` is not set — no code changes needed to opt out.
 
 ### 2. Backend
 
@@ -124,11 +141,13 @@ backend/
     agent_loader.py    # YAML agent parser + loader
     events.py          # Event types and callback definitions
     config.py          # Environment configuration
+    graph_mail_client.py  # Microsoft Graph email sender
     scratchpad/
       workflow.py      # Main workflow entry point
       dispatcher.py    # Async dispatch to Foundry agents
       taskboard.py     # Task tracking scratchpad
       shared_document.py  # Collaborative document scratchpad
+      mail_tools.py    # Email notification tools
   tests/               # Backend test suite
   pyproject.toml       # Python dependencies
   uv.lock

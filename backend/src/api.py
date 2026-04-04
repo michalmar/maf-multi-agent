@@ -42,6 +42,24 @@ def _extract_email_from_token(token: str | None) -> str | None:
         return None
 
 
+# Regex: strip chars unsafe for directory names (keep alphanumeric, @, ., -, _)
+_SAFE_EMAIL_RE = re.compile(r"[^a-zA-Z0-9@.\-_]")
+
+
+def _safe_user_dir(email: str) -> str:
+    """Sanitize an email address into a safe directory name."""
+    return _SAFE_EMAIL_RE.sub("_", email.lower().strip())
+
+
+def _resolve_user_email(request: Request) -> str | None:
+    """Extract user email from Easy Auth header or query param (local dev fallback)."""
+    return (
+        request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        or request.query_params.get("user_email")
+        or None
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize logging and observability on startup."""
@@ -214,6 +232,16 @@ async def _run_workflow(
     """Execute the scratchpad workflow and push events to the queue."""
     queue = _runs[run_id]
     workflow_status = "done"
+
+    # Compute run directory upfront — scoped by user when email is available
+    output_dir = _get_output_dir()
+    if user_email:
+        user_dir = os.path.join(output_dir, _safe_user_dir(user_email))
+    else:
+        user_dir = output_dir
+    run_dir = os.path.join(user_dir, run_id)
+    os.makedirs(run_dir, exist_ok=True)
+
     try:
         from src.scratchpad.workflow import run_scratchpad_workflow
 
@@ -224,11 +252,6 @@ async def _run_workflow(
             user_token=user_token,
             user_email=user_email,
         )
-
-        # Save outputs to per-run folder: output/{run_id}/
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
-        run_dir = os.path.join(output_dir, run_id)
-        os.makedirs(run_dir, exist_ok=True)
 
         def _save(filename, title, content):
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -269,6 +292,7 @@ async def _run_workflow(
             rewrite_sandbox_urls(result_text) if result_text else "",
             rewrite_sandbox_urls(document_md) if document_md else "",
             workflow_status,
+            user_email,
         )
 
     except Exception as e:
@@ -284,6 +308,7 @@ async def _run_workflow(
             _save_session_snapshot(
                 run_id, run_dir, query, collected_events or [],
                 "", "", "error",
+                user_email,
             )
         except Exception:
             logger.warning("⚠️  Failed to save error snapshot for %s", run_id)
@@ -411,6 +436,7 @@ def _save_session_snapshot(
     result_text: str,
     document_md: str,
     status: str,
+    user_email: str | None = None,
 ) -> None:
     """Save a complete session snapshot for replay mode."""
     try:
@@ -476,6 +502,7 @@ def _save_session_snapshot(
 
         snapshot = {
             "run_id": run_id,
+            "user_email": user_email,
             "query": query,
             "timestamp": datetime.now().isoformat(),
             "status": status,
@@ -514,18 +541,41 @@ def _validate_run_id(run_id: str) -> str:
     return resolved
 
 
-@app.get("/api/history")
-async def list_history():
-    """List all saved session snapshots, newest first."""
+def _validate_user_run(run_id: str, user_email: str | None) -> str:
+    """Validate run_id and return the user-scoped directory path."""
+    if not _SAFE_RUN_ID_RE.match(run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
     output_dir = _get_output_dir()
+    if user_email:
+        base_dir = os.path.join(output_dir, _safe_user_dir(user_email))
+    else:
+        base_dir = output_dir
+    resolved = os.path.realpath(os.path.join(base_dir, run_id))
+    if not resolved.startswith(os.path.realpath(base_dir)):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    return resolved
+
+
+@app.get("/api/history")
+async def list_history(request: Request):
+    """List saved session snapshots for the authenticated user, newest first."""
+    user_email = _resolve_user_email(request)
+    output_dir = _get_output_dir()
+
+    if user_email:
+        scan_dir = os.path.join(output_dir, _safe_user_dir(user_email))
+    else:
+        # No user identity — scan all top-level run folders (local dev / legacy)
+        scan_dir = output_dir
+
     items = []
-    if not os.path.isdir(output_dir):
+    if not os.path.isdir(scan_dir):
         return items
 
-    for entry in sorted(os.listdir(output_dir), reverse=True):
+    for entry in sorted(os.listdir(scan_dir), reverse=True):
         if not _SAFE_RUN_ID_RE.match(entry):
             continue
-        session_path = os.path.join(output_dir, entry, "session.json")
+        session_path = os.path.join(scan_dir, entry, "session.json")
         if not os.path.isfile(session_path):
             continue
         try:
@@ -546,9 +596,10 @@ async def list_history():
 
 
 @app.get("/api/history/{run_id}")
-async def get_history_session(run_id: str):
-    """Load a complete session snapshot for replay."""
-    run_dir = _validate_run_id(run_id)
+async def get_history_session(run_id: str, request: Request):
+    """Load a complete session snapshot for replay (scoped to authenticated user)."""
+    user_email = _resolve_user_email(request)
+    run_dir = _validate_user_run(run_id, user_email)
     session_path = os.path.join(run_dir, "session.json")
     if not os.path.isfile(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -558,10 +609,11 @@ async def get_history_session(run_id: str):
 
 
 @app.delete("/api/history/{run_id}")
-async def delete_history_session(run_id: str):
-    """Delete a saved session and its output folder."""
+async def delete_history_session(run_id: str, request: Request):
+    """Delete a saved session and its output folder (scoped to authenticated user)."""
     import shutil
-    run_dir = _validate_run_id(run_id)
+    user_email = _resolve_user_email(request)
+    run_dir = _validate_user_run(run_id, user_email)
     if not os.path.isdir(run_dir):
         raise HTTPException(status_code=404, detail="Session not found")
     shutil.rmtree(run_dir)

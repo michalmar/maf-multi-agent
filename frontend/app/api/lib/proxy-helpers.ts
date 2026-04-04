@@ -5,7 +5,7 @@
  * and consistent error response formatting.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const BACKEND =
   process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
@@ -54,6 +54,25 @@ export function validatePathSegments(
     }
   }
   return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Auth header forwarding                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Extract Easy Auth identity headers from an incoming request
+ * so they can be forwarded to the backend for user-scoped operations.
+ */
+export function forwardAuthHeaders(
+  request: NextRequest,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const principalName = request.headers.get("x-ms-client-principal-name");
+  if (principalName) {
+    headers["X-MS-CLIENT-PRINCIPAL-NAME"] = principalName;
+  }
+  return headers;
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,11 +164,12 @@ export async function proxyJsonGet(
     fallback?: Record<string, unknown> | unknown[];
     errorDetail?: string;
     timeoutMs?: number;
+    headers?: Record<string, string>;
   },
 ): Promise<NextResponse> {
   const { response, error } = await safeFetch(
     url,
-    { cache: "no-store" },
+    { cache: "no-store", headers: opts?.headers },
     opts?.timeoutMs,
   );
 
