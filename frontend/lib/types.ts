@@ -16,8 +16,17 @@ export type EventType =
   | "agent_completed"
   | "agent_error"
   | "output"
-  | "workflow_completed"
-  | "done";
+  | "workflow_completed";
+
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set<EventType>([
+  "workflow_started", "reasoning", "tool_decision", "tasks_created",
+  "task_completed", "document_updated", "agent_started", "agent_streaming",
+  "agent_completed", "agent_error", "output", "workflow_completed",
+]);
+
+export function isKnownEventType(type: string): type is EventType {
+  return KNOWN_EVENT_TYPES.has(type);
+}
 
 export interface AgentDefinition {
   name: string;
@@ -48,26 +57,46 @@ export interface EventUsage {
 }
 
 export interface EventData {
-  [key: string]: unknown;
-  tasks?: TaskItem[];
-  task_id?: number;
-  text?: string;
+  // workflow_started
   query?: string;
+
+  // reasoning / agent_streaming / output
+  text?: string;
+
+  // tool_decision
   tool?: string;
   arguments?: unknown;
+
+  // tasks_created
+  tasks?: TaskItem[];
+
+  // task_completed / agent_started
+  task_id?: number;
+
+  // document_updated
   version?: number;
   content?: string;
-  history?: {
-    action?: string;
-    [key: string]: unknown;
-  };
-  document?: string;
-  error?: string;
-  elapsed?: number;
-  length?: number;
-  usage?: EventUsage;
+  history?: { action?: string; [key: string]: unknown };
+
+  // agent_started / agent_streaming / agent_completed / agent_error
   agent_name?: string;
+
+  // agent_completed / output
   result?: string;
+  document?: string;
+
+  // agent_error
+  error?: string;
+
+  // agent_completed / workflow_completed
+  elapsed?: number;
+  usage?: EventUsage;
+
+  // misc
+  length?: number;
+
+  // forward-compat fallback
+  [key: string]: unknown;
 }
 
 export interface AgentEvent {

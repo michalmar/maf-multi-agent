@@ -4,14 +4,13 @@ import asyncio
 import json
 import logging
 import time
-from pathlib import Path
 from typing import Optional
 
 from agent_framework import FunctionTool
 from pydantic import BaseModel, Field
 
-from src.agent_loader import AgentDefinition, parse_agent_yaml, DEFAULT_AGENTS_DIR
-from src.config import load_config
+from src.agent_loader import AgentDefinition, list_agent_definitions
+from src.config import get_config
 from src.events import EventCallback
 from src.foundry_client import run_foundry_agent
 from src.fabric_mcp_client import run_fabric_mcp
@@ -71,7 +70,7 @@ Your assigned tasks:
 Please provide detailed recommendations for each task. Be specific with names, prices, times, and practical details."""
 
         # Call the agent in a worker thread so the event loop stays free
-        config = load_config()
+        config = get_config()
         t0 = time.perf_counter()
         try:
             if agent_def.agent_type == "mcp":
@@ -152,20 +151,12 @@ def create_dispatch_tools(
 
     Returns list of FunctionTool objects named 'call_<agent_name>'.
     """
-    agents_path = Path(agents_dir) if agents_dir else DEFAULT_AGENTS_DIR
-
-    if not agents_path.is_dir():
-        logger.warning("Agents directory not found: %s", agents_path)
-        return []
-
     selected_set = set(selected_agents) if selected_agents is not None else None
-    yaml_files = sorted(agents_path.glob("*.yaml"))
+    agent_defs = list_agent_definitions(agents_dir)
     tools = []
 
-    for yaml_file in yaml_files:
+    for agent_def in agent_defs:
         try:
-            agent_def = parse_agent_yaml(yaml_file)
-
             if selected_set is not None and agent_def.name not in selected_set:
                 logger.info("⏭️  Skipping agent %s (not in selected_agents)", agent_def.name)
                 continue
@@ -184,6 +175,6 @@ def create_dispatch_tools(
             tools.append(tool)
             logger.info("📂 Dispatch tool created: call_%s", agent_def.name)
         except Exception as e:
-            logger.error("❌ Failed to create dispatch tool from %s: %s", yaml_file.name, e)
+            logger.error("❌ Failed to create dispatch tool for %s: %s", agent_def.name, e)
 
     return tools

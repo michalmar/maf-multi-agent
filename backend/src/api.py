@@ -10,24 +10,33 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncGenerator
 
-from dotenv import load_dotenv
+import yaml
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from src.config import get_config
 from src.events import AgentEvent, EventType
 from src.agent_loader import list_agent_definitions
 from src.fabric_capacity import get_fabric_capacity_status, resume_fabric_capacity
 from src.file_store import get_file, rewrite_sandbox_urls, rewrite_sandbox_urls_for_disk, copy_run_files
-
-load_dotenv()
+from src.run_store import RunStore
 
 logger = logging.getLogger(__name__)
 
 
 def _extract_email_from_token(token: str | None) -> str | None:
-    """Decode email from a JWT access token without verification (best-effort)."""
+    """Best-effort email extraction from a JWT access token.
+
+    WARNING: This does NOT verify the token signature. It is safe to use ONLY
+    when the token has already been validated by an upstream gateway (e.g., Azure
+    Container Apps Easy Auth). Never use this as the sole identity check.
+
+    The primary identity source is _resolve_user_email() which reads the
+    pre-validated X-MS-CLIENT-PRINCIPAL-NAME header from Easy Auth.
+    """
     if not token:
         return None
     try:
@@ -74,22 +83,26 @@ async def lifespan(app: FastAPI):
     setup_logging()
     from src.observability import setup_observability
     await setup_observability()
+    app.state.run_store = RunStore()
     yield
 
 
 app = FastAPI(title="MAF & Foundry Agent Orchestration", lifespan=lifespan)
 
+_config = get_config()
+_origins = [o.strip() for o in _config.allowed_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# In-memory store for active runs
-_runs: dict[str, asyncio.Queue] = {}
-_results: dict[str, dict] = {}
-_streaming: dict[str, bool] = {}  # tracks active SSE consumers to prevent split-stream
+
+def _store(request_or_app=None) -> RunStore:
+    """Return the RunStore instance from app state."""
+    return app.state.run_store
 
 
 class RunRequest(BaseModel):
@@ -186,7 +199,9 @@ async def start_run(req: RunRequest, request: Request):
         else "absent"
     )
 
-    # Resolve user email: Easy Auth principal header > body field > JWT decode
+    # Resolve user email: Easy Auth principal header > body field > JWT decode.
+    # JWT fallback is safe here because the token was already validated upstream
+    # by Easy Auth (ACA) or is a local-dev token from az login.
     user_email = (
         request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         or req.user_email
@@ -194,8 +209,9 @@ async def start_run(req: RunRequest, request: Request):
     )
 
     logger.info("🚀 RUN %s | user_token=%s | user_email=%s", run_id, token_source, user_email or "absent")
-    queue: asyncio.Queue = asyncio.Queue()
-    _runs[run_id] = queue
+    store = _store()
+    run_state = store.create(run_id)
+    queue = run_state.queue
 
     # Collect events for session snapshot (thread-safe list)
     collected_events: list[dict] = []
@@ -238,7 +254,12 @@ async def _run_workflow(
     user_email: str | None = None,
 ):
     """Execute the scratchpad workflow and push events to the queue."""
-    queue = _runs[run_id]
+    store = _store()
+    run_state = store.get(run_id)
+    if not run_state:
+        logger.error("Run %s not found in store", run_id)
+        return
+    queue = run_state.queue
     workflow_status = "done"
 
     # Compute run directory upfront — scoped by user when email is available
@@ -282,10 +303,10 @@ async def _run_workflow(
         # Copy sandbox files into run folder so markdown + images are self-contained
         copy_run_files(run_dir)
 
-        _results[run_id] = {
+        store.set_result(run_id, {
             "result": rewrite_sandbox_urls(result_text) if result_text else "",
             "document": rewrite_sandbox_urls(document_md) if document_md else "",
-        }
+        })
 
         # Send final result event (URL rewriting happens in _event_to_sse)
         await queue.put(AgentEvent(
@@ -331,20 +352,22 @@ _SSE_KEEPALIVE_INTERVAL = 15  # seconds between heartbeat comments
 @app.get("/api/stream/{run_id}")
 async def stream_events(run_id: str):
     """SSE endpoint — streams AgentEvents for a given run."""
-    if run_id not in _runs:
+    store = _store()
+    run_state = store.get(run_id)
+    if not run_state:
         raise HTTPException(status_code=404, detail="Run not found")
 
     # Reject duplicate connections — asyncio.Queue is single-consumer;
     # a second client would steal events from the first.
-    if _streaming.get(run_id):
+    if store.is_streaming(run_id):
         raise HTTPException(
             status_code=409,
             detail="Another client is already streaming this run",
         )
-    _streaming[run_id] = True
+    store.set_streaming(run_id, True)
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        queue = _runs[run_id]
+        queue = run_state.queue
         while True:
             try:
                 event = await asyncio.wait_for(
@@ -367,10 +390,8 @@ async def stream_events(run_id: str):
                 continue
             yield _event_to_sse(event)
 
-        # Cleanup — free both queues and cached results to prevent memory leaks
-        _runs.pop(run_id, None)
-        _results.pop(run_id, None)
-        _streaming.pop(run_id, None)
+        # Cleanup — remove run state to prevent memory leaks
+        store.remove(run_id)
 
     return StreamingResponse(
         event_generator(),
@@ -386,9 +407,11 @@ async def stream_events(run_id: str):
 @app.get("/api/result/{run_id}")
 async def get_result(run_id: str):
     """Get the final result for a completed run."""
-    if run_id not in _results:
+    store = _store()
+    result = store.get_result(run_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="Result not found")
-    return _results[run_id]
+    return result
 
 
 # ── Sandbox file serving ──────────────────────────────────────
@@ -505,7 +528,7 @@ def _save_session_snapshot(
                  "role": a.role, "model": a.model, "description": a.description}
                 for a in list_agent_definitions()
             ]
-        except Exception:
+        except (yaml.YAMLError, OSError, ImportError):
             agent_defs = list(agents_seen.values())
 
         snapshot = {
@@ -527,7 +550,7 @@ def _save_session_snapshot(
             json.dump(snapshot, f, default=str, indent=2)
 
         logger.info("📸 Session snapshot saved: %s", path)
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, TypeError) as e:
         logger.warning("⚠️  Failed to save session snapshot for %s: %s", run_id, e)
 
 

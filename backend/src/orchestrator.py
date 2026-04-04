@@ -13,7 +13,7 @@ from agent_framework.azure import AzureOpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 
 from src.agent_loader import generate_orchestrator_instructions, load_agents
-from src.config import load_config
+from src.config import get_config
 from src.events import AgentEvent, EventCallback, EventType
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,17 @@ def _truncate(text: str, max_len: int = 300) -> str:
     return text[:max_len] + f"... ({len(text)} chars total)"
 
 
+# ──────────────────────────────────────────────────────────────────────
+# WARNING: SDK Monkey-Patch
+# This function replaces a *private* method on the AzureOpenAIResponsesClient
+# (_inner_get_response) to intercept reasoning tokens before they reach the
+# framework. This is inherently fragile and WILL break if the SDK renames or
+# restructures internals.
+#
+# Tested with: agent-framework-azure-ai @ main (2026-03 era)
+# If upgrading the SDK, verify this function still works or replace with
+# official hooks/telemetry if available.
+# ──────────────────────────────────────────────────────────────────────
 def attach_reasoning_logger(
     client: AzureOpenAIResponsesClient,
     event_callback: EventCallback = None,
@@ -179,7 +190,7 @@ async def run_query(query: str) -> str:
     Returns:
         The orchestrator's synthesized response text.
     """
-    config = load_config()
+    config = get_config()
     agent = create_orchestrator(
         project_endpoint=config.project_endpoint,
         deployment_name=config.azure_openai_chat_deployment_name,
