@@ -87,7 +87,7 @@ export function QueryComposer({
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                <span className="live-pill">{condensedStateLabel}</span>
+                <span className={`live-pill${collapseMode === "running" ? " status-chip-streaming" : ""}`}>{condensedStateLabel}</span>
                 <button
                   type="button"
                   className="secondary-button"

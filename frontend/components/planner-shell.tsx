@@ -40,7 +40,7 @@ const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
     description: "Receiving live orchestration events from the backend.",
   },
   done: {
-    label: "Settled",
+    label: "Done",
     description: "The current run has completed successfully.",
   },
   error: {
@@ -705,7 +705,7 @@ export function PlannerShell() {
       : missionBriefCollapseMode === "running"
         ? "Streaming"
         : missionBriefCollapseMode === "settled"
-          ? "Settled"
+          ? "Done"
           : "Ready";
 
   const missionHeaderPanel = (
@@ -720,7 +720,7 @@ export function PlannerShell() {
         <div className="flex items-center gap-3">
           <Image src="/logo.svg" alt="Wired Orchestra" width={24} height={24} className="shrink-0" />
           <div className="flex items-center gap-2">
-            <span className="status-chip">{statusCopy.label}</span>
+            <span className={`status-chip${status === "running" ? " status-chip-streaming" : ""}`}>{statusCopy.label}</span>
             <span className="source-chip" style={sourceChipStyle}>
               {sourceCopy.label}
             </span>
@@ -750,9 +750,6 @@ export function PlannerShell() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            {runId ? (
-              <span className="font-mono text-xs text-[var(--text-muted)]" title={runId}>{runId.slice(0, 3)}</span>
-            ) : null}
 
             <button
               type="button"
@@ -781,7 +778,7 @@ export function PlannerShell() {
             <div className="flex flex-wrap items-center gap-2.5">
               <Image src="/logo.svg" alt="Wired Orchestra" width={40} height={40} className="shrink-0" />
               <span className="eyebrow">Mission Control</span>
-              <span className="status-chip">{statusCopy.label}</span>
+              <span className={`status-chip${status === "running" ? " status-chip-streaming" : ""}`}>{statusCopy.label}</span>
               <span className="source-chip" style={sourceChipStyle}>
                 {sourceCopy.label}
               </span>
@@ -975,33 +972,38 @@ export function PlannerShell() {
           onReasoningEffortChange={setReasoningEffort}
         />
 
-        <AgentRosterGraph
-          agents={rosterAgents}
-          activeAgent={activeAgent}
-          enabledAgents={enabledAgents}
-          eventCounts={agentEventCounts}
-          statusByAgent={agentStatuses}
-          onSelectAgent={setActiveAgent}
-        />
+        {status !== "idle" ? (
+          <>
+            <AgentRosterGraph
+              agents={rosterAgents}
+              activeAgent={activeAgent}
+              enabledAgents={enabledAgents}
+              eventCounts={agentEventCounts}
+              statusByAgent={agentStatuses}
+              onSelectAgent={setActiveAgent}
+            />
 
-        <TaskBoard
-          highlightedTask={highlightedTask}
-          onSelectTask={setHighlightedTask}
-          running={status === "running"}
-          tasks={tasks}
-        />
+            <TaskBoard
+              highlightedTask={highlightedTask}
+              onSelectTask={setHighlightedTask}
+              running={status === "running"}
+              tasks={tasks}
+            />
 
-        <WorkspacePanels
-          activeAgent={activeAgent}
-          activeTab={activeTab}
-          documents={documents}
-          events={events}
-          highlightedTask={highlightedTask}
-          onTabChange={setActiveTab}
-          result={result}
-          running={status === "running"}
-          status={status}
-        />
+            <WorkspacePanels
+              activeAgent={activeAgent}
+              activeTab={activeTab}
+              documents={documents}
+              events={events}
+              highlightedTask={highlightedTask}
+              onTabChange={setActiveTab}
+              result={result}
+              running={status === "running"}
+              status={status}
+              runId={runId}
+            />
+          </>
+        ) : null}
 
         <p className="sr-only" aria-live="polite">
           {streamLabel}
