@@ -75,7 +75,8 @@ def get_file(sandbox_path: str) -> Optional[tuple[bytes, str]]:
 
     search_dirs = [_PERSIST_DIR]  # output/sandbox_files/
     if output_root.is_dir():
-        search_dirs.extend(output_root.glob("*/files"))  # output/{run_id}/files/
+        search_dirs.extend(output_root.glob("*/files"))       # legacy: output/{run_id}/files/
+        search_dirs.extend(output_root.glob("*/*/files"))     # per-user: output/{user}/{run_id}/files/
 
     for search_dir in search_dirs:
         disk_path = search_dir / disk_name

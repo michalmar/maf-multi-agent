@@ -1,6 +1,6 @@
 # AGENTS.md — MAF Multi-Agent Architecture
 
-> Auto-generated from the current implementation. Last updated: 2026-03-30.
+> Auto-generated from the current implementation. Last updated: 2026-04-04.
 
 ---
 
@@ -53,6 +53,7 @@ This project implements a **multi-agent orchestration system** using the [Micros
 | `read_document` | Read the shared document (with agent attribution tags) |
 | `consolidate_section` | Merge specialist contributions in a document slot |
 | `read_document_clean` | Read the final document without agent tags |
+| `send_email_to_user` | Send an email to the logged-in user (conditional — only available when `MAIL_SENDER_ADDRESS` is set and user email is known) |
 | `call_<agent>` | Dispatch tools — one auto-generated per specialist agent |
 
 ### Workflow Steps
@@ -62,6 +63,7 @@ This project implements a **multi-agent orchestration system** using the [Micros
 3. **CHECK** — Verify all tasks completed via `get_plan_status`
 4. **REVIEW & CONSOLIDATE** — Merge contributions, preserve inline images/charts
 5. **FINAL ANSWER** — Present consolidated result to the user
+6. **EMAIL** *(optional)* — If the user explicitly asked for email, send the final answer via `send_email_to_user`
 
 ---
 
@@ -139,6 +141,11 @@ Facilitator (orchestrator)
     │
     ├── consolidate_section() → merge entries (preserving charts)
     │
+    ├── send_email_to_user() → (optional, only if user asked)
+    │       │
+    │       ▼
+    │   Graph API sendMail (MI + Mail.Send permission)
+    │
     └── Final answer → User
 ```
 
@@ -162,6 +169,40 @@ All events are streamed via SSE to the frontend.
 | `agent_error` | specialist | Specialist failed |
 | `output` | orchestrator | Final result |
 | `workflow_completed` | orchestrator | Run finished |
+
+---
+
+## Email Notifications
+
+The facilitator can send email to the logged-in user via **Microsoft Graph** when explicitly requested (e.g. *"email me the results"*). This is a conditional feature — disabled by default.
+
+### How It Works
+
+1. Frontend resolves the user's email from Easy Auth headers (`X-MS-CLIENT-PRINCIPAL-NAME`) or the access token (`preferred_username` / `upn`)
+2. Frontend includes `user_email` in the `POST /api/run` request body
+3. Backend `workflow.py` checks if `MAIL_SENDER_ADDRESS` is set **and** `user_email` is present — if both conditions hold, `send_email_to_user` is registered as a facilitator tool
+4. The facilitator prompt (via `has_mail_tools` template variable) instructs the LLM to only call the tool when the user explicitly asks
+5. `mail_tools.py` → `graph_mail_client.py` calls `POST /v1.0/users/{sender}/sendMail` via Microsoft Graph
+6. If sending fails, the facilitator continues normally and returns the answer in the UI
+
+### Authentication
+
+Email uses **app-only auth** (not user-delegated), independent of the Fabric/Easy Auth user token flow:
+
+| Component | Credential |
+|-----------|-----------|
+| Graph API call | `DefaultAzureCredential` (Managed Identity in ACA, `az login` locally) |
+| Permission | `Mail.Send` application permission granted to the MI service principal |
+| Sender mailbox | Configured via `MAIL_SENDER_ADDRESS` — must be authorized for the MI |
+
+### Files
+
+| File | Role |
+|------|------|
+| `src/graph_mail_client.py` | Graph API HTTP client — token caching, `sendMail` call |
+| `src/scratchpad/mail_tools.py` | `MailTools` class — exposes `send_email_to_user` as a `FunctionTool` |
+| `src/scratchpad/workflow.py` | Conditional registration of mail tools based on config + user email |
+| `src/templates/facilitator_prompt.jinja2` | Prompt gating — only email when user explicitly asks |
 
 ---
 
@@ -210,6 +251,7 @@ All events are streamed via SSE to the frontend.
 | `AZURE_CLIENT_ID` | Managed identity client ID (for ACA) | — |
 | `FABRIC_CAPACITY_RESOURCE_ID` | ARM resource ID for Fabric capacity status | — |
 | `FABRIC_DATA_AGENT_MCP_URL` | Fabric Data Agent MCP endpoint | — |
+| `MAIL_SENDER_ADDRESS` | Sender mailbox for email notifications (empty = disabled) | — |
 
 ---
 
@@ -227,6 +269,7 @@ All events are streamed via SSE to the frontend.
 │   │   ├── config.py           # Environment config loader
 │   │   ├── events.py           # AgentEvent model + EventType enum
 │   │   ├── file_store.py       # In-memory file store for sandbox files
+│   │   ├── graph_mail_client.py # Microsoft Graph email sender
 │   │   ├── summary.py          # LLM-powered event summarization
 │   │   ├── observability.py    # Azure Monitor + OpenTelemetry setup
 │   │   ├── templates/          # Jinja2 prompt templates
@@ -236,6 +279,7 @@ All events are streamed via SSE to the frontend.
 │   │       ├── shared_document.py # Collaborative document
 │   │       ├── facilitator_tools.py # Facilitator tool definitions
 │   │       ├── dispatcher.py   # Agent dispatch logic
+│   │       ├── mail_tools.py   # Email notification tools
 │   │       └── specialist_tools.py # Tools given to specialists
 │   ├── agents/                 # YAML agent definitions
 │   ├── tests/                  # pytest test suite

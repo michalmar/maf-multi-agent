@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   BACKEND,
   validateRunId,
+  forwardAuthHeaders,
   safeFetch,
   safeJson,
 } from "../../lib/proxy-helpers";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
@@ -24,7 +25,7 @@ export async function GET(
 
   const { response, error } = await safeFetch(
     `${BACKEND}/api/history/${encodeURIComponent(runId)}`,
-    { cache: "no-store" },
+    { cache: "no-store", headers: forwardAuthHeaders(request) },
   );
   if (error) return error;
 
@@ -43,7 +44,7 @@ export async function GET(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
@@ -53,7 +54,7 @@ export async function DELETE(
 
   const { response, error } = await safeFetch(
     `${BACKEND}/api/history/${encodeURIComponent(runId)}`,
-    { method: "DELETE" },
+    { method: "DELETE", headers: forwardAuthHeaders(request) },
   );
   if (error) return error;
 
