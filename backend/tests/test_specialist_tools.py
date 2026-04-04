@@ -51,6 +51,12 @@ def test_read_tasks_empty(tools):
     assert result == "No tasks found for the given IDs."
 
 
+def test_read_tasks_malformed_json(tools):
+    """Malformed JSON in task_ids returns an error, not a crash."""
+    result = tools._read_tasks(task_ids="not valid json")
+    assert "Error:" in result
+
+
 # ── complete_task ─────────────────────────────────────────────
 
 

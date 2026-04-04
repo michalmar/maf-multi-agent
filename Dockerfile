@@ -31,11 +31,15 @@ ARG APP_VERSION="dev"
 ARG GIT_SHA="unknown"
 ARG BUILD_DATE="unknown"
 
+# Node binary copied from frontend-build stage (no curl|bash install)
+COPY --from=frontend-build /usr/local/bin/node /usr/local/bin/node
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl supervisor \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Non-root runtime user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 
@@ -55,13 +59,16 @@ COPY CHANGELOG.md ./CHANGELOG.md
 # Supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/app.conf
 
-# COPY output ./output
+# Writable directories for runtime data
+RUN mkdir -p /app/output /app/tmp && chown -R appuser:appuser /app
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV NODE_ENV=production
 ENV APP_VERSION=${APP_VERSION}
 ENV GIT_SHA=${GIT_SHA}
 ENV BUILD_DATE=${BUILD_DATE}
+
+USER appuser
 
 EXPOSE 3000
 

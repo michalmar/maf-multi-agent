@@ -124,7 +124,7 @@ export function HistoryPanel({
                   onClick={() => onLoad(item.run_id)}
                   title={item.query}
                   aria-label={`Load session: ${truncateQuery(item.query, 40)}`}
-                  aria-current={isActive ? "true" : undefined}
+                  aria-selected={isActive ? "true" : undefined}
                 >
                   <span className="history-item-time">{relativeTime(item.timestamp)}</span>
                   {item.user_email &&

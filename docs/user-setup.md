@@ -1,7 +1,7 @@
 # How to add user to system
 
 There are two user groups:
-- maf-multi-agent-Data-Users - for aceess to databases (Fabric and SQL DB)
+- maf-multi-agent-Data-Users - for access to databases (Fabric and SQL DB)
 - maf-multi-agent-App-Users - for access to application features
 
 

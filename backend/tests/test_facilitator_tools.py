@@ -43,6 +43,19 @@ def test_create_tasks_invalid_json(tools):
     assert "Error:" in result
 
 
+def test_create_tasks_non_array_json(tools):
+    """JSON that is valid but not an array returns an error."""
+    result = tools._create_tasks(tasks='{"text": "not an array"}')
+    assert "Error:" in result
+    assert "JSON array" in result
+
+
+def test_create_tasks_truncated_json(tools):
+    """Truncated/partial JSON returns an error, not a crash."""
+    result = tools._create_tasks(tasks='[{"text": "incomplete')
+    assert "Error:" in result
+
+
 # ── get_plan_status ───────────────────────────────────────────
 
 

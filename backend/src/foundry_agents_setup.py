@@ -11,18 +11,18 @@ from azure.ai.agents import AgentsClient
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
-from src.config import load_config
+from src.config import get_config
 
 
 def main() -> None:
     load_dotenv()
-    config = load_config()
+    config = get_config()
 
     if not config.project_endpoint:
         print("ERROR: PROJECT_ENDPOINT not set in .env")
         return
-    if not config.model_deployment_name:
-        print("ERROR: MODEL_DEPLOYMENT_NAME not set in .env")
+    if not config.azure_openai_chat_deployment_name:
+        print("ERROR: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME not set in .env")
         return
 
     client = AgentsClient(
@@ -31,7 +31,7 @@ def main() -> None:
     )
 
     flights_agent = client.create_agent(
-        model=config.model_deployment_name,
+        model=config.azure_openai_chat_deployment_name,
         name="flights-agent",
         instructions=(
             "You are a flight planning specialist. "
@@ -42,7 +42,7 @@ def main() -> None:
     )
 
     hotels_agent = client.create_agent(
-        model=config.model_deployment_name,
+        model=config.azure_openai_chat_deployment_name,
         name="hotels-agent",
         instructions=(
             "You are a hotel and neighborhood specialist. "

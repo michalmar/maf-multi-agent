@@ -24,7 +24,7 @@ def agents_dir(tmp_path):
 
 
 @patch("src.orchestrator.AzureOpenAIResponsesClient")
-@patch("src.orchestrator.AzureCliCredential")
+@patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator(mock_cred, mock_client_cls, agents_dir):
     """create_orchestrator returns an agent with dynamically loaded tools."""
     mock_client = MagicMock()
@@ -44,7 +44,7 @@ def test_create_orchestrator(mock_cred, mock_client_cls, agents_dir):
 
 
 @patch("src.orchestrator.AzureOpenAIResponsesClient")
-@patch("src.orchestrator.AzureCliCredential")
+@patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator_with_custom_params(mock_cred, mock_client_cls, agents_dir):
     """create_orchestrator accepts optional endpoint and deployment_name."""
     mock_client = MagicMock()
@@ -65,7 +65,7 @@ def test_create_orchestrator_with_custom_params(mock_cred, mock_client_cls, agen
 
 
 @patch("src.orchestrator.AzureOpenAIResponsesClient")
-@patch("src.orchestrator.AzureCliCredential")
+@patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator_no_agents_raises(mock_cred, mock_client_cls, tmp_path):
     """create_orchestrator raises if no agent YAML files are found."""
     with pytest.raises(RuntimeError, match="No agent tools loaded"):

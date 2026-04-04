@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+
 
 from agent_framework import FunctionTool
 from pydantic import BaseModel, Field
@@ -54,7 +54,10 @@ class SpecialistTools:
 
     def _read_tasks(self, task_ids: str) -> str:
         """Read specific tasks from the TaskBoard."""
-        ids = json.loads(task_ids)
+        try:
+            ids = json.loads(task_ids)
+        except (json.JSONDecodeError, TypeError) as e:
+            return f"Error: task_ids must be a valid JSON array. Parse error: {e}"
         tasks = self._taskboard.read_tasks(ids)
         if not tasks:
             return "No tasks found for the given IDs."

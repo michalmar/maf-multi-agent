@@ -86,7 +86,7 @@ def test_create_tool_from_definition(sample_agent_def):
 
 
 @patch("src.agent_loader.run_foundry_agent")
-@patch("src.agent_loader.load_config")
+@patch("src.agent_loader.get_config")
 def test_tool_func_invokes_foundry_agent(mock_config, mock_run, sample_agent_def):
     """Tool function calls run_foundry_agent with correct args."""
     mock_config.return_value = MagicMock(project_endpoint="https://ep")
@@ -132,3 +132,44 @@ def test_generate_orchestrator_instructions(sample_yaml_dir):
     assert "flights_tool" in instructions
     assert "hotels_tool" in instructions
     assert "specialist tools" in instructions
+
+
+def test_parse_agent_yaml_malformed_yaml(tmp_path):
+    """Malformed YAML syntax raises an error during parsing."""
+    yaml_file = tmp_path / "bad_syntax.yaml"
+    yaml_file.write_text("name: my_tool\n  indentation: broken\n bad: yaml: here")
+
+    with pytest.raises(Exception):
+        parse_agent_yaml(yaml_file)
+
+
+def test_parse_agent_yaml_missing_name_field(tmp_path):
+    """YAML missing the 'name' field raises ValueError."""
+    yaml_file = tmp_path / "no_name.yaml"
+    yaml_file.write_text(yaml.dump({
+        "display_name": "Missing Name Agent",
+        "description": "Has no name field.",
+        "task_description": "Some task.",
+        "foundry_agent_name": "agent-v1",
+    }))
+
+    with pytest.raises(ValueError, match="missing required keys"):
+        parse_agent_yaml(yaml_file)
+
+
+def test_load_agents_skips_malformed_yaml(tmp_path):
+    """Malformed YAML files are skipped without crashing the loader."""
+    good = tmp_path / "good.yaml"
+    good.write_text(yaml.dump({
+        "name": "good_tool",
+        "display_name": "Good Agent",
+        "description": "Works fine.",
+        "task_description": "Good task.",
+        "foundry_agent_name": "good-v1",
+    }))
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(":::invalid yaml:::")
+
+    tools = load_agents(tmp_path)
+    assert len(tools) == 1
+    assert tools[0].name == "good_tool"

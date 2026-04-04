@@ -9,7 +9,7 @@ from agent_framework.azure import AzureOpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 from jinja2 import Environment, FileSystemLoader
 
-from src.config import load_config
+from src.config import get_config
 from src.events import AgentEvent, EventCallback, EventType
 from src.orchestrator import attach_reasoning_logger
 from src.scratchpad.taskboard import TaskBoard
@@ -60,7 +60,7 @@ async def run_scratchpad_workflow(
 
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
-    config = load_config()
+    config = get_config()
 
     # Create summary service for enriching events with LLM-generated summaries
     summary_service = SummaryService()

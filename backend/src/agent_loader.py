@@ -2,6 +2,12 @@
 
 Scans a directory for *.yaml files, parses each into an AgentDefinition,
 and creates MAF FunctionTool objects that delegate to Foundry Prompt Agents.
+
+Loading convention:
+    Only **top-level** ``agents/*.yaml`` files are discovered at runtime
+    (via ``Path.glob("*.yaml")``).  Nested directories such as
+    ``agents/bck/`` or ``agents/coder-data/`` are intentionally ignored
+    and can be used for backups, experiments, or inactive agent drafts.
 """
 
 import logging
@@ -15,7 +21,7 @@ from jinja2 import Environment, FileSystemLoader
 from agent_framework import FunctionTool
 from pydantic import BaseModel, Field
 
-from src.config import load_config
+from src.config import get_config
 from src.foundry_client import run_foundry_agent
 from src.fabric_mcp_client import run_fabric_mcp
 
@@ -130,7 +136,7 @@ def _make_tool_func(agent_def: AgentDefinition):
         logger.info("📝 Task: %s", task)
         logger.info("═" * 60)
 
-        config = load_config()
+        config = get_config()
         t0 = time.perf_counter()
         result = run_foundry_agent(
             project_endpoint=config.project_endpoint,
@@ -237,12 +243,10 @@ def load_agents(agents_dir: Path | str | None = None) -> list[FunctionTool]:
         return []
 
     tools: list[FunctionTool] = []
-    definitions: list[AgentDefinition] = []
 
     for yaml_file in yaml_files:
         try:
             agent_def = parse_agent_yaml(yaml_file)
-            definitions.append(agent_def)
             tool = create_tool_from_definition(agent_def)
             tools.append(tool)
             logger.info(
@@ -251,6 +255,8 @@ def load_agents(agents_dir: Path | str | None = None) -> list[FunctionTool]:
                 agent_def.name,
                 agent_def.foundry_agent_name,
             )
+        except yaml.YAMLError as e:
+            logger.error("❌ Failed to load agent from %s: %s", yaml_file.name, e)
         except Exception as e:
             logger.error("❌ Failed to load agent from %s: %s", yaml_file.name, e)
 
@@ -268,7 +274,7 @@ def list_agent_definitions(agents_dir: Path | str | None = None) -> list[AgentDe
     for yaml_file in sorted(agents_path.glob("*.yaml")):
         try:
             definitions.append(parse_agent_yaml(yaml_file))
-        except Exception:
+        except (yaml.YAMLError, OSError):
             pass
     return definitions
 

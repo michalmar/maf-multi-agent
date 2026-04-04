@@ -17,6 +17,7 @@ from typing import Optional
 
 from azure.identity.aio import DefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
+from azure.core.exceptions import AzureError
 
 from src.events import AgentEvent, EventCallback, EventType
 from src.file_store import store_file, guess_content_type
@@ -143,7 +144,7 @@ async def _extract_sandbox_files(openai_client, response, conversation_id: str =
                                 openai_client, file_id, sandbox_key, seen_file_ids,
                             )
 
-        except Exception as e:
+        except (AzureError, AttributeError) as e:
             logger.warning("⚠️  Conversation items fetch failed: %s", e, exc_info=True)
 
     logger.info("🔍 Sandbox file extraction done | downloaded=%d", downloaded)
@@ -212,7 +213,7 @@ async def _download_container_file(
             seen_file_ids.add(file_id)
             logger.info("🖼️  Downloaded container file: %s (%d bytes)", sandbox_key, len(data))
             return 1
-    except Exception as e:
+    except AzureError as e:
         logger.info("Container files API failed for %s: %s — trying files API", file_id, e)
 
     # Fallback: regular files.content API
@@ -239,7 +240,7 @@ async def _download_file(
             seen_file_ids.add(file_id)
             logger.info("🖼️  Downloaded file: %s (%d bytes)", sandbox_key, len(data))
             return 1
-    except Exception as e:
+    except AzureError as e:
         logger.debug("files.content failed for %s: %s", file_id, e)
 
     logger.warning("⚠️  All download methods failed for file_id=%s (%s)", file_id, sandbox_key)
@@ -352,7 +353,7 @@ async def _run_agent_async(
                 )
                 if n:
                     logger.info("📎 Extracted %d sandbox file(s) from streaming response", n)
-            except Exception as e:
+            except AzureError as e:
                 logger.warning("⚠️  Sandbox file extraction failed (streaming): %s", e, exc_info=True)
 
             return "".join(full_text_parts), usage
@@ -378,7 +379,7 @@ async def _run_agent_async(
                 )
                 if n:
                     logger.info("📎 Extracted %d sandbox file(s) from response", n)
-            except Exception as e:
+            except AzureError as e:
                 logger.warning("⚠️  Sandbox file extraction failed: %s", e)
 
             return response.output_text, usage

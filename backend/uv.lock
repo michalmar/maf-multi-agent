@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 [[package]]
 name = "agent-framework-azure-ai"
 version = "1.0.0rc1"
-source = { git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fazure-ai&rev=main#91675bde4fb7c262460fb631436a79f9532722ff" }
+source = { git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fazure-ai&rev=91675bde4fb7c262460fb631436a79f9532722ff#91675bde4fb7c262460fb631436a79f9532722ff" }
 dependencies = [
     { name = "agent-framework-core" },
     { name = "aiohttp" },
@@ -15,7 +15,7 @@ dependencies = [
 [[package]]
 name = "agent-framework-core"
 version = "1.0.0rc1"
-source = { git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fcore&rev=main#91675bde4fb7c262460fb631436a79f9532722ff" }
+source = { git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fcore&rev=91675bde4fb7c262460fb631436a79f9532722ff#91675bde4fb7c262460fb631436a79f9532722ff" }
 dependencies = [
     { name = "azure-ai-projects" },
     { name = "azure-identity" },
@@ -1098,6 +1098,7 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "openai" },
+    { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "tenacity" },
@@ -1112,8 +1113,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agent-framework-azure-ai", git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fazure-ai&rev=main" },
-    { name = "agent-framework-core", git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fcore&rev=main" },
+    { name = "agent-framework-azure-ai", git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fazure-ai&rev=91675bde4fb7c262460fb631436a79f9532722ff" },
+    { name = "agent-framework-core", git = "https://github.com/microsoft/agent-framework.git?subdirectory=python%2Fpackages%2Fcore&rev=91675bde4fb7c262460fb631436a79f9532722ff" },
     { name = "azure-ai-agents", specifier = ">=1.0.0" },
     { name = "azure-ai-projects", specifier = ">=1.0.0" },
     { name = "azure-identity", specifier = ">=1.19.0" },
@@ -1122,6 +1123,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "openai", specifier = ">=1.58.0" },
+    { name = "pydantic-settings", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "tenacity", specifier = ">=8.0.0" },

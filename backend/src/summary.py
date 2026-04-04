@@ -13,7 +13,7 @@ from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 from openai import OpenAI
 
-from src.config import load_config
+from src.config import get_config
 from src.events import AgentEvent, EventType
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class SummaryService:
     """
 
     def __init__(self):
-        config = load_config()
+        config = get_config()
         self._deployment = config.azure_openai_summary_deployment_name
         self._project_endpoint = config.project_endpoint
         self._credential: Optional[DefaultAzureCredential] = None

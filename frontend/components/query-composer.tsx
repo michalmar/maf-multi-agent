@@ -111,6 +111,7 @@ export function QueryComposer({
                   disabled={disabled}
                   rows={4}
                   className="field-shell query-shell-textarea min-h-28 w-full resize-y"
+                  aria-label="Mission query"
                   placeholder="Describe the task for the orchestrator and specialist agents."
                 />
               </div>

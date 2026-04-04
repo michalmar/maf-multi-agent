@@ -24,7 +24,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 import httpx
-from azure.identity import ClientSecretCredential, DefaultAzureCredential, ManagedIdentityCredential
+from azure.identity import ClientSecretCredential, DefaultAzureCredential
+from azure.core.exceptions import ClientAuthenticationError
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -348,7 +349,7 @@ def run_fabric_mcp(
                     claims.get("aud"), claims.get("scp"), claims.get("upn"),
                     claims.get("appid") or claims.get("azp"), claims.get("exp"),
                 )
-        except Exception as e:
+        except (ValueError, KeyError) as e:
             logger.warning("🔑 Could not decode token for diagnostics: %s", e)
     elif auth_mode == "service_principal":
         tenant_id = _resolve_env(tenant_id_env)
@@ -399,6 +400,19 @@ def run_fabric_mcp(
         response_text = future.result(timeout=_THREAD_TIMEOUT)
     except FabricMcpError:
         raise
+    except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.NetworkError, ClientAuthenticationError) as e:
+        elapsed = time.perf_counter() - t0
+        logger.error(
+            "❌ MCP CALL FAILED     │ error=%s  (%.1fs)",
+            str(e)[:200], elapsed,
+        )
+        if event_callback:
+            event_callback(AgentEvent(
+                event_type=EventType.AGENT_ERROR,
+                source=source_name,
+                data={"error": str(e), "elapsed": elapsed},
+            ))
+        raise FabricMcpError(f"Fabric MCP call failed: {e}") from e
     except Exception as e:
         elapsed = time.perf_counter() - t0
         logger.error(

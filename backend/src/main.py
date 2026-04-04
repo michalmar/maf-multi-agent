@@ -99,7 +99,7 @@ def setup_logging() -> None:
 #     "Do not ask follow up questions, use best effort judgment."
 # )
 
-DEFAULT_QUERY = "What vibration RMS threshold requires a planned intervention for the offshore centrifugal compressor?"
+DEFAULT_QUERY = "Summarize the latest data trends and highlight any anomalies."
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
 
