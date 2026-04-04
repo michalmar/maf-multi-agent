@@ -893,6 +893,7 @@ export function PlannerShell() {
             onLoad={handleLoadReplay}
             onDelete={handleDeleteHistory}
             loading={historyLoading}
+            currentUserEmail={easyAuthUser?.email}
           />
         )}
         </div>

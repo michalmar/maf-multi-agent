@@ -94,6 +94,7 @@ export interface HistoryItem {
   status: RunStatus | (string & {});
   event_count: number;
   has_result: boolean;
+  user_email?: string;  // present when super-user views cross-user history
 }
 
 export interface SessionSnapshot {

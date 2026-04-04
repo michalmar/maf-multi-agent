@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock, Search, Trash2, Play, Loader2 } from "lucide-react";
+import { Clock, Search, Trash2, Play, Loader2, User } from "lucide-react";
 import type { HistoryItem } from "@/lib/types";
 
 interface HistoryPanelProps {
@@ -11,6 +11,7 @@ interface HistoryPanelProps {
   onLoad: (runId: string) => void;
   onDelete: (runId: string) => void;
   loading: boolean;
+  currentUserEmail?: string;
 }
 
 function relativeTime(ts: string): string {
@@ -44,6 +45,7 @@ export function HistoryPanel({
   onLoad,
   onDelete,
   loading,
+  currentUserEmail,
 }: HistoryPanelProps) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -125,6 +127,14 @@ export function HistoryPanel({
                   aria-current={isActive ? "true" : undefined}
                 >
                   <span className="history-item-time">{relativeTime(item.timestamp)}</span>
+                  {item.user_email &&
+                    currentUserEmail &&
+                    item.user_email.toLowerCase() !== currentUserEmail.toLowerCase() && (
+                      <span className="history-item-user" title={item.user_email}>
+                        <User className="h-2.5 w-2.5" />
+                        {item.user_email.split("@")[0]}
+                      </span>
+                    )}
                   <span className="history-item-query">{truncateQuery(item.query)}</span>
                   <span className="history-item-meta">
                     {item.event_count} events
