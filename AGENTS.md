@@ -252,6 +252,7 @@ Email uses **app-only auth** (not user-delegated), independent of the Fabric/Eas
 | `FABRIC_CAPACITY_RESOURCE_ID` | ARM resource ID for Fabric capacity status | — |
 | `FABRIC_DATA_AGENT_MCP_URL` | Fabric Data Agent MCP endpoint | — |
 | `MAIL_SENDER_ADDRESS` | Sender mailbox for email notifications (empty = disabled) | — |
+| `HISTORY_STORAGE_ACCOUNT_URL` | Azure Blob Storage URL for persistent history (empty = local filesystem) | — |
 
 ---
 
@@ -270,6 +271,7 @@ Email uses **app-only auth** (not user-delegated), independent of the Fabric/Eas
 │   │   ├── events.py           # AgentEvent model + EventType enum
 │   │   ├── file_store.py       # In-memory file store for sandbox files
 │   │   ├── graph_mail_client.py # Microsoft Graph email sender
+│   │   ├── history_store.py    # Persistent history (Blob Storage / local filesystem)
 │   │   ├── summary.py          # LLM-powered event summarization
 │   │   ├── observability.py    # Azure Monitor + OpenTelemetry setup
 │   │   ├── templates/          # Jinja2 prompt templates

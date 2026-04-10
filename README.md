@@ -103,6 +103,23 @@ MAIL_SENDER_ADDRESS=admin-mailbox@yourdomain.com
 
 The feature is disabled when `MAIL_SENDER_ADDRESS` is not set — no code changes needed to opt out.
 
+#### Persistent History Storage (optional)
+
+By default, run history is stored on the container's ephemeral filesystem and is lost on ACA redeploy/restart. To persist history durably in Azure Blob Storage:
+
+```env
+HISTORY_STORAGE_ACCOUNT_URL=https://<storage-account>.blob.core.windows.net
+```
+
+**Requirements:**
+- An Azure Storage Account with a blob container named `history`
+- The Managed Identity must have **`Storage Blob Data Contributor`** role on the storage account
+- No shared key access required — auth via `DefaultAzureCredential`
+
+**Setup via Terraform:** Set `enable_history_storage = true` in `terraform.tfvars` and run `terraform apply`. This creates the storage account, blob container, RBAC role assignment, lifecycle management policy, and injects the env var into the Container App automatically.
+
+When `HISTORY_STORAGE_ACCOUNT_URL` is not set, the app falls back to local filesystem storage (suitable for development).
+
 ### 2. Backend
 
 ```bash
@@ -142,6 +159,7 @@ backend/
     events.py          # Event types and callback definitions
     config.py          # Environment configuration
     graph_mail_client.py  # Microsoft Graph email sender
+    history_store.py   # Persistent history (Blob Storage / local filesystem)
     scratchpad/
       workflow.py      # Main workflow entry point
       dispatcher.py    # Async dispatch to Foundry agents

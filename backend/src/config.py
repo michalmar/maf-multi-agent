@@ -19,12 +19,17 @@ class Config(BaseSettings):
     mail_sender_address: str = ""  # Admin mailbox for Graph Mail.Send (empty = disabled)
     super_user_email: str = ""  # Super-user who can view all users' history (empty = disabled)
     allowed_origins: str = "*"  # Comma-separated CORS origins (default: allow all)
+    history_storage_account_url: str = ""  # Blob Storage URL for persistent history (empty = local filesystem)
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 
     @property
     def mail_enabled(self) -> bool:
         return bool(self.mail_sender_address)
+
+    @property
+    def history_blob_enabled(self) -> bool:
+        return bool(self.history_storage_account_url)
 
 
 @lru_cache(maxsize=1)

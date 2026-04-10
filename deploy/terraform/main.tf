@@ -38,6 +38,13 @@ locals {
     ? var.easyauth_storage_account_name
     : substr("${replace(var.app_name, "-", "")}auth", 0, 24)
   )
+
+  # History storage account name: strip hyphens from app name, append "hist"
+  history_storage_name = (
+    var.history_storage_account_name != ""
+    ? var.history_storage_account_name
+    : substr("${replace(var.app_name, "-", "")}hist", 0, 24)
+  )
 }
 
 # ── Resource Group ────────────────────────────────────────────
@@ -382,6 +389,114 @@ resource "azurerm_private_dns_zone_virtual_network_link" "blob" {
   registration_enabled  = false
 }
 
+# ══════════════════════════════════════════════════════════════
+# Persistent History Storage — Azure Blob Storage
+# ══════════════════════════════════════════════════════════════
+#
+# Stores session snapshots and sandbox files so run history survives
+# ACA redeploys and restarts.  Uses the same auth pattern as the
+# Easy Auth token store (UAMI + DefaultAzureCredential, no shared keys).
+
+resource "azapi_resource" "history_account" {
+  count     = var.enable_history_storage ? 1 : 0
+  type      = "Microsoft.Storage/storageAccounts@2023-05-01"
+  name      = local.history_storage_name
+  parent_id = azurerm_resource_group.main.id
+  location  = azurerm_resource_group.main.location
+
+  body = {
+    kind = "StorageV2"
+    sku = {
+      name = "Standard_LRS"
+    }
+    properties = {
+      publicNetworkAccess      = var.enable_vnet ? "Disabled" : "Enabled"
+      allowSharedKeyAccess     = false
+      minimumTlsVersion        = "TLS1_2"
+      supportsHttpsTrafficOnly = true
+    }
+  }
+}
+
+resource "azapi_resource" "history_container" {
+  count     = var.enable_history_storage ? 1 : 0
+  type      = "Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01"
+  name      = "history"
+  parent_id = "${azapi_resource.history_account[0].id}/blobServices/default"
+
+  body = {
+    properties = {
+      publicAccess = "None"
+    }
+  }
+}
+
+resource "azurerm_role_assignment" "history_blob" {
+  count                = var.enable_history_storage ? 1 : 0
+  scope                = azapi_resource.history_account[0].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+# Lifecycle management: auto-delete history after N days
+resource "azurerm_storage_management_policy" "history_lifecycle" {
+  count              = var.enable_history_storage && var.history_retention_days > 0 ? 1 : 0
+  storage_account_id = azapi_resource.history_account[0].id
+
+  rule {
+    name    = "auto-delete-old-history"
+    enabled = true
+    filters {
+      prefix_match = ["history/"]
+      blob_types   = ["blockBlob"]
+    }
+    actions {
+      base_blob {
+        tier_to_cool_after_days_since_modification_greater_than    = 30
+        delete_after_days_since_modification_greater_than           = var.history_retention_days
+      }
+    }
+  }
+}
+
+# Private endpoint for history storage (VNet mode)
+resource "azurerm_private_endpoint" "history_storage" {
+  count               = var.enable_vnet && var.enable_history_storage ? 1 : 0
+  name                = "${local.history_storage_name}-pe"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  subnet_id           = azurerm_subnet.private_endpoints[0].id
+
+  private_service_connection {
+    name                           = "${local.history_storage_name}-psc"
+    private_connection_resource_id = azapi_resource.history_account[0].id
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = var.enable_easy_auth ? [azurerm_private_dns_zone.blob[0].id] : [azurerm_private_dns_zone.blob_history[0].id]
+  }
+}
+
+# When VNet is enabled but Easy Auth is not, we need our own blob DNS zone.
+# When both are enabled, reuse the one created for the token store.
+resource "azurerm_private_dns_zone" "blob_history" {
+  count               = var.enable_vnet && var.enable_history_storage && !var.enable_easy_auth ? 1 : 0
+  name                = "privatelink.blob.core.windows.net"
+  resource_group_name = azurerm_resource_group.main.name
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "blob_history" {
+  count                 = var.enable_vnet && var.enable_history_storage && !var.enable_easy_auth ? 1 : 0
+  name                  = "${var.app_name}-hist-blob-dns-link"
+  resource_group_name   = azurerm_resource_group.main.name
+  private_dns_zone_name = azurerm_private_dns_zone.blob_history[0].name
+  virtual_network_id    = azurerm_virtual_network.main[0].id
+  registration_enabled  = false
+}
+
 # ── Container App ─────────────────────────────────────────────
 # Starts with hello-world image; deploy.sh pushes the real image.
 
@@ -465,6 +580,15 @@ resource "azurerm_container_app" "main" {
         content {
           name  = "MAIL_SENDER_ADDRESS"
           value = var.mail_sender_address
+        }
+      }
+
+      # Persistent history storage — only injected when enabled
+      dynamic "env" {
+        for_each = var.enable_history_storage ? [1] : []
+        content {
+          name  = "HISTORY_STORAGE_ACCOUNT_URL"
+          value = "https://${local.history_storage_name}.blob.core.windows.net"
         }
       }
     }

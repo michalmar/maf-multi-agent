@@ -59,3 +59,11 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 # vnet_address_space = "10.0.0.0/16"   # default
 # aca_subnet_cidr    = "10.0.0.0/23"   # /23 minimum for ACA
 # pe_subnet_cidr     = "10.0.2.0/24"   # for private endpoints
+
+# ── Persistent history storage ─────────────────────────────────
+# Stores run history in Azure Blob Storage so it survives ACA redeploys
+# and restarts.  Without this, history is lost on every deployment.
+#
+# enable_history_storage       = true
+# history_storage_account_name = ""   # auto-generated if empty
+# history_retention_days       = 90   # auto-delete after N days (0 = never)

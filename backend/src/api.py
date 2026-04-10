@@ -21,7 +21,8 @@ from src.config import get_config
 from src.events import AgentEvent, EventType
 from src.agent_loader import list_agent_definitions
 from src.fabric_capacity import get_fabric_capacity_status, resume_fabric_capacity
-from src.file_store import get_file, rewrite_sandbox_urls, rewrite_sandbox_urls_for_disk, copy_run_files
+from src.file_store import get_file, rewrite_sandbox_urls, rewrite_sandbox_urls_for_disk, copy_run_files, get_all_files
+from src.history_store import get_history_store
 from src.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -261,15 +262,12 @@ async def _run_workflow(
         return
     queue = run_state.queue
     workflow_status = "done"
+    user_dir = _safe_user_dir(user_email) if user_email else ""
 
-    # Compute run directory upfront — scoped by user when email is available
+    # Ensure local output dir exists for markdown artifacts + sandbox files
     output_dir = _get_output_dir()
-    if user_email:
-        user_dir = os.path.join(output_dir, _safe_user_dir(user_email))
-    else:
-        user_dir = output_dir
-    run_dir = os.path.join(user_dir, run_id)
-    os.makedirs(run_dir, exist_ok=True)
+    local_run_dir = os.path.join(output_dir, user_dir, run_id) if user_dir else os.path.join(output_dir, run_id)
+    os.makedirs(local_run_dir, exist_ok=True)
 
     try:
         from src.scratchpad.workflow import run_scratchpad_workflow
@@ -282,26 +280,8 @@ async def _run_workflow(
             user_email=user_email,
         )
 
-        def _save(filename, title, content):
-            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            header = (
-                f"# {title}\n\n"
-                f"- **Run ID:** `{run_id}`\n"
-                f"- **Timestamp:** {ts}\n"
-                f"- **Query:** {query}\n\n---\n\n"
-            )
-            rewritten = rewrite_sandbox_urls_for_disk(content) if content else ""
-            path = os.path.join(run_dir, f"{filename}.md")
-            with open(path, "w") as f:
-                f.write(header + rewritten + "\n")
-            return path
-
-        _save("result", "Final Result", result_text)
-        if document_md:
-            _save("document", "Shared Document", document_md)
-
-        # Copy sandbox files into run folder so markdown + images are self-contained
-        copy_run_files(run_dir)
+        # Copy sandbox files into local run folder (for disk-based markdown)
+        copy_run_files(local_run_dir)
 
         store.set_result(run_id, {
             "result": rewrite_sandbox_urls(result_text) if result_text else "",
@@ -315,9 +295,9 @@ async def _run_workflow(
             data={"text": result_text, "document": document_md or ""},
         ))
 
-        # Save session snapshot for replay
-        _save_session_snapshot(
-            run_id, run_dir, query, collected_events or [],
+        # Save session snapshot via history store (blob or local)
+        await _save_session_snapshot(
+            run_id, user_dir, query, collected_events or [],
             rewrite_sandbox_urls(result_text) if result_text else "",
             rewrite_sandbox_urls(document_md) if document_md else "",
             workflow_status,
@@ -334,8 +314,8 @@ async def _run_workflow(
         ))
         # Save snapshot even on failure so we don't lose debug context
         try:
-            _save_session_snapshot(
-                run_id, run_dir, query, collected_events or [],
+            await _save_session_snapshot(
+                run_id, user_dir, query, collected_events or [],
                 "", "", "error",
                 user_email,
             )
@@ -459,9 +439,9 @@ async def fabric_resume():
 
 # ── Session snapshot & history ─────────────────────────────────
 
-def _save_session_snapshot(
+async def _save_session_snapshot(
     run_id: str,
-    run_dir: str,
+    user_dir: str,
     query: str,
     events: list[dict],
     result_text: str,
@@ -469,7 +449,7 @@ def _save_session_snapshot(
     status: str,
     user_email: str | None = None,
 ) -> None:
-    """Save a complete session snapshot for replay mode."""
+    """Save a complete session snapshot via the history store."""
     try:
         # Derive tasks and documents from collected events
         tasks: list[dict] = []
@@ -545,12 +525,19 @@ def _save_session_snapshot(
             "stream_label": f"Replay of run {run_id}",
         }
 
-        path = os.path.join(run_dir, "session.json")
-        with open(path, "w") as f:
-            json.dump(snapshot, f, default=str, indent=2)
+        history = get_history_store()
+        await history.save_session(user_dir, run_id, snapshot)
 
-        logger.info("📸 Session snapshot saved: %s", path)
-    except (OSError, json.JSONDecodeError, TypeError) as e:
+        # Also save sandbox files to the history store
+        for sandbox_path, (data, _ct) in get_all_files().items():
+            filename = os.path.basename(sandbox_path.replace("sandbox:", ""))
+            if filename:
+                try:
+                    await history.save_file(user_dir, run_id, filename, data)
+                except Exception:
+                    logger.debug("Skipped blob file save for %s", filename)
+
+    except Exception as e:
         logger.warning("⚠️  Failed to save session snapshot for %s: %s", run_id, e)
 
 
@@ -562,146 +549,63 @@ def _get_output_dir() -> str:
 _SAFE_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def _validate_run_id(run_id: str) -> str:
-    """Validate run_id to prevent path traversal. Returns the resolved directory path."""
+def _validate_run_id(run_id: str) -> None:
+    """Validate run_id to prevent path traversal."""
     if not _SAFE_RUN_ID_RE.match(run_id):
         raise HTTPException(status_code=400, detail="Invalid run_id")
-    resolved = os.path.realpath(os.path.join(_get_output_dir(), run_id))
-    if not resolved.startswith(os.path.realpath(_get_output_dir())):
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    return resolved
-
-
-def _validate_user_run(run_id: str, user_email: str | None) -> str:
-    """Validate run_id and return the user-scoped directory path."""
-    if not _SAFE_RUN_ID_RE.match(run_id):
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    output_dir = _get_output_dir()
-    if user_email:
-        base_dir = os.path.join(output_dir, _safe_user_dir(user_email))
-    else:
-        base_dir = output_dir
-    resolved = os.path.realpath(os.path.join(base_dir, run_id))
-    if not resolved.startswith(os.path.realpath(base_dir)):
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    return resolved
-
-
-def _find_run_dir_any_user(run_id: str) -> str | None:
-    """Search all user directories for a run_id (super-user access)."""
-    if not _SAFE_RUN_ID_RE.match(run_id):
-        return None
-    output_dir = _get_output_dir()
-    if not os.path.isdir(output_dir):
-        return None
-    for user_entry in os.listdir(output_dir):
-        user_path = os.path.join(output_dir, user_entry)
-        if not os.path.isdir(user_path):
-            continue
-        candidate = os.path.join(user_path, run_id)
-        if os.path.isdir(candidate) and os.path.isfile(os.path.join(candidate, "session.json")):
-            return candidate
-    return None
-
-
-def _list_sessions_in_dir(scan_dir: str, include_user: bool = False) -> list[dict]:
-    """List session snapshots in a directory, newest first."""
-    items: list[dict] = []
-    if not os.path.isdir(scan_dir):
-        return items
-    for entry in sorted(os.listdir(scan_dir), reverse=True):
-        if not _SAFE_RUN_ID_RE.match(entry):
-            continue
-        session_path = os.path.join(scan_dir, entry, "session.json")
-        if not os.path.isfile(session_path):
-            continue
-        try:
-            with open(session_path) as f:
-                snap = json.load(f)
-            item: dict = {
-                "run_id": snap.get("run_id", entry),
-                "query": snap.get("query", "")[:200],
-                "timestamp": snap.get("timestamp", ""),
-                "status": snap.get("status", "unknown"),
-                "event_count": len(snap.get("events", [])),
-                "has_result": bool(snap.get("result")),
-            }
-            if include_user:
-                item["user_email"] = snap.get("user_email")
-            items.append(item)
-        except Exception:
-            continue
-    return items
 
 
 @app.get("/api/history")
 async def list_history(request: Request):
     """List saved session snapshots for the authenticated user, newest first."""
     user_email = _resolve_user_email(request)
-    output_dir = _get_output_dir()
-    is_su = _is_super_user(user_email)
+    history = get_history_store()
 
-    if is_su:
-        # Super-user: scan all user directories
-        items: list[dict] = []
-        if os.path.isdir(output_dir):
-            for user_entry in os.listdir(output_dir):
-                user_path = os.path.join(output_dir, user_entry)
-                if not os.path.isdir(user_path):
-                    continue
-                # Skip non-session dirs (e.g. sandbox_files)
-                if user_entry == "sandbox_files":
-                    continue
-                items.extend(_list_sessions_in_dir(user_path, include_user=True))
-        # Sort all items newest first by run_id (YYYYMMDD-HHMMSS prefix)
-        items.sort(key=lambda x: x["run_id"], reverse=True)
-        return items
+    if _is_super_user(user_email):
+        return await history.list_all_sessions(include_user=True)
 
-    if user_email:
-        scan_dir = os.path.join(output_dir, _safe_user_dir(user_email))
-    else:
-        # No user identity — scan all top-level run folders (local dev / legacy)
-        scan_dir = output_dir
-
-    return _list_sessions_in_dir(scan_dir)
+    user_dir = _safe_user_dir(user_email) if user_email else ""
+    return await history.list_sessions(user_dir)
 
 
 @app.get("/api/history/{run_id}")
 async def get_history_session(run_id: str, request: Request):
     """Load a complete session snapshot for replay (scoped to authenticated user)."""
+    _validate_run_id(run_id)
     user_email = _resolve_user_email(request)
+    history = get_history_store()
 
     if _is_super_user(user_email):
-        run_dir = _find_run_dir_any_user(run_id)
-        if not run_dir:
+        result = await history.find_session_any_user(run_id)
+        if not result:
             raise HTTPException(status_code=404, detail="Session not found")
-    else:
-        run_dir = _validate_user_run(run_id, user_email)
+        return result[1]
 
-    session_path = os.path.join(run_dir, "session.json")
-    if not os.path.isfile(session_path):
+    user_dir = _safe_user_dir(user_email) if user_email else ""
+    snap = await history.get_session(user_dir, run_id)
+    if snap is None:
         raise HTTPException(status_code=404, detail="Session not found")
-
-    with open(session_path) as f:
-        return json.load(f)
+    return snap
 
 
 @app.delete("/api/history/{run_id}")
 async def delete_history_session(run_id: str, request: Request):
-    """Delete a saved session and its output folder (scoped to authenticated user)."""
-    import shutil
+    """Delete a saved session (scoped to authenticated user)."""
+    _validate_run_id(run_id)
     user_email = _resolve_user_email(request)
+    history = get_history_store()
 
     if _is_super_user(user_email):
-        run_dir = _find_run_dir_any_user(run_id)
-        if not run_dir:
+        result = await history.find_session_any_user(run_id)
+        if not result:
             raise HTTPException(status_code=404, detail="Session not found")
+        user_dir = result[0]
     else:
-        run_dir = _validate_user_run(run_id, user_email)
+        user_dir = _safe_user_dir(user_email) if user_email else ""
 
-    if not os.path.isdir(run_dir):
+    deleted = await history.delete_session(user_dir, run_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
-    shutil.rmtree(run_dir)
     return {"deleted": run_id}
 
 

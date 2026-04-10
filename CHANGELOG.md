@@ -3,6 +3,25 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-04-10] — Persistent Run History
+
+### Added
+- **Durable history storage** — Run history now persists in Azure Blob Storage, surviving ACA redeploys and restarts. Set `HISTORY_STORAGE_ACCOUNT_URL` or enable `enable_history_storage` in Terraform.
+- **Automatic lifecycle management** — History blobs are moved to cool tier after 30 days and auto-deleted after 90 days (configurable via `history_retention_days`).
+- **Terraform provisioning** — New `enable_history_storage` variable creates the storage account, blob container, RBAC role, lifecycle policy, and private endpoint (when VNet is enabled).
+
+### Changed
+- **History API refactored** — `GET/DELETE /api/history` endpoints now use a `HistoryStore` abstraction that selects Blob Storage or local filesystem based on configuration. API contract unchanged — no frontend changes needed.
+
+## [2026-04-10] — Activity Feed Readability
+
+### Changed
+- **Redesigned live activity panel** — Timeline feed now uses the same bordered container with gradient background as the result pane, making text much easier to read.
+- **Larger, higher-contrast text** — Summary text bumped from secondary to primary color with increased font size and multi-line display instead of single-line truncation.
+- **Improved expanded details** — Expanded event cards now render inside a bordered surface card with better spacing and larger code blocks.
+- **Subtler timeline line** — Vertical connector thinned and softened for a cleaner look.
+- **Swimlane view polish** — Swim-lane container now matches the same surface treatment as the timeline view.
+
 ## [2026-04-01] — User Authentication & Onboarding
 
 ### Added
