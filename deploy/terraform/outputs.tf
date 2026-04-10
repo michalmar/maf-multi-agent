@@ -59,3 +59,25 @@ output "data_users_group_name" {
   description = "Display name of the Data-Users security group"
   value       = var.enable_easy_auth ? azuread_group.data_users[0].display_name : ""
 }
+
+# ── VNet outputs ──────────────────────────────────────────────
+
+output "vnet_id" {
+  description = "VNet resource ID (empty when VNet is disabled)"
+  value       = var.enable_vnet ? azurerm_virtual_network.main[0].id : ""
+}
+
+output "aca_subnet_id" {
+  description = "ACA infrastructure subnet ID"
+  value       = var.enable_vnet ? azurerm_subnet.aca_infra[0].id : ""
+}
+
+output "pe_subnet_id" {
+  description = "Private endpoints subnet ID"
+  value       = var.enable_vnet ? azurerm_subnet.private_endpoints[0].id : ""
+}
+
+output "tokenstore_private_endpoint_ip" {
+  description = "Private IP of the token store private endpoint"
+  value       = var.enable_vnet && var.enable_easy_auth ? azurerm_private_endpoint.tokenstore[0].private_service_connection[0].private_ip_address : ""
+}

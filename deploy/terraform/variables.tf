@@ -87,6 +87,35 @@ variable "easyauth_storage_account_name" {
   default     = ""
 }
 
+# ── VNet integration ──────────────────────────────────────────
+# Places the ACA environment into a customer-managed VNet so that outbound
+# traffic can reach private endpoints (e.g. token store storage).  The
+# frontend remains publicly accessible via ACA's external ingress.
+
+variable "enable_vnet" {
+  description = "Deploy ACA into a customer-managed VNet with private endpoint for the token store. Required when org policy mandates publicNetworkAccess=Disabled on storage accounts."
+  type        = bool
+  default     = false
+}
+
+variable "vnet_address_space" {
+  description = "Address space for the VNet (only used when enable_vnet = true)"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "aca_subnet_cidr" {
+  description = "CIDR for the ACA infrastructure subnet. Minimum /23 (512 addresses) required by ACA."
+  type        = string
+  default     = "10.0.0.0/23"
+}
+
+variable "pe_subnet_cidr" {
+  description = "CIDR for the private endpoints subnet."
+  type        = string
+  default     = "10.0.2.0/24"
+}
+
 # ── Email notifications ───────────────────────────────────────
 
 variable "mail_sender_address" {
