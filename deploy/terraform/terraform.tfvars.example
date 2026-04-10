@@ -44,3 +44,18 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 # Sender mailbox for Graph Mail API notifications. Leave empty to disable.
 # Requires Mail.Send app permission on the managed identity.
 # mail_sender_address = "admin@contoso.com"
+
+# ── VNet integration ──────────────────────────────────────────
+# Places the ACA environment into a customer-managed VNet with a private
+# endpoint for the token store.  Required when org policy mandates
+# publicNetworkAccess=Disabled on storage accounts.
+#
+# ⚠️  IMPORTANT: Enabling VNet on an existing deployment will RECREATE the
+# ACA Environment (destroy + create).  Plan a maintenance window.
+# The app registration redirect URI auto-updates via Terraform, but verify
+# after apply.
+#
+# enable_vnet       = true
+# vnet_address_space = "10.0.0.0/16"   # default
+# aca_subnet_cidr    = "10.0.0.0/23"   # /23 minimum for ACA
+# pe_subnet_cidr     = "10.0.2.0/24"   # for private endpoints
