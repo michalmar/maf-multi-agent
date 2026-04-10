@@ -54,6 +54,26 @@ export interface EventUsage {
   total_tokens?: number;
   input_tokens?: number;
   output_tokens?: number;
+  cached_tokens?: number;
+  reasoning_tokens?: number;
+}
+
+export interface SourceTokenUsage {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cached_tokens?: number;
+  reasoning_tokens?: number;
+}
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cached_tokens?: number;
+  reasoning_tokens?: number;
+  by_source: Record<string, SourceTokenUsage>;
 }
 
 export interface EventData {
@@ -124,6 +144,7 @@ export interface HistoryItem {
   event_count: number;
   has_result: boolean;
   user_email?: string;  // present when super-user views cross-user history
+  token_usage?: TokenUsage;  // present when token tracking is enabled
 }
 
 export interface SessionSnapshot {
@@ -137,4 +158,5 @@ export interface SessionSnapshot {
   documents: DocumentVersion[];
   result: string;
   stream_label: string;
+  token_usage?: TokenUsage;
 }

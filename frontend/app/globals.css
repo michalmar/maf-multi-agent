@@ -2374,3 +2374,51 @@ textarea {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Token Type Distribution Bar ────────────────── */
+
+.dash-token-type {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dash-token-bar {
+  display: flex;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
+}
+
+.dash-token-segment {
+  min-width: 4px;
+  height: 100%;
+}
+
+.dash-token-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.dash-token-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.dash-token-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dash-token-legend-val {
+  font-weight: 600;
+  color: var(--text-primary);
+}

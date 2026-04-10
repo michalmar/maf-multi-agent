@@ -8,6 +8,7 @@ Update this file with every merge/commit to the main branch.
 ### Added
 - **Durable history storage** — Run history now persists in Azure Blob Storage, surviving ACA redeploys and restarts. Set `HISTORY_STORAGE_ACCOUNT_URL` or enable `enable_history_storage` in Terraform.
 - **Usage Dashboard** — New 📊 button in the header opens a modal dashboard with KPI cards (total runs, today, success rate), daily activity bar chart, status breakdown, per-user usage (super-user), and recent runs list. All data is computed client-side from the existing history API.
+- **Token usage tracking** — Each session now records per-agent and per-model token usage breakdown (input, output, cached, reasoning tokens). Displayed in the Usage Dashboard with aggregate KPIs, agent/model bar charts, and token type distribution.
 - **Automatic lifecycle management** — History blobs are moved to cool tier after 30 days and auto-deleted after 90 days (configurable via `history_retention_days`).
 - **Terraform provisioning** — New `enable_history_storage` variable creates the storage account, blob container, RBAC role, lifecycle policy, and private endpoint (when VNet is enabled).
 
