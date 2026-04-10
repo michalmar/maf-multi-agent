@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BarChart3, X, Loader2, Activity, Users, CheckCircle, TrendingUp, AlertCircle, Clock } from "lucide-react";
-import type { HistoryItem } from "@/lib/types";
+import { BarChart3, X, Loader2, Activity, Users, CheckCircle, TrendingUp, AlertCircle, Clock, Zap, Cpu } from "lucide-react";
+import type { HistoryItem, TokenUsage } from "@/lib/types";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -20,6 +20,16 @@ interface UsageStats {
   userCounts: { user: string; count: number }[];
   statusCounts: { status: string; count: number; color: string }[];
   recentRuns: HistoryItem[];
+  // Token usage aggregates
+  hasTokenData: boolean;
+  totalTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCachedTokens: number;
+  totalReasoningTokens: number;
+  avgTokensPerRun: number;
+  tokensBySource: { source: string; model: string; input: number; output: number; total: number; cached: number; reasoning: number }[];
+  tokensByModel: { model: string; total: number; input: number; output: number }[];
 }
 
 interface UsageDashboardProps {
@@ -140,6 +150,63 @@ function computeStats(items: HistoryItem[]): UsageStats {
     return isThisWeek(dk);
   });
 
+  // Aggregate token usage across all sessions
+  let totalTokens = 0, totalInput = 0, totalOutput = 0, totalCached = 0, totalReasoning = 0;
+  const sourceAgg = new Map<string, { model: string; input: number; output: number; total: number; cached: number; reasoning: number }>();
+  const modelAgg = new Map<string, { total: number; input: number; output: number }>();
+  let hasTokenData = false;
+
+  for (const item of items) {
+    const tu = item.token_usage;
+    if (!tu) continue;
+    hasTokenData = true;
+    totalTokens += tu.total_tokens || 0;
+    totalInput += tu.input_tokens || 0;
+    totalOutput += tu.output_tokens || 0;
+    totalCached += tu.cached_tokens || 0;
+    totalReasoning += tu.reasoning_tokens || 0;
+
+    if (tu.by_source) {
+      for (const [src, su] of Object.entries(tu.by_source)) {
+        const existing = sourceAgg.get(src);
+        if (existing) {
+          existing.input += su.input_tokens || 0;
+          existing.output += su.output_tokens || 0;
+          existing.total += su.total_tokens || 0;
+          existing.cached += su.cached_tokens || 0;
+          existing.reasoning += su.reasoning_tokens || 0;
+        } else {
+          sourceAgg.set(src, {
+            model: su.model || "unknown",
+            input: su.input_tokens || 0,
+            output: su.output_tokens || 0,
+            total: su.total_tokens || 0,
+            cached: su.cached_tokens || 0,
+            reasoning: su.reasoning_tokens || 0,
+          });
+        }
+
+        const mdl = su.model || "unknown";
+        const me = modelAgg.get(mdl);
+        if (me) {
+          me.total += su.total_tokens || 0;
+          me.input += su.input_tokens || 0;
+          me.output += su.output_tokens || 0;
+        } else {
+          modelAgg.set(mdl, { total: su.total_tokens || 0, input: su.input_tokens || 0, output: su.output_tokens || 0 });
+        }
+      }
+    }
+  }
+
+  const tokensBySource = Array.from(sourceAgg.entries())
+    .map(([source, d]) => ({ source, ...d }))
+    .sort((a, b) => b.total - a.total);
+
+  const tokensByModel = Array.from(modelAgg.entries())
+    .map(([model, d]) => ({ model, ...d }))
+    .sort((a, b) => b.total - a.total);
+
   return {
     totalRuns: total,
     todayRuns: todayItems.length,
@@ -153,6 +220,15 @@ function computeStats(items: HistoryItem[]): UsageStats {
     userCounts,
     statusCounts,
     recentRuns: items.slice(0, 8),
+    hasTokenData,
+    totalTokens,
+    totalInputTokens: totalInput,
+    totalOutputTokens: totalOutput,
+    totalCachedTokens: totalCached,
+    totalReasoningTokens: totalReasoning,
+    avgTokensPerRun: hasTokenData && total > 0 ? Math.round(totalTokens / total) : 0,
+    tokensBySource,
+    tokensByModel,
   };
 }
 
@@ -335,6 +411,78 @@ export function UsageDashboard({ isOpen, onClose }: UsageDashboardProps) {
                     </div>
                   </div>
 
+                  {/* Token Usage Section */}
+                  {stats.hasTokenData && (
+                    <>
+                      {/* Token KPI row */}
+                      <div className="dash-kpi-grid">
+                        <div className="dash-kpi">
+                          <div className="dash-kpi-icon" style={{ color: "var(--accent)" }}><Zap className="h-4 w-4" /></div>
+                          <div className="dash-kpi-value">{formatTokenCount(stats.totalTokens)}</div>
+                          <div className="dash-kpi-label">Total Tokens</div>
+                        </div>
+                        <div className="dash-kpi">
+                          <div className="dash-kpi-icon"><Cpu className="h-4 w-4" /></div>
+                          <div className="dash-kpi-value">{formatTokenCount(stats.avgTokensPerRun)}</div>
+                          <div className="dash-kpi-label">Avg / Run</div>
+                        </div>
+                        <div className="dash-kpi">
+                          <div className="dash-kpi-icon" style={{ color: "var(--success)" }}><Zap className="h-4 w-4" /></div>
+                          <div className="dash-kpi-value">{stats.totalTokens > 0 ? Math.round((stats.totalCachedTokens / stats.totalTokens) * 100) : 0}%</div>
+                          <div className="dash-kpi-label">Cache Hit</div>
+                        </div>
+                        <div className="dash-kpi">
+                          <div className="dash-kpi-icon" style={{ color: "var(--accent-warm)" }}><Cpu className="h-4 w-4" /></div>
+                          <div className="dash-kpi-value">{formatTokenCount(stats.totalReasoningTokens)}</div>
+                          <div className="dash-kpi-label">Reasoning</div>
+                        </div>
+                      </div>
+
+                      {/* Token breakdown: by source + by model */}
+                      <div className="dash-two-col">
+                        {stats.tokensBySource.length > 0 && (
+                          <div className="dash-section">
+                            <h3 className="dash-section-title">Tokens by Agent</h3>
+                            <HorizontalBars
+                              items={stats.tokensBySource.map((s) => ({
+                                label: s.source,
+                                value: s.total,
+                                tooltip: `${s.source} (${s.model}): ${s.total.toLocaleString()} tokens (in=${s.input.toLocaleString()}, out=${s.output.toLocaleString()}${s.cached ? `, cached=${s.cached.toLocaleString()}` : ""}${s.reasoning ? `, reasoning=${s.reasoning.toLocaleString()}` : ""})`,
+                              }))}
+                              color="var(--accent)"
+                              formatValue={formatTokenCount}
+                            />
+                          </div>
+                        )}
+                        {stats.tokensByModel.length > 0 && (
+                          <div className="dash-section">
+                            <h3 className="dash-section-title">Tokens by Model</h3>
+                            <HorizontalBars
+                              items={stats.tokensByModel.map((m) => ({
+                                label: m.model,
+                                value: m.total,
+                                tooltip: `${m.model}: ${m.total.toLocaleString()} tokens (in=${m.input.toLocaleString()}, out=${m.output.toLocaleString()})`,
+                                color: "var(--accent-alt)",
+                              }))}
+                              formatValue={formatTokenCount}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Token type breakdown bar */}
+                      <div className="dash-section">
+                        <h3 className="dash-section-title">Token Type Distribution</h3>
+                        <TokenTypeBar
+                          input={stats.totalInputTokens}
+                          output={stats.totalOutputTokens}
+                          cached={stats.totalCachedTokens}
+                          reasoning={stats.totalReasoningTokens}
+                        />
+                      </div>
+                    </>
+                  )}
+
                   {/* Recent Activity */}
                   <div className="dash-section">
                     <h3 className="dash-section-title">Recent Runs</h3>
@@ -390,11 +538,13 @@ function DailyChart({ data }: { data: { date: string; label: string; count: numb
   );
 }
 
-function HorizontalBars({ items, color }: {
+function HorizontalBars({ items, color, formatValue }: {
   items: { label: string; value: number; color?: string; tooltip?: string }[];
   color?: string;
+  formatValue?: (v: number) => string;
 }) {
   const max = Math.max(...items.map((i) => i.value), 1);
+  const fmt = formatValue || ((v: number) => String(v));
 
   return (
     <div className="dash-hbars">
@@ -410,9 +560,54 @@ function HorizontalBars({ items, color }: {
               transition={{ duration: 0.5, ease: "easeOut" }}
             />
           </div>
-          <span className="dash-hbar-value">{item.value}</span>
+          <span className="dash-hbar-value">{fmt(item.value)}</span>
         </div>
       ))}
     </div>
   );
+}
+
+function TokenTypeBar({ input, output, cached, reasoning }: {
+  input: number; output: number; cached: number; reasoning: number;
+}) {
+  const total = input + output;
+  if (total === 0) return null;
+  const segments = [
+    { label: "Input", value: input - cached, color: "var(--accent)", pct: ((input - cached) / total) * 100 },
+    { label: "Cached", value: cached, color: "var(--success)", pct: (cached / total) * 100 },
+    { label: "Output", value: output - reasoning, color: "var(--accent-warm)", pct: ((output - reasoning) / total) * 100 },
+    { label: "Reasoning", value: reasoning, color: "var(--accent-alt)", pct: (reasoning / total) * 100 },
+  ].filter((s) => s.value > 0);
+
+  return (
+    <div className="dash-token-type">
+      <div className="dash-token-bar">
+        {segments.map((s) => (
+          <motion.div
+            key={s.label}
+            className="dash-token-segment"
+            style={{ backgroundColor: s.color, width: `${s.pct}%` }}
+            title={`${s.label}: ${s.value.toLocaleString()} tokens (${Math.round(s.pct)}%)`}
+            initial={{ width: 0 }}
+            animate={{ width: `${s.pct}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          />
+        ))}
+      </div>
+      <div className="dash-token-legend">
+        {segments.map((s) => (
+          <span key={s.label} className="dash-token-legend-item">
+            <span className="dash-token-legend-dot" style={{ backgroundColor: s.color }} />
+            {s.label} <span className="dash-token-legend-val">{formatTokenCount(s.value)}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }

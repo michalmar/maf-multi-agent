@@ -160,24 +160,58 @@ async def run_scratchpad_workflow(
     result = await facilitator.run(query)
     total_elapsed = time.perf_counter() - t0
 
+    # Extract orchestrator token usage from the MAF response
+    orchestrator_usage = _extract_usage_details(result)
+
     # Log final status
     logger.info("━" * 60)
     logger.info("✅ WORKFLOW COMPLETE (%.1fs)", total_elapsed)
     logger.info("   Tasks: %s", taskboard.get_status_summary().split('\n')[0])
     logger.info("   Document version: %d", document.version)
     logger.info("   Response length: %d chars", len(result.text))
+    if orchestrator_usage:
+        logger.info("   Tokens: %s", orchestrator_usage)
     logger.info("━" * 60)
 
     if event_callback:
+        wc_data: dict = {
+            "elapsed": total_elapsed,
+            "tasks_completed": taskboard.get_status_summary().split('\n')[0],
+            "document_version": document.version,
+            "response_length": len(result.text),
+        }
+        if orchestrator_usage:
+            wc_data["usage"] = orchestrator_usage
+        # Include summary service cumulative usage if available
+        summary_usage = summary_service.get_cumulative_usage()
+        if summary_usage:
+            wc_data["summary_usage"] = summary_usage
         event_callback(AgentEvent(
             event_type=EventType.WORKFLOW_COMPLETED,
             source="orchestrator",
-            data={
-                "elapsed": total_elapsed,
-                "tasks_completed": taskboard.get_status_summary().split('\n')[0],
-                "document_version": document.version,
-                "response_length": len(result.text),
-            },
+            data=wc_data,
         ))
 
     return result.text, document.raw_contributions
+
+
+def _extract_usage_details(result) -> dict | None:
+    """Extract and normalize token usage from a MAF AgentResponse."""
+    usage_details = getattr(result, "usage_details", None)
+    if not usage_details:
+        return None
+
+    usage: dict = {
+        "input_tokens": usage_details.get("input_token_count", 0) or 0,
+        "output_tokens": usage_details.get("output_token_count", 0) or 0,
+        "total_tokens": usage_details.get("total_token_count", 0) or 0,
+    }
+    # MAF stores these as custom keys from OpenAI's detailed breakdown
+    cached = usage_details.get("openai.cached_input_tokens")
+    if cached:
+        usage["cached_tokens"] = cached
+    reasoning = usage_details.get("openai.reasoning_tokens")
+    if reasoning:
+        usage["reasoning_tokens"] = reasoning
+
+    return usage if usage.get("total_tokens", 0) > 0 else None

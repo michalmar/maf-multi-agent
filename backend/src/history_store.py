@@ -115,6 +115,8 @@ class BlobHistoryStore:
                     "event_count": len(snap.get("events", [])),
                     "has_result": bool(snap.get("result")),
                 }
+                if snap.get("token_usage"):
+                    item["token_usage"] = snap["token_usage"]
                 if include_user:
                     item["user_email"] = snap.get("user_email")
                 items.append(item)
@@ -296,6 +298,8 @@ def _list_sessions_on_disk(scan_dir: str, include_user: bool = False) -> list[di
                 "event_count": len(snap.get("events", [])),
                 "has_result": bool(snap.get("result")),
             }
+            if snap.get("token_usage"):
+                item["token_usage"] = snap["token_usage"]
             if include_user:
                 item["user_email"] = snap.get("user_email")
             items.append(item)

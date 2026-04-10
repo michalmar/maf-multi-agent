@@ -64,6 +64,7 @@ class SummaryService:
     """Manages an OpenAI client (via AI Foundry project) for generating event summaries.
 
     Credentials and project client are stored for reuse to avoid connection pool leaks.
+    Tracks cumulative token usage across all summary calls.
     """
 
     def __init__(self):
@@ -73,6 +74,12 @@ class SummaryService:
         self._credential: Optional[DefaultAzureCredential] = None
         self._project_client: Optional[AIProjectClient] = None
         self._client: Optional[OpenAI] = None
+        self._cumulative_usage: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "call_count": 0,
+        }
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
@@ -115,11 +122,32 @@ class SummaryService:
                 temperature=0.2,
             )
             summary = (response.output_text or "").strip()
+
+            # Track cumulative token usage
+            if hasattr(response, "usage") and response.usage:
+                u = response.usage
+                self._cumulative_usage["input_tokens"] += getattr(u, "input_tokens", 0)
+                self._cumulative_usage["output_tokens"] += getattr(u, "output_tokens", 0)
+                self._cumulative_usage["total_tokens"] += getattr(u, "total_tokens", 0)
+            self._cumulative_usage["call_count"] += 1
+
             logger.debug("Summary generated for %s: %s", event.event_type.value, summary)
             return summary
         except Exception as e:
             logger.warning("Summary generation failed for %s: %s", event.event_type.value, e)
             return ""
+
+    def get_cumulative_usage(self) -> dict | None:
+        """Return cumulative token usage from all summary calls, or None if no calls made."""
+        if self._cumulative_usage["call_count"] == 0:
+            return None
+        return {
+            "input_tokens": self._cumulative_usage["input_tokens"],
+            "output_tokens": self._cumulative_usage["output_tokens"],
+            "total_tokens": self._cumulative_usage["total_tokens"],
+            "call_count": self._cumulative_usage["call_count"],
+            "model": self._deployment,
+        }
 
     def generate_summary_safe(self, event: AgentEvent) -> str:
         """Thread-safe wrapper — works from any thread context."""

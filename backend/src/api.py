@@ -439,6 +439,76 @@ async def fabric_resume():
 
 # ── Session snapshot & history ─────────────────────────────────
 
+
+def _aggregate_token_usage(events: list[dict], agent_model_map: dict[str, str]) -> dict | None:
+    """Aggregate token usage from collected events into a structured breakdown.
+
+    Returns a dict with totals, per-source breakdown (agent + model), and
+    token type breakdown (input/output/cached/reasoning), or None if no usage.
+    """
+    totals = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0,
+              "cached_tokens": 0, "reasoning_tokens": 0}
+    by_source: dict[str, dict] = {}
+
+    config = get_config()
+    orchestrator_model = config.azure_openai_chat_deployment_name
+
+    for ev in events:
+        et = ev.get("event_type", "")
+        data = ev.get("data", {})
+        source = ev.get("source", "")
+
+        usage = data.get("usage")
+        if et == "agent_completed" and usage:
+            model = agent_model_map.get(source, "unknown")
+            _add_usage(totals, by_source, source, model, usage)
+
+        if et == "workflow_completed":
+            if usage:
+                _add_usage(totals, by_source, "orchestrator", orchestrator_model, usage)
+            # Summary service usage (separate model)
+            su = data.get("summary_usage")
+            if su:
+                summary_model = su.get("model", config.azure_openai_summary_deployment_name)
+                _add_usage(totals, by_source, "summary", summary_model, su)
+
+    if totals["total_tokens"] == 0:
+        return None
+
+    # Clean up zero values
+    for key in ("cached_tokens", "reasoning_tokens"):
+        if totals[key] == 0:
+            del totals[key]
+
+    return {**totals, "by_source": by_source}
+
+
+def _add_usage(totals: dict, by_source: dict, source: str, model: str, usage: dict) -> None:
+    """Add usage data from one source to the totals and per-source breakdown."""
+    inp = usage.get("input_tokens", 0) or 0
+    out = usage.get("output_tokens", 0) or 0
+    tot = usage.get("total_tokens", 0) or 0
+    cached = usage.get("cached_tokens", 0) or 0
+    reasoning = usage.get("reasoning_tokens", 0) or 0
+
+    totals["input_tokens"] += inp
+    totals["output_tokens"] += out
+    totals["total_tokens"] += tot
+    totals["cached_tokens"] += cached
+    totals["reasoning_tokens"] += reasoning
+
+    if source not in by_source:
+        by_source[source] = {"model": model, "input_tokens": 0, "output_tokens": 0,
+                             "total_tokens": 0}
+    entry = by_source[source]
+    entry["input_tokens"] += inp
+    entry["output_tokens"] += out
+    entry["total_tokens"] += tot
+    if cached:
+        entry["cached_tokens"] = entry.get("cached_tokens", 0) + cached
+    if reasoning:
+        entry["reasoning_tokens"] = entry.get("reasoning_tokens", 0) + reasoning
+
 async def _save_session_snapshot(
     run_id: str,
     user_dir: str,
@@ -503,13 +573,20 @@ async def _save_session_snapshot(
         # Load agent definitions for the snapshot
         try:
             from src.agent_loader import list_agent_definitions
+            agent_defs_raw = list_agent_definitions()
             agent_defs = [
                 {"name": a.name, "display_name": a.display_name, "avatar": a.avatar,
                  "role": a.role, "model": a.model, "description": a.description}
-                for a in list_agent_definitions()
+                for a in agent_defs_raw
             ]
+            # Build agent→model mapping for token usage attribution
+            agent_model_map = {a.name: a.model for a in agent_defs_raw}
         except (yaml.YAMLError, OSError, ImportError):
             agent_defs = list(agents_seen.values())
+            agent_model_map = {}
+
+        # Aggregate token usage from events
+        token_usage = _aggregate_token_usage(events, agent_model_map)
 
         snapshot = {
             "run_id": run_id,
@@ -524,6 +601,8 @@ async def _save_session_snapshot(
             "result": result_text,
             "stream_label": f"Replay of run {run_id}",
         }
+        if token_usage:
+            snapshot["token_usage"] = token_usage
 
         history = get_history_store()
         await history.save_session(user_dir, run_id, snapshot)
