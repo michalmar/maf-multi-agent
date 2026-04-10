@@ -731,18 +731,29 @@ textarea {
 
 .tl-feed {
   position: relative;
-  padding-left: 0;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 249, 252, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+[data-theme="night"] .tl-feed {
+  background:
+    linear-gradient(180deg, rgba(12, 28, 50, 0.82), rgba(10, 22, 40, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .tl-feed::before {
   content: "";
   position: absolute;
-  left: 24px;
-  top: 4px;
-  bottom: 4px;
-  width: 2px;
+  left: 40px;
+  top: 20px;
+  bottom: 20px;
+  width: 1px;
   border-radius: 1px;
-  background: var(--border-strong);
+  background: var(--border-soft);
 }
 
 .tl-item {
@@ -760,11 +771,12 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  margin-top: 1px;
+  border-radius: 7px;
+  background: transparent;
   z-index: 1;
   transition: transform 180ms ease, box-shadow 180ms ease;
   box-shadow: none;
@@ -788,42 +800,48 @@ textarea {
 
 .tl-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   width: 100%;
-  padding: 7px 8px 7px 12px;
+  padding: 10px 12px;
   border: none;
   background: none;
   text-align: left;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background 150ms ease;
 }
 
 .tl-row:hover {
-  background: var(--surface-soft);
+  background: rgba(14, 154, 167, 0.05);
+}
+
+[data-theme="night"] .tl-row:hover {
+  background: rgba(45, 212, 220, 0.06);
 }
 
 .tl-agent {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   flex-shrink: 0;
   white-space: nowrap;
+  margin-top: 2px;
 }
 
 .tl-summary {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
+  font-size: 0.88rem;
+  color: var(--text-primary);
   flex: 1;
   min-width: 0;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.5;
 }
 
 .tl-chevron {
@@ -845,35 +863,33 @@ textarea {
 }
 
 .tl-detail {
-  margin-top: 2px;
-  margin-bottom: 10px;
-  margin-left: 0;
-  padding: 12px 0 4px;
-  border-top: 1px solid var(--border-soft);
+  margin: 6px 0 10px 36px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-soft);
 }
 
 .tl-detail-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .tl-detail-time {
   font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-  color: var(--text-muted);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
   letter-spacing: 0.03em;
-  opacity: 0.7;
 }
 
 .tl-detail-type {
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--text-muted);
-  opacity: 0.6;
 }
 
 /* ── Live-pulse ring on active node icon ─────────── */
@@ -935,8 +951,19 @@ textarea {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding: 16px;
   -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 249, 252, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+[data-theme="night"] .tl-swimlanes {
+  background:
+    linear-gradient(180deg, rgba(12, 28, 50, 0.82), rgba(10, 22, 40, 0.96));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .tl-lane {
@@ -1019,7 +1046,7 @@ textarea {
 }
 
 .tl-lane-row .tl-summary {
-  font-size: 0.74rem;
+  font-size: 0.82rem;
 }
 
 .tl-lane-row .tl-chevron {
@@ -1028,19 +1055,22 @@ textarea {
 }
 
 .tl-lane-item .tl-detail {
-  padding: 8px 0 2px;
+  margin-left: 28px;
+  padding: 10px 14px;
 }
 
 .feed-pre {
-  max-height: 14rem;
+  max-height: 20rem;
   overflow: auto;
   border-radius: 8px;
   background: var(--code-bg);
-  padding: 0.8rem;
+  padding: 1rem 1.1rem;
   font-family: var(--font-mono), monospace;
-  font-size: 0.73rem;
-  line-height: 1.7;
+  font-size: 0.82rem;
+  line-height: 1.75;
   color: var(--code-text);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .workspace-surface {
