@@ -123,3 +123,23 @@ variable "mail_sender_address" {
   type        = string
   default     = ""
 }
+
+# ── Persistent history storage ────────────────────────────────
+
+variable "enable_history_storage" {
+  description = "Create a dedicated Azure Storage Account for persistent run history. History survives ACA redeploys and restarts."
+  type        = bool
+  default     = false
+}
+
+variable "history_storage_account_name" {
+  description = "Storage account name for history persistence (globally unique, alphanumeric, 3-24 chars). Auto-generated from app_name if empty."
+  type        = string
+  default     = ""
+}
+
+variable "history_retention_days" {
+  description = "Auto-delete history blobs after this many days. Set to 0 to disable lifecycle management."
+  type        = number
+  default     = 90
+}

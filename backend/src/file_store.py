@@ -99,6 +99,12 @@ def has_file(sandbox_path: str) -> bool:
         return sandbox_path in _store
 
 
+def get_all_files() -> dict[str, tuple[bytes, str]]:
+    """Return a snapshot of all stored files (thread-safe copy)."""
+    with _lock:
+        return dict(_store)
+
+
 def guess_content_type(filename: str) -> str:
     """Guess MIME type from filename, defaulting to application/octet-stream."""
     mime, _ = mimetypes.guess_type(filename)

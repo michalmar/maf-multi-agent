@@ -81,3 +81,15 @@ output "tokenstore_private_endpoint_ip" {
   description = "Private IP of the token store private endpoint"
   value       = var.enable_vnet && var.enable_easy_auth ? azurerm_private_endpoint.tokenstore[0].private_service_connection[0].private_ip_address : ""
 }
+
+# ── History storage outputs ───────────────────────────────────
+
+output "history_storage_account_url" {
+  description = "Blob Storage URL for persistent history (set as HISTORY_STORAGE_ACCOUNT_URL)"
+  value       = var.enable_history_storage ? "https://${local.history_storage_name}.blob.core.windows.net" : ""
+}
+
+output "history_storage_account_name" {
+  description = "History storage account name"
+  value       = var.enable_history_storage ? local.history_storage_name : ""
+}
