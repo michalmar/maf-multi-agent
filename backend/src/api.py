@@ -74,7 +74,8 @@ def _is_super_user(user_email: str | None) -> bool:
     """Check if the authenticated user is the configured super-user."""
     if not user_email:
         return False
-    su = os.environ.get("SUPER_USER_EMAIL", "")
+    from src.config import get_config
+    su = get_config().super_user_email
     return bool(su and user_email.lower().strip() == su.lower().strip())
 
 

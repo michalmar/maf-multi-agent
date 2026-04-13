@@ -252,6 +252,7 @@ Email uses **app-only auth** (not user-delegated), independent of the Fabric/Eas
 | `FABRIC_CAPACITY_RESOURCE_ID` | ARM resource ID for Fabric capacity status | — |
 | `FABRIC_DATA_AGENT_MCP_URL` | Fabric Data Agent MCP endpoint | — |
 | `MAIL_SENDER_ADDRESS` | Sender mailbox for email notifications (empty = disabled) | — |
+| `SUPER_USER_EMAIL` | Email of the super-user who can view all users' run history (empty = disabled) | — |
 | `HISTORY_STORAGE_ACCOUNT_URL` | Azure Blob Storage URL for persistent history (empty = local filesystem) | — |
 
 ---

@@ -116,6 +116,14 @@ variable "pe_subnet_cidr" {
   default     = "10.0.2.0/24"
 }
 
+# ── Super-user access ─────────────────────────────────────────
+
+variable "super_user_email" {
+  description = "Email of the super-user who can view all users' run history. Leave empty to disable."
+  type        = string
+  default     = ""
+}
+
 # ── Email notifications ───────────────────────────────────────
 
 variable "mail_sender_address" {
