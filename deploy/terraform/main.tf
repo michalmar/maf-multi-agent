@@ -574,6 +574,15 @@ resource "azurerm_container_app" "main" {
         }
       }
 
+      # Super-user who can view all users' history — only injected when configured
+      dynamic "env" {
+        for_each = var.super_user_email != "" ? [1] : []
+        content {
+          name  = "SUPER_USER_EMAIL"
+          value = var.super_user_email
+        }
+      }
+
       # Graph Mail notifications — only injected when configured
       dynamic "env" {
         for_each = var.mail_sender_address != "" ? [1] : []
