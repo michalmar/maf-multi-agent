@@ -1,24 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { IBM_Plex_Mono, Plus_Jakarta_Sans, Sora } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const displayFont = Sora({
+const interFont = Inter({
   subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-display",
-});
-
-const bodyFont = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-body",
+  display: "swap",
 });
 
-const monoFont = IBM_Plex_Mono({
+const monoFont = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500"],
   variable: "--font-mono",
+  display: "swap",
 });
 
 const themeBootstrap = `
@@ -28,11 +24,11 @@ const themeBootstrap = `
     if (savedTheme === 'night' || savedTheme === 'daybreak') {
       theme = savedTheme;
     } else {
-      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'daybreak';
+      theme = 'night';
     }
     document.documentElement.setAttribute('data-theme', theme);
   } catch (error) {
-    document.documentElement.setAttribute('data-theme', 'daybreak');
+    document.documentElement.setAttribute('data-theme', 'night');
   }
 `;
 
@@ -43,8 +39,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Wired Orchestra",
-  description: "Multi-agent orchestration — where specialist agents perform in concert.",
+  title: "MAF Orchestra",
+  description: "Multi-agent orchestration workspace.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -52,7 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}
+      className={`${interFont.variable} ${monoFont.variable}`}
     >
       <body>
         <Script id="theme-bootstrap" strategy="beforeInteractive">
