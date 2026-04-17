@@ -1,6 +1,6 @@
 export type ThemeMode = "night" | "daybreak";
 export type RunStatus = "idle" | "running" | "done" | "error";
-export type WorkspaceTab = "activity" | "document" | "result";
+export type WorkspaceTab = "activity" | "document" | "result" | "tasks";
 export type AgentStatus = "idle" | "working" | "done" | "error";
 export type RunSource = "live" | "mock" | "replay";
 
