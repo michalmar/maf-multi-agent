@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, FileText, GitCompare, Radio, Sparkles } from "lucide-react";
+import { Check, Copy, Download, FileText, GitCompare, ListTodo, Radio, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ActivityFeed } from "@/components/activity-feed";
-import { AgentEvent, DocumentVersion, RunStatus, WorkspaceTab } from "@/lib/types";
+import { TaskBoard } from "@/components/task-board";
+import { AgentEvent, DocumentVersion, RunStatus, TaskItem, WorkspaceTab } from "@/lib/types";
 
 /* ── Custom ReactMarkdown renderers ───────────────── */
 
@@ -82,6 +83,8 @@ interface WorkspacePanelsProps {
   status: RunStatus;
   onTabChange: (tab: WorkspaceTab) => void;
   runId?: string | null;
+  tasks: TaskItem[];
+  onSelectTask: (taskId: number | null) => void;
 }
 
 interface DiffLine {
@@ -145,6 +148,8 @@ export function WorkspacePanels({
   status,
   onTabChange,
   runId,
+  tasks,
+  onSelectTask,
 }: WorkspacePanelsProps) {
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -152,6 +157,7 @@ export function WorkspacePanels({
 
   const tabs = [
     { id: "activity" as const, label: "Activity", icon: Radio, badge: events.filter((event) => event.event_type !== "agent_streaming").length },
+    { id: "tasks" as const, label: "Tasks", icon: ListTodo, badge: tasks.length },
     { id: "document" as const, label: "Document", icon: FileText, badge: documents.length },
     { id: "result" as const, label: "Result", icon: Sparkles, badge: result ? 1 : 0 },
   ];
@@ -194,7 +200,7 @@ export function WorkspacePanels({
 
   return (
     <section className="panel-shell p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(183,193,212,0.14)] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-soft)] pb-4">
         <div>
           <div className="flex items-center gap-2">
             <p className="eyebrow">Workspace</p>
@@ -241,6 +247,16 @@ export function WorkspacePanels({
             running={running}
           />
           </div>
+        ) : null}
+
+        {activeTab === "tasks" ? (
+          <TaskBoard
+            tasks={tasks}
+            running={running}
+            highlightedTask={highlightedTask}
+            onSelectTask={onSelectTask}
+            embedded
+          />
         ) : null}
 
         {activeTab === "document" ? (

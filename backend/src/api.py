@@ -8,9 +8,21 @@ import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncGenerator
 
 import yaml
+
+from dotenv import load_dotenv
+
+# Load env vars from .env before any config reads. Search common locations:
+# backend/.env, then repo-root .env (one level up from backend/).
+for _env_candidate in (
+    Path(__file__).resolve().parent.parent / ".env",
+    Path(__file__).resolve().parent.parent.parent / ".env",
+):
+    if _env_candidate.exists():
+        load_dotenv(_env_candidate, override=False)
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware

@@ -6,9 +6,9 @@ import { AlertTriangle, BarChart3, History, Home, LogOut, MoonStar, Sparkles, Su
 import Image from "next/image";
 import { AgentRoster } from "@/components/agent-roster";
 import { AgentRosterGraph } from "@/components/agent-roster-graph";
+import { FabricStatusChip } from "@/components/fabric-status-chip";
 import { HistoryPanel } from "@/components/history-panel";
 import { QueryComposer, ReasoningEffort } from "@/components/query-composer";
-import { TaskBoard } from "@/components/task-board";
 import { WorkspacePanels } from "@/components/workspace-panels";
 import { ToastContainer, useToast } from "@/components/toast";
 import { WhatsNewModal } from "@/components/whats-new-modal";
@@ -29,7 +29,6 @@ import {
   WorkspaceTab,
 } from "@/lib/types";
 import { useTheme } from "@/hooks/use-theme";
-import { usePinnedHeader } from "@/hooks/use-pinned-header";
 
 const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
   idle: {
@@ -171,7 +170,7 @@ export function PlannerShell() {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("activity");
   const [runId, setRunId] = useState<string | null>(null);
   const [streamLabel, setStreamLabel] = useState("Proxy ready. Submit a brief to begin streaming.");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [enabledAgents, setEnabledAgents] = useState<Set<string>>(new Set());
   const [fabricStatus, setFabricStatus] = useState<FabricStatus | null>(null);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("low");
@@ -202,14 +201,6 @@ export function PlannerShell() {
       })
       .catch(() => {}); // Ignore failures
   }, []);
-
-  // Pinned header tracking
-  const {
-    containerRef: missionHeaderContainerRef,
-    headerRef: missionHeaderRef,
-    height: missionHeaderHeight,
-    isPinned: isMissionHeaderPinned,
-  } = usePinnedHeader([theme, runId, status, runSource]);
 
   // History / replay state
   const [sidebarView, setSidebarView] = useState<"agents" | "history">("agents");
@@ -450,6 +441,25 @@ export function PlannerShell() {
     [closeStream, handleIncomingEvent],
   );
 
+  const handleNewSession = useCallback(() => {
+    closeStream();
+    completedRef.current = false;
+    reconnectAttemptRef.current = 0;
+    setRunSource("live");
+    setStatus("idle");
+    setEvents([]);
+    setTasks([]);
+    setDocuments([]);
+    setResult("");
+    setError("");
+    setRunId(null);
+    setActiveAgent(null);
+    setHighlightedTask(null);
+    setActiveTab("activity");
+    setDraftQuery(STARTER_PROMPTS[0]?.query ?? "");
+    setStreamLabel("Proxy ready. Submit a brief to begin streaming.");
+  }, [closeStream]);
+
   const handleRun = useCallback(
     async (query: string) => {
       closeStream();
@@ -687,14 +697,14 @@ export function PlannerShell() {
   const sourceChipStyle = useMemo(() =>
     runSource === "mock" || runSource === "replay"
       ? {
-          borderColor: "rgba(0, 184, 217, 0.18)",
-          background: "rgba(0, 184, 217, 0.08)",
-          color: "var(--accent-alt)",
+          borderColor: "var(--border-soft)",
+          background: "var(--surface-soft)",
+          color: "var(--text-muted)",
         }
       : {
-          borderColor: "rgba(99, 91, 255, 0.16)",
-          background: "rgba(99, 91, 255, 0.08)",
-          color: "var(--accent)",
+          borderColor: "var(--border-soft)",
+          background: "var(--surface-soft)",
+          color: "var(--text-secondary)",
         },
   [runSource]);
 
@@ -711,153 +721,80 @@ export function PlannerShell() {
           : "Ready";
 
   const missionHeaderPanel = (
-    <header
-      ref={missionHeaderRef}
-      className={`panel-shell w-full overflow-hidden transition-[padding,box-shadow,border-radius] duration-200 ${
-        isMissionHeaderPinned ? "px-3 py-2 sm:px-4 sm:py-2.5" : "px-4 py-4 sm:px-5 sm:py-5"
-      }`}
-    >
-      {isMissionHeaderPinned ? (
-        /* ── Compact pinned layout: single row, badges + menu + run ID + theme ── */
-        <div className="flex items-center gap-3">
-          <Image src="/logo.svg" alt="Wired Orchestra" width={24} height={24} className="shrink-0" />
-          <div className="flex items-center gap-2">
-            <span className={`status-chip${status === "running" ? " status-chip-streaming" : ""}`}>{statusCopy.label}</span>
-            <span className="source-chip" style={sourceChipStyle}>
-              {sourceCopy.label}
-            </span>
-          </div>
+    <div className="topbar">
+      <div className="topbar-inner">
+        <Image src="/logo.svg" alt="MAF Orchestra" width={22} height={22} className="shrink-0" />
+        <span className="topbar-brand">MAF Orchestra</span>
 
-          <nav className="mission-menu mission-menu-compact" aria-label="Mission control">
-            {MISSION_MENU_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.id === "home" ? true : item.id === "history" && sidebarView === "history";
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={item.id === "history" ? () => {
-                    setSidebarView((v) => v === "history" ? "agents" : "history");
-                    if (sidebarCollapsed) setSidebarCollapsed(false);
-                  } : undefined}
-                  className={`mission-menu-button mission-menu-button-compact ${isActive ? "mission-menu-button-active" : ""}`}
-                  aria-current={item.id === "home" ? "page" : undefined}
-                  aria-pressed={item.id === "history" ? sidebarView === "history" : undefined}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
+        <div className="topbar-sep" aria-hidden />
 
-          <div className="ml-auto flex items-center gap-2">
-
-            <button
-              type="button"
-              onClick={() => setDashboardOpen(true)}
-              className="secondary-button secondary-button-compact"
-              aria-label="Usage Dashboard"
-              title="Usage Dashboard"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setWhatsNewOpen(true)}
-              className="secondary-button secondary-button-compact"
-              aria-label="What's new"
-              title="What's new"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="secondary-button secondary-button-compact"
-              aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
-            >
-              {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-            </button>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className={`status-chip${status === "running" ? " status-chip-streaming" : ""}`}>{statusCopy.label}</span>
+          <span className="source-chip" style={sourceChipStyle}>
+            {sourceCopy.label}
+          </span>
+          <FabricStatusChip status={fabricStatus} onResume={handleResumeFabric} />
         </div>
-      ) : (
-        /* ── Full expanded layout ── */
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <Image src="/logo.svg" alt="Wired Orchestra" width={40} height={40} className="shrink-0" />
-              <span className="eyebrow">Mission Control</span>
-              <span className={`status-chip${status === "running" ? " status-chip-streaming" : ""}`}>{statusCopy.label}</span>
-              <span className="source-chip" style={sourceChipStyle}>
-                {sourceCopy.label}
-              </span>
-            </div>
 
-            
-          </div>
-
-          <div className="flex w-full max-w-[36rem] flex-col gap-3 xl:items-end">
-            <nav className="mission-menu" aria-label="Mission control">
-              {MISSION_MENU_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const isActive = item.id === "home" ? true : item.id === "history" && sidebarView === "history";
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={item.id === "history" ? () => {
-                      setSidebarView((v) => v === "history" ? "agents" : "history");
-                      if (sidebarCollapsed) setSidebarCollapsed(false);
-                    } : undefined}
-                    className={`mission-menu-button ${isActive ? "mission-menu-button-active" : ""}`}
-                    aria-current={item.id === "home" ? "page" : undefined}
-                    aria-pressed={item.id === "history" ? sidebarView === "history" : undefined}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {item.label}
-                  </button>
-                );
-              })}
+        <div className="ml-auto flex items-center gap-1.5">
+          {MISSION_MENU_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.id === "home" ? true : item.id === "history" && sidebarView === "history";
+            return (
               <button
-              type="button"
-              onClick={() => setDashboardOpen(true)}
-              className="secondary-button secondary-button-compact"
-              aria-label="Usage Dashboard"
-              title="Usage Dashboard"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </button>
-              <button
-              type="button"
-              onClick={() => setWhatsNewOpen(true)}
-              className="secondary-button secondary-button-compact"
-              aria-label="What's new"
-              title="What's new"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
-              <button
-              type="button"
-              onClick={toggleTheme}
-              className="secondary-button secondary-button-compact"
-              aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
-            >
-              {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
-            </button>
-            </nav>
-
-            
-          </div>
+                key={item.id}
+                type="button"
+                onClick={item.id === "history" ? () => {
+                  setSidebarView((v) => v === "history" ? "agents" : "history");
+                  if (sidebarCollapsed) setSidebarCollapsed(false);
+                } : undefined}
+                className={`secondary-button secondary-button-compact ${isActive ? "secondary-button-active" : ""}`}
+                aria-current={item.id === "home" ? "page" : undefined}
+                aria-pressed={item.id === "history" ? sidebarView === "history" : undefined}
+                aria-label={item.label}
+                title={item.label}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            );
+          })}
+          <span className="topbar-sep-vert" aria-hidden />
+          <button
+            type="button"
+            onClick={() => setDashboardOpen(true)}
+            className="secondary-button secondary-button-compact"
+            aria-label="Usage Dashboard"
+            title="Usage Dashboard"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setWhatsNewOpen(true)}
+            className="secondary-button secondary-button-compact"
+            aria-label="What's new"
+            title="What's new"
+          >
+            <Sparkles className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="secondary-button secondary-button-compact"
+            aria-label={theme === "night" ? "Switch to day mode" : "Switch to night mode"}
+          >
+            {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
+          </button>
         </div>
-      )}
-    </header>
+      </div>
+    </div>
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div
+      className="flex min-h-screen"
+      style={{ ["--sidebar-width" as string]: sidebarCollapsed ? "56px" : "244px" }}
+    >
       <aside className={`sidebar-rail ${sidebarCollapsed ? "sidebar-rail-collapsed" : ""}`}>
         <div className="sidebar-content">
         {!sidebarCollapsed ? (
@@ -898,6 +835,7 @@ export function PlannerShell() {
             onResumeFabric={handleResumeFabric}
             onToggle={() => setSidebarCollapsed((c) => !c)}
             onToggleAgent={handleToggleAgent}
+            onNewSession={handleNewSession}
             running={status === "running"}
             runSource={runSource}
             selectedAgentSummary={selectedAgentSummary}
@@ -946,23 +884,10 @@ export function PlannerShell() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
-        <div
-          ref={missionHeaderContainerRef}
-          className="w-full"
-          style={isMissionHeaderPinned && missionHeaderHeight ? { height: `${missionHeaderHeight}px` } : undefined}
-        >
-          {isMissionHeaderPinned ? (
-            <div
-              className="pointer-events-none fixed top-0 right-0 z-40 px-4 pt-2 sm:px-5 sm:pt-3 lg:px-6"
-              style={{ left: "var(--sidebar-width)" }}
-            >
-              <div className="pointer-events-auto mx-auto w-full max-w-[1600px]">{missionHeaderPanel}</div>
-            </div>
-          ) : (
-            missionHeaderPanel
-          )}
-        </div>
+      <main className="planner-main flex min-w-0 flex-1 flex-col">
+        {missionHeaderPanel}
+
+        <div className="flex flex-1 flex-col gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
 
         {error ? (
           <motion.div
@@ -1004,13 +929,6 @@ export function PlannerShell() {
               onSelectAgent={setActiveAgent}
             />
 
-            <TaskBoard
-              highlightedTask={highlightedTask}
-              onSelectTask={setHighlightedTask}
-              running={status === "running"}
-              tasks={tasks}
-            />
-
             <WorkspacePanels
               activeAgent={activeAgent}
               activeTab={activeTab}
@@ -1022,6 +940,8 @@ export function PlannerShell() {
               running={status === "running"}
               status={status}
               runId={runId}
+              tasks={tasks}
+              onSelectTask={setHighlightedTask}
             />
           </>
         ) : null}
@@ -1037,6 +957,7 @@ export function PlannerShell() {
             {versionInfo.build_date !== "unknown" ? ` · ${versionInfo.build_date.split("T")[0]}` : ""}
           </footer>
         ) : null}
+        </div>
       </main>
 
       <WhatsNewModal isOpen={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} />

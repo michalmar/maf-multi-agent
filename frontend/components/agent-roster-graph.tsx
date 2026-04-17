@@ -285,7 +285,7 @@ function GraphNode({
                 borderColor: identity.border,
               }}
             >
-              {identity.avatar}
+              {identity.icon ? <identity.icon className="h-3.5 w-3.5" strokeWidth={1.75} /> : null}
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold tracking-[-0.01em] text-[var(--text-primary)]">
