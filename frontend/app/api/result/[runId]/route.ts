@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   BACKEND,
   validateRunId,
+  forwardAuthHeaders,
   safeFetch,
   safeJson,
 } from "../../lib/proxy-helpers";
@@ -24,7 +25,7 @@ export async function GET(
 
   const { response, error } = await safeFetch(
     `${BACKEND}/api/result/${encodeURIComponent(runId)}`,
-    { cache: "no-store" },
+    { cache: "no-store", headers: forwardAuthHeaders(_request) },
   );
   if (error) return error;
 

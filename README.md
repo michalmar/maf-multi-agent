@@ -1,6 +1,6 @@
 # MAF & Foundry Agent Orchestration
 
-A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the orchestrator with **Azure AI Foundry** specialist agents and **Fabric Data Agent** via MCP. Features a real-time web UI with SSE event streaming.
+A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the orchestrator with **Azure AI Foundry** specialist agents and **Fabric Data Agent** via MCP. Features a real-time web UI with SSE event streaming plus resumable background runs.
 
 ![app](docs/app.png)
 
@@ -9,13 +9,13 @@ A multi-agent system that combines **Microsoft Agent Framework (MAF)** as the or
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Web UI (React)                    │
-│       Next.js · Tailwind CSS · SSE · Easy Auth        │
+│   Next.js · Tailwind CSS · SSE / polling · Easy Auth │
 └──────────────────────┬──────────────────────────────┘
                        │ SSE / REST
 ┌──────────────────────▼──────────────────────────────┐
 │               FastAPI Backend (api.py)              │
-│         POST /api/run · GET /api/stream/:id         │
-│         GET /api/result/:id · GET /api/agents       │
+│   POST /api/run · GET /api/stream/:id · /history    │
+│        GET /api/result/:id · GET /api/agents        │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
@@ -46,6 +46,7 @@ User identity ──► Fabric API
 - **Scratchpad Memory** — shared `TaskBoard` (progress tracking) and `SharedDocument` (collaborative output) accessible to all agents
 - **YAML-driven agents** — sub-agents defined declaratively in `backend/agents/*.yaml`, auto-loaded as MAF `FunctionTool`s
 - **Real-time streaming** — events from all agents propagated via SSE to the frontend (async dispatch with `asyncio.to_thread`)
+- **Background resumability** — active runs checkpoint their latest status, events, tasks, and documents so users can reload, navigate away, and later resume a still-running session from history
 - **Email notifications** — facilitator can email results to the logged-in user via Microsoft Graph when explicitly requested
 
 ## Prerequisites
@@ -105,7 +106,7 @@ The feature is disabled when `MAIL_SENDER_ADDRESS` is not set — no code change
 
 #### Persistent History Storage (optional)
 
-By default, run history is stored on the container's ephemeral filesystem and is lost on ACA redeploy/restart. To persist history durably in Azure Blob Storage:
+By default, run history is stored on the container's ephemeral filesystem and is lost on ACA redeploy/restart. Active runs are checkpointed there while they execute, which is enough to resume them after page reload/navigation as long as the app process stays alive. To persist history durably in Azure Blob Storage:
 
 ```env
 HISTORY_STORAGE_ACCOUNT_URL=https://<storage-account>.blob.core.windows.net
@@ -118,7 +119,7 @@ HISTORY_STORAGE_ACCOUNT_URL=https://<storage-account>.blob.core.windows.net
 
 **Setup via Terraform:** Set `enable_history_storage = true` in `terraform.tfvars` and run `terraform apply`. This creates the storage account, blob container, RBAC role assignment, lifecycle management policy, and injects the env var into the Container App automatically.
 
-When `HISTORY_STORAGE_ACCOUNT_URL` is not set, the app falls back to local filesystem storage (suitable for development).
+When `HISTORY_STORAGE_ACCOUNT_URL` is not set, the app falls back to local filesystem storage (suitable for development). In that mode, completed and in-progress runs survive browser reloads and route changes, but not container restarts or redeploys.
 
 ### 2. Backend
 
@@ -189,6 +190,7 @@ docs/                  # PRD and design documents
 2. Open `http://localhost:3000`
 3. Enter a travel planning request (e.g. *"Plan a 5-day trip to Tokyo from NYC, budget $3000"*)
 4. Watch agents collaborate in real-time — tasks appear, agents activate, and a travel document is built incrementally
+5. You can reload the page, switch views, or return later and reopen the run from **History** while it is still running or after it finishes
 
 For UI tuning without running the full backend flow, use the **Load mock replay** control in the query composer. It loads a completed maintenance-style run fixture directly in the browser so you can refine the layout, telemetry cards, long activity feed, task board, and document/result panes offline.
 

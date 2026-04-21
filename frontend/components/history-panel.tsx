@@ -38,6 +38,19 @@ function truncateQuery(query: string, max = 80): string {
   return query.slice(0, max) + "…";
 }
 
+function formatStatus(status: HistoryItem["status"]): string {
+  switch (status) {
+    case "running":
+      return "running";
+    case "error":
+      return "error";
+    case "done":
+      return "done";
+    default:
+      return String(status);
+  }
+}
+
 export function HistoryPanel({
   collapsed,
   items,
@@ -113,6 +126,7 @@ export function HistoryPanel({
         <div className="history-panel-list">
           {filteredItems.map((item) => {
             const isActive = activeRunId === item.run_id;
+            const isRunning = item.status === "running";
             return (
               <div
                 key={item.run_id}
@@ -138,12 +152,14 @@ export function HistoryPanel({
                   <span className="history-item-query">{truncateQuery(item.query)}</span>
                   <span className="history-item-meta">
                     {item.event_count} events
-                    {item.status === "error" ? " · ⚠️" : ""}
+                    {` · ${formatStatus(item.status)}`}
                   </span>
                 </button>
                 <div className="history-item-actions">
                   {isActive ? (
                     <Play className="h-3.5 w-3.5 text-[var(--accent)]" aria-label="Currently active" />
+                  ) : isRunning ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--text-muted)]" aria-label="Run in progress" />
                   ) : confirmDelete === item.run_id ? (
                     <button
                       type="button"

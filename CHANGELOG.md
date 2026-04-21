@@ -3,6 +3,19 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-04-21] — Resumable Background Runs
+
+### Added
+- **Running-session checkpoints** — Active runs now persist their latest status, timeline events, task board state, document drafts, and final result while they execute, so users can return to them from History without keeping the original tab open.
+
+### Changed
+- **History can reopen active runs** — Loading a still-running session from History now restores it into the live workspace and keeps refreshing progress from saved checkpoints until it finishes.
+- **Result retrieval fallback** — Completed results can now be served from persisted session snapshots even after the in-memory live run state has been cleaned up.
+
+### Fixed
+- **SSE disconnect recovery** — Losing the live event stream no longer marks the run itself as failed; the UI falls back to background checkpoint refresh instead.
+- **Stream reconnect cleanup** — Backend stream ownership is now released when a client disconnects, allowing later reconnects instead of leaving the run locked to a dead SSE session.
+
 ## [2026-04-10] — Persistent Run History
 
 ### Added

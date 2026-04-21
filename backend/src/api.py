@@ -131,6 +131,103 @@ class RunResponse(BaseModel):
     run_id: str
 
 
+def _serialize_event(event: AgentEvent) -> dict:
+    """Convert an AgentEvent into the persisted snapshot format."""
+    return {
+        "event_type": event.event_type.value,
+        "source": event.source,
+        "data": event.data,
+        "timestamp": event.timestamp,
+        "event_summary": event.event_summary,
+    }
+
+
+class _RunSnapshotWriter:
+    """Persist the latest run snapshot while the workflow is still active."""
+
+    def __init__(
+        self,
+        run_id: str,
+        user_dir: str,
+        query: str,
+        created_at: str,
+        user_email: str | None = None,
+    ):
+        self.run_id = run_id
+        self.user_dir = user_dir
+        self.query = query
+        self.created_at = created_at
+        self.user_email = user_email
+        self.events: list[dict] = []
+        self.result_text = ""
+        self.document_md = ""
+        self.status = "running"
+        self._dirty = False
+        self._flush_task: asyncio.Task | None = None
+        self._flush_lock = asyncio.Lock()
+
+    def record_event(self, serialized_event: dict) -> None:
+        """Add an event to the snapshot state and queue a checkpoint save."""
+        self.events.append(serialized_event)
+
+        event_type = serialized_event.get("event_type")
+        data = serialized_event.get("data", {})
+        source = serialized_event.get("source")
+
+        if event_type == EventType.OUTPUT.value:
+            if isinstance(data.get("text"), str):
+                self.result_text = data["text"]
+            if isinstance(data.get("document"), str):
+                self.document_md = data["document"]
+        elif event_type == EventType.AGENT_ERROR.value and source == "orchestrator":
+            self.status = "error"
+
+        self._dirty = True
+        if self._flush_task is None or self._flush_task.done():
+            self._flush_task = asyncio.create_task(self._flush_loop())
+
+    def set_terminal_state(
+        self,
+        status: str,
+        result_text: str = "",
+        document_md: str = "",
+    ) -> None:
+        """Capture the final run state before the terminal checkpoint is written."""
+        self.status = status
+        if result_text:
+            self.result_text = result_text
+        if document_md:
+            self.document_md = document_md
+
+    async def flush_now(self, include_files: bool = False) -> None:
+        """Write the latest run snapshot to the configured history store."""
+        async with self._flush_lock:
+            snapshot = _build_session_snapshot(
+                run_id=self.run_id,
+                query=self.query,
+                events=self.events,
+                result_text=self.result_text,
+                document_md=self.document_md,
+                status=self.status,
+                created_at=self.created_at,
+                user_email=self.user_email,
+            )
+            await _persist_session_snapshot(
+                user_dir=self.user_dir,
+                run_id=self.run_id,
+                snapshot=snapshot,
+                include_files=include_files,
+            )
+
+    async def _flush_loop(self) -> None:
+        while self._dirty:
+            self._dirty = False
+            try:
+                await self.flush_now()
+            except Exception as e:
+                logger.warning("⚠️  Failed to checkpoint run %s: %s", self.run_id, e)
+
+
 @app.get("/api/agents")
 async def get_agents():
     """Return available agent definitions with avatar and role metadata."""
@@ -199,6 +296,7 @@ def _event_to_sse(event: AgentEvent) -> str:
 @app.post("/api/run", response_model=RunResponse)
 async def start_run(req: RunRequest, request: Request):
     """Start a new scratchpad workflow run. Returns a run_id for SSE streaming."""
+    created_at = datetime.now().isoformat()
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
 
     # Resolve Fabric user token: Easy Auth header (ACA) > body field (local dev) > None
@@ -226,33 +324,47 @@ async def start_run(req: RunRequest, request: Request):
     store = _store()
     run_state = store.create(run_id)
     queue = run_state.queue
-
-    # Collect events for session snapshot (thread-safe list)
-    collected_events: list[dict] = []
+    user_dir = _safe_user_dir(user_email) if user_email else ""
+    snapshot_writer = _RunSnapshotWriter(
+        run_id=run_id,
+        user_dir=user_dir,
+        query=req.query,
+        created_at=created_at,
+        user_email=user_email,
+    )
+    await snapshot_writer.flush_now()
 
     # Event callback bridges sync calls into the async queue
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
-    def event_callback(event: AgentEvent):
+    def _handle_event(event: AgentEvent):
         if event.event_type != EventType.AGENT_STREAMING:
-            # Serialize and collect for session snapshot
-            collected_events.append({
-                "event_type": event.event_type.value,
-                "source": event.source,
-                "data": event.data,
-                "timestamp": event.timestamp,
-                "event_summary": event.event_summary,
-            })
+            serialized = _serialize_event(event)
+            snapshot_writer.record_event(serialized)
             logger.info(
                 "EVENT [%s] source=%s | %s",
                 event.event_type.value,
                 event.source,
                 json.dumps(event.data, default=str)[:200],
             )
-        loop.call_soon_threadsafe(queue.put_nowait, event)
+        queue.put_nowait(event)
+
+    def event_callback(event: AgentEvent):
+        loop.call_soon_threadsafe(_handle_event, event)
 
     # Run workflow in background task
-    asyncio.create_task(_run_workflow(run_id, req.query, event_callback, req.selected_agents, collected_events, req.reasoning_effort, user_token, user_email))
+    asyncio.create_task(
+        _run_workflow(
+            run_id,
+            req.query,
+            event_callback,
+            snapshot_writer=snapshot_writer,
+            selected_agents=req.selected_agents,
+            reasoning_effort=req.reasoning_effort,
+            user_token=user_token,
+            user_email=user_email,
+        )
+    )
 
     return RunResponse(run_id=run_id)
 
@@ -261,8 +373,8 @@ async def _run_workflow(
     run_id: str,
     query: str,
     event_callback,
+    snapshot_writer: _RunSnapshotWriter,
     selected_agents: list[str] | None = None,
-    collected_events: list[dict] | None = None,
     reasoning_effort: str | None = "low",
     user_token: str | None = None,
     user_email: str | None = None,
@@ -302,38 +414,32 @@ async def _run_workflow(
         })
 
         # Send final result event (URL rewriting happens in _event_to_sse)
-        await queue.put(AgentEvent(
+        output_event = AgentEvent(
             event_type=EventType.OUTPUT,
             source="orchestrator",
             data={"text": result_text, "document": document_md or ""},
-        ))
-
-        # Save session snapshot via history store (blob or local)
-        await _save_session_snapshot(
-            run_id, user_dir, query, collected_events or [],
-            rewrite_sandbox_urls(result_text) if result_text else "",
-            rewrite_sandbox_urls(document_md) if document_md else "",
-            workflow_status,
-            user_email,
         )
+        snapshot_writer.record_event(_serialize_event(output_event))
+        snapshot_writer.set_terminal_state(
+            status=workflow_status,
+            result_text=result_text,
+            document_md=document_md,
+        )
+        await queue.put(output_event)
+        await snapshot_writer.flush_now(include_files=True)
 
     except Exception as e:
         workflow_status = "error"
         logger.exception("Workflow failed for run %s", run_id)
-        await queue.put(AgentEvent(
+        error_event = AgentEvent(
             event_type=EventType.AGENT_ERROR,
             source="orchestrator",
             data={"error": str(e)},
-        ))
-        # Save snapshot even on failure so we don't lose debug context
-        try:
-            await _save_session_snapshot(
-                run_id, user_dir, query, collected_events or [],
-                "", "", "error",
-                user_email,
-            )
-        except Exception:
-            logger.warning("⚠️  Failed to save error snapshot for %s", run_id)
+        )
+        snapshot_writer.record_event(_serialize_event(error_event))
+        snapshot_writer.set_terminal_state(status="error")
+        await queue.put(error_event)
+        await snapshot_writer.flush_now()
 
     # Sentinel to signal stream end
     await queue.put(None)
@@ -361,30 +467,35 @@ async def stream_events(run_id: str):
 
     async def event_generator() -> AsyncGenerator[str, None]:
         queue = run_state.queue
-        while True:
-            try:
-                event = await asyncio.wait_for(
-                    queue.get(), timeout=_SSE_KEEPALIVE_INTERVAL,
-                )
-            except asyncio.TimeoutError:
-                # No event within the keepalive window — send an SSE
-                # comment to prevent proxy idle-timeout disconnects
-                # (e.g. Azure Container Apps / Envoy ingress).
-                yield ": keepalive\n\n"
-                continue
+        completed_normally = False
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(
+                        queue.get(), timeout=_SSE_KEEPALIVE_INTERVAL,
+                    )
+                except asyncio.TimeoutError:
+                    # No event within the keepalive window — send an SSE
+                    # comment to prevent proxy idle-timeout disconnects
+                    # (e.g. Azure Container Apps / Envoy ingress).
+                    yield ": keepalive\n\n"
+                    continue
 
-            if event is None:
-                # Send done sentinel
-                yield f"data: {json.dumps({'event_type': 'done'})}\n\n"
-                break
-            # Skip streaming deltas — they flood the SSE connection and
-            # the frontend filters them out anyway.
-            if event.event_type == EventType.AGENT_STREAMING:
-                continue
-            yield _event_to_sse(event)
-
-        # Cleanup — remove run state to prevent memory leaks
-        store.remove(run_id)
+                if event is None:
+                    completed_normally = True
+                    # Send done sentinel
+                    yield f"data: {json.dumps({'event_type': 'done'})}\n\n"
+                    break
+                # Skip streaming deltas — they flood the SSE connection and
+                # the frontend filters them out anyway.
+                if event.event_type == EventType.AGENT_STREAMING:
+                    continue
+                yield _event_to_sse(event)
+        finally:
+            store.set_streaming(run_id, False)
+            if completed_normally:
+                # Cleanup — remove run state to prevent memory leaks
+                store.remove(run_id)
 
     return StreamingResponse(
         event_generator(),
@@ -398,13 +509,29 @@ async def stream_events(run_id: str):
 
 
 @app.get("/api/result/{run_id}")
-async def get_result(run_id: str):
+async def get_result(run_id: str, request: Request):
     """Get the final result for a completed run."""
+    _validate_run_id(run_id)
     store = _store()
     result = store.get_result(run_id)
-    if result is None:
+    if result is not None:
+        return result
+
+    snapshot = await _load_saved_session_for_user(run_id, _resolve_user_email(request))
+    if snapshot is None:
         raise HTTPException(status_code=404, detail="Result not found")
-    return result
+
+    result_text = snapshot.get("result", "")
+    if not result_text:
+        raise HTTPException(status_code=404, detail="Result not ready")
+
+    final_document = ""
+    for document in reversed(snapshot.get("documents", [])):
+        if isinstance(document, dict) and isinstance(document.get("content"), str):
+            final_document = document["content"]
+            break
+
+    return {"result": result_text, "document": final_document}
 
 
 # ── Sandbox file serving ──────────────────────────────────────
@@ -522,115 +649,142 @@ def _add_usage(totals: dict, by_source: dict, source: str, model: str, usage: di
     if reasoning:
         entry["reasoning_tokens"] = entry.get("reasoning_tokens", 0) + reasoning
 
-async def _save_session_snapshot(
+def _build_session_snapshot(
     run_id: str,
-    user_dir: str,
     query: str,
     events: list[dict],
     result_text: str,
     document_md: str,
     status: str,
+    created_at: str,
     user_email: str | None = None,
-) -> None:
-    """Save a complete session snapshot via the history store."""
+) -> dict:
+    """Build a complete session snapshot from the current run state."""
+    # Derive tasks and documents from collected events
+    tasks: list[dict] = []
+    documents: list[dict] = []
+    agents_seen: dict[str, dict] = {}
+
+    for ev in events:
+        et = ev.get("event_type", "")
+        data = ev.get("data", {})
+
+        if et == "tasks_created" and data.get("tasks"):
+            tasks = data["tasks"]
+
+        if et == "task_completed" and data.get("task_id") is not None:
+            tid = data["task_id"]
+            for t in tasks:
+                if t.get("id") == tid:
+                    t["finished"] = True
+
+        if et == "document_updated" and data.get("content"):
+            documents.append({
+                "version": data.get("version", len(documents) + 1),
+                "content": rewrite_sandbox_urls(data["content"]),
+                "action": (data.get("history") or {}).get("action", "update"),
+            })
+
+        # Track agents
+        source = ev.get("source", "")
+        if source and source != "orchestrator" and source != "document":
+            if source not in agents_seen:
+                agents_seen[source] = {"name": source, "display_name": source}
+
+    # Add final document version
+    if document_md:
+        documents.append({"version": "final", "content": rewrite_sandbox_urls(document_md), "action": "final"})
+
+    # Rewrite sandbox URLs in all collected event text fields
+    rewritten_events = []
+    for ev in events:
+        ev_copy = dict(ev)
+        data = ev_copy.get("data", {})
+        if isinstance(data, dict):
+            data_copy = dict(data)
+            for key in ("text", "result", "content", "document"):
+                val = data_copy.get(key)
+                if isinstance(val, str) and "sandbox:" in val:
+                    data_copy[key] = rewrite_sandbox_urls(val)
+            ev_copy["data"] = data_copy
+        rewritten_events.append(ev_copy)
+
+    # Load agent definitions for the snapshot
     try:
-        # Derive tasks and documents from collected events
-        tasks: list[dict] = []
-        documents: list[dict] = []
-        agents_seen: dict[str, dict] = {}
+        from src.agent_loader import list_agent_definitions
+        agent_defs_raw = list_agent_definitions()
+        agent_defs = [
+            {"name": a.name, "display_name": a.display_name, "avatar": a.avatar,
+             "role": a.role, "model": a.model, "description": a.description}
+            for a in agent_defs_raw
+        ]
+        # Build agent→model mapping for token usage attribution
+        agent_model_map = {a.name: a.model for a in agent_defs_raw}
+    except (yaml.YAMLError, OSError, ImportError):
+        agent_defs = list(agents_seen.values())
+        agent_model_map = {}
 
-        for ev in events:
-            et = ev.get("event_type", "")
-            data = ev.get("data", {})
+    # Aggregate token usage from events
+    token_usage = _aggregate_token_usage(events, agent_model_map)
 
-            if et == "tasks_created" and data.get("tasks"):
-                tasks = data["tasks"]
+    updated_at = datetime.now().isoformat()
+    snapshot = {
+        "run_id": run_id,
+        "user_email": user_email,
+        "query": query,
+        "timestamp": created_at,
+        "updated_at": updated_at,
+        "status": status,
+        "agents": agent_defs,
+        "events": rewritten_events,
+        "tasks": tasks,
+        "documents": documents,
+        "result": rewrite_sandbox_urls(result_text) if result_text else "",
+        "stream_label": (
+            f"Run {run_id} is still in progress."
+            if status == "running"
+            else f"Run {run_id} ended with an error."
+            if status == "error"
+            else f"Replay of run {run_id}"
+        ),
+    }
+    if token_usage:
+        snapshot["token_usage"] = token_usage
+    return snapshot
 
-            if et == "task_completed" and data.get("task_id") is not None:
-                tid = data["task_id"]
-                for t in tasks:
-                    if t.get("id") == tid:
-                        t["finished"] = True
 
-            if et == "document_updated" and data.get("content"):
-                documents.append({
-                    "version": data.get("version", len(documents) + 1),
-                    "content": rewrite_sandbox_urls(data["content"]),
-                    "action": (data.get("history") or {}).get("action", "update"),
-                })
+async def _persist_session_snapshot(
+    user_dir: str,
+    run_id: str,
+    snapshot: dict,
+    include_files: bool = False,
+) -> None:
+    """Write a session snapshot and, optionally, its sandbox files."""
+    history = get_history_store()
+    await history.save_session(user_dir, run_id, snapshot)
 
-            # Track agents
-            source = ev.get("source", "")
-            if source and source != "orchestrator" and source != "document":
-                if source not in agents_seen:
-                    agents_seen[source] = {"name": source, "display_name": source}
+    if not include_files:
+        return
 
-        # Add final document version
-        if document_md:
-            documents.append({"version": "final", "content": document_md, "action": "final"})
+    for sandbox_path, (data, _ct) in get_all_files().items():
+        filename = os.path.basename(sandbox_path.replace("sandbox:", ""))
+        if filename:
+            try:
+                await history.save_file(user_dir, run_id, filename, data)
+            except Exception:
+                logger.debug("Skipped blob file save for %s", filename)
 
-        # Rewrite sandbox URLs in all collected event text fields
-        rewritten_events = []
-        for ev in events:
-            ev_copy = dict(ev)
-            data = ev_copy.get("data", {})
-            if isinstance(data, dict):
-                data_copy = dict(data)
-                for key in ("text", "result", "content"):
-                    val = data_copy.get(key)
-                    if isinstance(val, str) and "sandbox:" in val:
-                        data_copy[key] = rewrite_sandbox_urls(val)
-                ev_copy["data"] = data_copy
-            rewritten_events.append(ev_copy)
 
-        # Load agent definitions for the snapshot
-        try:
-            from src.agent_loader import list_agent_definitions
-            agent_defs_raw = list_agent_definitions()
-            agent_defs = [
-                {"name": a.name, "display_name": a.display_name, "avatar": a.avatar,
-                 "role": a.role, "model": a.model, "description": a.description}
-                for a in agent_defs_raw
-            ]
-            # Build agent→model mapping for token usage attribution
-            agent_model_map = {a.name: a.model for a in agent_defs_raw}
-        except (yaml.YAMLError, OSError, ImportError):
-            agent_defs = list(agents_seen.values())
-            agent_model_map = {}
+async def _load_saved_session_for_user(run_id: str, user_email: str | None) -> dict | None:
+    """Load a persisted session snapshot scoped to the authenticated user."""
+    history = get_history_store()
 
-        # Aggregate token usage from events
-        token_usage = _aggregate_token_usage(events, agent_model_map)
+    if _is_super_user(user_email):
+        result = await history.find_session_any_user(run_id)
+        return result[1] if result else None
 
-        snapshot = {
-            "run_id": run_id,
-            "user_email": user_email,
-            "query": query,
-            "timestamp": datetime.now().isoformat(),
-            "status": status,
-            "agents": agent_defs,
-            "events": rewritten_events,
-            "tasks": tasks,
-            "documents": documents,
-            "result": result_text,
-            "stream_label": f"Replay of run {run_id}",
-        }
-        if token_usage:
-            snapshot["token_usage"] = token_usage
-
-        history = get_history_store()
-        await history.save_session(user_dir, run_id, snapshot)
-
-        # Also save sandbox files to the history store
-        for sandbox_path, (data, _ct) in get_all_files().items():
-            filename = os.path.basename(sandbox_path.replace("sandbox:", ""))
-            if filename:
-                try:
-                    await history.save_file(user_dir, run_id, filename, data)
-                except Exception:
-                    logger.debug("Skipped blob file save for %s", filename)
-
-    except Exception as e:
-        logger.warning("⚠️  Failed to save session snapshot for %s: %s", run_id, e)
+    user_dir = _safe_user_dir(user_email) if user_email else ""
+    return await history.get_session(user_dir, run_id)
 
 
 def _get_output_dir() -> str:
@@ -664,17 +818,7 @@ async def list_history(request: Request):
 async def get_history_session(run_id: str, request: Request):
     """Load a complete session snapshot for replay (scoped to authenticated user)."""
     _validate_run_id(run_id)
-    user_email = _resolve_user_email(request)
-    history = get_history_store()
-
-    if _is_super_user(user_email):
-        result = await history.find_session_any_user(run_id)
-        if not result:
-            raise HTTPException(status_code=404, detail="Session not found")
-        return result[1]
-
-    user_dir = _safe_user_dir(user_email) if user_email else ""
-    snap = await history.get_session(user_dir, run_id)
+    snap = await _load_saved_session_for_user(run_id, _resolve_user_email(request))
     if snap is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return snap
