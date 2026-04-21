@@ -36,8 +36,8 @@ const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
     description: "Standing by for a new mission brief.",
   },
   running: {
-    label: "Streaming",
-    description: "Receiving live orchestration events from the backend.",
+    label: "Running",
+    description: "The current run is still in progress. Live events or saved checkpoints may continue to update.",
   },
   done: {
     label: "Done",
@@ -52,7 +52,7 @@ const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
 const RUN_SOURCE_COPY: Record<RunSource, { label: string; description: string }> = {
   live: {
     label: "Live API",
-    description: "Connected to the backend workflow and SSE stream.",
+    description: "Connected to the backend run state. Live events and saved checkpoints can keep the view updated.",
   },
   mock: {
     label: "Mock replay",
@@ -154,6 +154,13 @@ function isDoneSignal(payload: AgentEvent | { event_type: "done" }): payload is 
   return payload.event_type === "done";
 }
 
+function normalizeRunStatus(status: SessionSnapshot["status"]): RunStatus {
+  if (status === "done") return "done";
+  if (status === "error") return "error";
+  if (status === "running") return "running";
+  return "idle";
+}
+
 export function PlannerShell() {
   const { theme, toggleTheme } = useTheme();
   const [runSource, setRunSource] = useState<RunSource>("live");
@@ -182,6 +189,7 @@ export function PlannerShell() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completedRef = useRef(false);
   const fabricResumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eventCountRef = useRef(0);
 
   // Toast notifications (#13)
   const { toasts, addToast, dismiss: dismissToast } = useToast();
@@ -215,6 +223,36 @@ export function PlannerShell() {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    eventCountRef.current = events.length;
+  }, [events]);
+
+  const applySnapshot = useCallback((snapshot: SessionSnapshot) => {
+    if (snapshot.events.length < eventCountRef.current) {
+      return;
+    }
+
+    const orderedAgents = ensureOrchestratorFirst(snapshot.agents);
+    const nextStatus = normalizeRunStatus(snapshot.status);
+    const nextError = [...snapshot.events]
+      .reverse()
+      .find((event) => event.event_type === "agent_error" && typeof event.data.error === "string")?.data.error;
+
+    setEvents(snapshot.events);
+    setTasks(snapshot.tasks);
+    setDocuments(snapshot.documents);
+    setResult(snapshot.result);
+    setDraftQuery(snapshot.query);
+    setAgents(orderedAgents);
+    setEnabledAgents(new Set(orderedAgents.map((agent) => agent.name)));
+    setRunId(snapshot.run_id);
+    setStatus(nextStatus);
+    setError(nextStatus === "error" && typeof nextError === "string" ? nextError : "");
+    if (nextStatus === "done" && snapshot.result) {
+      setActiveTab("result");
     }
   }, []);
 
@@ -335,11 +373,19 @@ export function PlannerShell() {
   const handleIncomingEvent = useCallback((event: AgentEvent) => {
     setEvents((previous) => [...previous, event]);
 
-    if (event.event_type === "tasks_created" || event.event_type === "task_completed") {
+    if (event.event_type === "tasks_created") {
       const nextTasks = normalizeTasks(event.data.tasks);
       if (nextTasks) {
         setTasks(nextTasks);
       }
+    }
+
+    if (event.event_type === "task_completed" && typeof event.data.task_id === "number") {
+      setTasks((previous) =>
+        previous.map((task) =>
+          task.id === event.data.task_id ? { ...task, finished: true } : task,
+        ),
+      );
     }
 
     if (event.event_type === "document_updated" && typeof event.data.content === "string" && typeof event.data.version === "number") {
@@ -432,9 +478,8 @@ export function PlannerShell() {
           }, delay);
         } else {
           // Exhausted retries
-          setError("The event stream disconnected and could not reconnect after multiple attempts.");
-          setStatus((previous) => (previous === "done" ? previous : "error"));
-          setStreamLabel("Connection lost. Review the captured events or retry the mission.");
+          setError("The live event stream disconnected. The run is still being tracked via saved background checkpoints.");
+          setStreamLabel("Live stream lost. Falling back to background status refresh.");
         }
       };
     },
@@ -518,7 +563,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, connectSSE, enabledAgents, reasoningEffort],
+    [closeStream, connectSSE, easyAuthUser?.email, enabledAgents, reasoningEffort],
   );
 
   const handleLoadMock = useCallback(async () => {
@@ -549,7 +594,7 @@ export function PlannerShell() {
   const fetchHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const res = await fetch("/api/history");
+      const res = await fetch("/api/history", { cache: "no-store" });
       if (res.ok) {
         const data = (await res.json()) as HistoryItem[];
         setHistoryItems(data);
@@ -561,45 +606,87 @@ export function PlannerShell() {
     }
   }, []);
 
-  // Load history when switching to history tab
+  // Load and refresh history while the history tab is visible.
   useEffect(() => {
-    if (sidebarView === "history") {
-      fetchHistory();
-    }
+    if (sidebarView !== "history") return;
+    void fetchHistory();
+    const interval = window.setInterval(() => {
+      void fetchHistory();
+    }, 5000);
+    return () => window.clearInterval(interval);
   }, [sidebarView, fetchHistory]);
 
-  // Refresh history after a run completes
+  // Refresh history after a live run settles.
   useEffect(() => {
-    if (status === "done" && runSource === "live") {
+    if ((status === "done" || status === "error") && runSource === "live") {
       fetchHistory();
     }
   }, [status, runSource, fetchHistory]);
+
+  // Keep a live run fresh even after reload/navigation by polling the persisted snapshot.
+  useEffect(() => {
+    if (!runId || runSource !== "live" || status !== "running") return;
+
+    let cancelled = false;
+
+    const refreshSnapshot = async () => {
+      try {
+        const res = await fetch(`/api/history/${runId}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const snap = (await res.json()) as SessionSnapshot;
+        if (cancelled) return;
+
+        applySnapshot(snap);
+
+        const nextStatus = normalizeRunStatus(snap.status);
+        if (nextStatus === "done") {
+          completedRef.current = true;
+          closeStream();
+          setStreamLabel("Background run complete. Review the final result or inspect the timeline.");
+        } else if (nextStatus === "error") {
+          completedRef.current = true;
+          closeStream();
+          setStreamLabel("Background run ended with an error. Review the timeline for details.");
+        }
+      } catch {
+        // Silent fallback — the most recent snapshot remains visible.
+      }
+    };
+
+    void refreshSnapshot();
+    const interval = window.setInterval(() => {
+      void refreshSnapshot();
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [applySnapshot, closeStream, runId, runSource, status]);
 
   const handleLoadReplay = useCallback(
     async (replayRunId: string) => {
       closeStream();
       try {
-        const res = await fetch(`/api/history/${replayRunId}`);
+        const res = await fetch(`/api/history/${replayRunId}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to load session");
         const snap = (await res.json()) as SessionSnapshot;
 
-        setRunSource("replay");
-        setStatus("done");
-        setEvents(snap.events);
-        setTasks(snap.tasks);
-        setDocuments(snap.documents);
-        setResult(snap.result);
-        setDraftQuery(snap.query);
-        setError("");
-        setAgents(ensureOrchestratorFirst(snap.agents));
-        setEnabledAgents(new Set(ensureOrchestratorFirst(snap.agents).map((a) => a.name)));
+        applySnapshot(snap);
         setActiveAgent(null);
         setHighlightedTask(null);
         setActiveTab("activity");
-        setRunId(snap.run_id);
-        setStreamLabel(snap.stream_label || `Replay of run ${snap.run_id}`);
+        setRunSource(snap.status === "running" ? "live" : "replay");
+        setStreamLabel(
+          snap.status === "running"
+            ? `Recovered running session ${snap.run_id}. Refreshing saved progress automatically.`
+            : snap.stream_label || `Replay of run ${snap.run_id}`,
+        );
         setSidebarView("agents");
-        addToast("Session replay loaded.", "success");
+        addToast(
+          snap.status === "running" ? "Running session loaded." : "Session replay loaded.",
+          "success",
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to load replay";
         setError(msg);
@@ -617,6 +704,7 @@ export function PlannerShell() {
           setHistoryItems((prev) => prev.filter((item) => item.run_id !== deleteRunId));
           addToast("Session deleted.", "success");
           if (runId === deleteRunId) {
+            closeStream();
             setRunSource("live");
             setStatus("idle");
             setEvents([]);
@@ -632,7 +720,7 @@ export function PlannerShell() {
         addToast("Could not reach backend to delete session.", "error");
       }
     },
-    [runId, addToast],
+    [closeStream, runId, addToast],
   );
 
   const rosterAgents = useMemo(() => ensureOrchestratorFirst(agents), [agents]);

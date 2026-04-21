@@ -140,6 +140,7 @@ export interface HistoryItem {
   run_id: string;
   query: string;
   timestamp: string;
+   updated_at?: string;
   status: RunStatus | (string & {});
   event_count: number;
   has_result: boolean;
@@ -151,6 +152,7 @@ export interface SessionSnapshot {
   run_id: string;
   query: string;
   timestamp: string;
+   updated_at?: string;
   status: RunStatus | (string & {});
   agents: AgentDefinition[];
   events: AgentEvent[];
