@@ -33,7 +33,7 @@ import { useTheme } from "@/hooks/use-theme";
 const STATUS_COPY: Record<RunStatus, { label: string; description: string }> = {
   idle: {
     label: "Ready",
-    description: "Standing by for a new mission brief.",
+    description: "Standing by for a new task brief.",
   },
   running: {
     label: "Running",
@@ -68,6 +68,8 @@ const MISSION_MENU_ITEMS = [
   { id: "home", label: "Home", icon: Home },
   { id: "history", label: "History", icon: History },
 ] as const;
+
+const REPOSITORY_URL = "https://github.com/michalmar/maf-multi-agent";
 
 function ensureOrchestratorFirst(agents: AgentDefinition[]) {
   const known = new Map(agents.map((agent) => [agent.name, agent]));
@@ -811,8 +813,8 @@ export function PlannerShell() {
   const missionHeaderPanel = (
     <div className="topbar">
       <div className="topbar-inner">
-        <Image src="/logo.svg" alt="MAF Orchestra" width={22} height={22} className="shrink-0" />
-        <span className="topbar-brand">MAF Orchestra</span>
+        <Image src="/logo.svg" alt="Agentic Orchestra" width={22} height={22} className="shrink-0" />
+        <span className="topbar-brand">Agentic Orchestra</span>
 
         <div className="topbar-sep" aria-hidden />
 
@@ -873,6 +875,22 @@ export function PlannerShell() {
           >
             {theme === "night" ? <SunMedium className="h-4 w-4" /> : <MoonStar className="h-4 w-4" />}
           </button>
+          <span className="topbar-sep-vert" aria-hidden />
+          <a
+            href={REPOSITORY_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="secondary-button secondary-button-compact"
+            aria-label="Open GitHub repository"
+            title="Open GitHub repository"
+          >
+            <Image
+              src={theme === "night" ? "/GitHub_Invertocat_White.svg" : "/GitHub_Invertocat_Black.svg"}
+              alt="GitHub"
+              width={16}
+              height={16}
+            />
+          </a>
         </div>
       </div>
     </div>
@@ -1038,13 +1056,16 @@ export function PlannerShell() {
           {streamLabel}
         </p>
 
-        {versionInfo ? (
-          <footer className="version-footer">
-            v{versionInfo.version}
-            {versionInfo.git_sha !== "unknown" ? ` (${versionInfo.git_sha})` : ""}
-            {versionInfo.build_date !== "unknown" ? ` · ${versionInfo.build_date.split("T")[0]}` : ""}
-          </footer>
-        ) : null}
+        <footer className="version-footer">
+          Created by Michal Marusan and Jakub Kudela
+          {versionInfo ? (
+            <>
+              {" · "}v{versionInfo.version}
+              {versionInfo.git_sha !== "unknown" ? ` (${versionInfo.git_sha})` : ""}
+              {versionInfo.build_date !== "unknown" ? ` · ${versionInfo.build_date.split("T")[0]}` : ""}
+            </>
+          ) : null}
+        </footer>
         </div>
       </main>
 

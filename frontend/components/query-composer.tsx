@@ -60,7 +60,7 @@ export function QueryComposer({
   const condensedSummary = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) {
-      return "No mission brief entered yet.";
+      return "No task brief entered yet.";
     }
     return trimmed.replace(/\s+/g, " ");
   }, [query]);
@@ -70,7 +70,7 @@ export function QueryComposer({
       <form onSubmit={handleSubmit} className={isCondensed ? "" : "space-y-4"}>
         {!isCondensed ? (
           <div className="max-w-2xl">
-            <p className="eyebrow">Mission brief</p>
+            <p className="eyebrow">Task brief</p>
             <h2 className="section-title mt-2">Describe the task for the agent system</h2>
             <p className="section-copy mt-2">
               Describe the task for the multi-agent system. Be specific when it comes to details or problem description.
@@ -82,7 +82,7 @@ export function QueryComposer({
           <div className="rounded-[10px] border border-[var(--border-soft)] bg-[var(--surface-elevated)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Mission brief saved</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Task brief saved</p>
                 <p className="mt-1 truncate text-sm font-medium text-[var(--text-primary)]">{condensedSummary}</p>
               </div>
 
@@ -93,7 +93,7 @@ export function QueryComposer({
                   className="secondary-button"
                   onClick={() => setIsCondensed(false)}
                   aria-expanded="false"
-                  aria-label="Expand mission brief"
+                  aria-label="Expand task brief"
                 >
                   <ChevronDown className="h-4 w-4 rotate-180" />
                   Expand
@@ -138,12 +138,12 @@ export function QueryComposer({
 
                 <button type="submit" disabled={disabled || !query.trim()} className="action-button w-full">
                   {disabled ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {disabled ? "Streaming" : "Launch mission"}
+                  {disabled ? "Streaming" : "Launch"}
                 </button>
 
                 <button type="button" disabled={disabled} className="secondary-button w-full" onClick={onLoadMock}>
                   <FlaskConical className="h-4 w-4" />
-                  {isMockActive ? "Reload mock" : "Load mock replay"}
+                  {isMockActive ? "Reload mock" : "Load mock"}
                 </button>
 
                 {disabled ? (
@@ -152,7 +152,7 @@ export function QueryComposer({
                     className="secondary-button w-full"
                     onClick={() => setIsCondensed(true)}
                     aria-expanded="true"
-                    aria-label="Collapse mission brief"
+                    aria-label="Collapse task brief"
                   >
                     <ChevronDown className="h-4 w-4" />
                     Collapse
