@@ -39,7 +39,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "MAF Orchestra",
+  title: "Agentic Orchestra",
   description: "Multi-agent orchestration workspace.",
 };
 
