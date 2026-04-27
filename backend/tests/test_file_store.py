@@ -42,3 +42,17 @@ def test_copy_run_files_uses_unique_file_keys(tmp_path, monkeypatch):
     assert len(copied) == 2
     assert copied[0].name != copied[1].name
     assert sorted(path.read_bytes() for path in copied) == [b"one", b"two"]
+
+
+def test_disk_fallback_resolves_persisted_unique_key(tmp_path, monkeypatch):
+    """A stored file should be recoverable by URL key after memory is cleared."""
+    monkeypatch.setattr(file_store, "_PERSIST_DIR", tmp_path)
+    file_store._reset_for_tests()
+
+    file_store.store_file("sandbox:/mnt/data/chart.png", b"chart", "image/png")
+    rewritten = file_store.rewrite_sandbox_urls("![chart](sandbox:/mnt/data/chart.png)")
+    file_key = re.search(r"/api/files/([^)]+)", rewritten).group(1)
+
+    file_store._reset_for_tests()
+
+    assert file_store.get_file(file_key) == (b"chart", "image/png")

@@ -4,21 +4,32 @@ import { useCallback, useEffect, useState } from "react";
 import type { ThemeMode } from "@/lib/types";
 
 const THEME_STORAGE_KEY = "maf-theme";
+const DEFAULT_THEME: ThemeMode = "night";
+
+function isThemeMode(value: string | null): value is ThemeMode {
+  return value === "daybreak" || value === "night";
+}
+
+function getInitialTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return DEFAULT_THEME;
+  }
+
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (isThemeMode(saved)) {
+      return saved;
+    }
+  } catch {
+    // localStorage unavailable — continue to DOM/default fallback
+  }
+
+  const domTheme = document.documentElement.getAttribute("data-theme");
+  return isThemeMode(domTheme) ? domTheme : DEFAULT_THEME;
+}
 
 export function useTheme() {
-  const [theme, setTheme] = useState<ThemeMode>("daybreak");
-
-  // Restore saved theme on mount
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved === "daybreak" || saved === "night") {
-        setTheme(saved);
-      }
-    } catch {
-      // localStorage unavailable — use default
-    }
-  }, []);
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
   // Persist theme and update data attribute
   useEffect(() => {

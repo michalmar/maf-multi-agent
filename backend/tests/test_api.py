@@ -1,8 +1,11 @@
 """Tests for API helpers and result fallback behavior."""
 
+import re
+
 from fastapi.testclient import TestClient
 
 from src.api import app, _build_session_snapshot
+from src import file_store
 
 
 def test_build_session_snapshot_tracks_running_progress():
@@ -222,3 +225,67 @@ def test_anonymous_history_requires_explicit_local_dev_flag(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()[0]["run_id"] == "run-123"
+
+
+def test_invalid_run_ids_are_rejected_before_history_lookup(monkeypatch):
+    """History/result/delete endpoints should reject unsafe run IDs."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore())
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        responses = [
+            client.get("/api/history/bad.run", headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"}),
+            client.get("/api/result/bad.run", headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"}),
+            client.delete("/api/history/bad.run", headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"}),
+        ]
+
+    assert [response.status_code for response in responses] == [400, 400, 400]
+
+
+def test_active_result_is_scoped_to_run_owner(monkeypatch):
+    """In-memory results should not bypass user scoping before persistence."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore())
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        run_state = app.state.run_store.create("run-123", user_dir="owner@example.com")
+        run_state.result = {"result": "live result", "document": ""}
+
+        wrong_user = client.get(
+            "/api/result/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "intruder@example.com"},
+        )
+        owner = client.get(
+            "/api/result/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "owner@example.com"},
+        )
+
+    assert wrong_user.status_code == 404
+    assert owner.status_code == 200
+    assert owner.json()["result"] == "live result"
+
+
+def test_files_endpoint_serves_stored_file_keys(tmp_path, monkeypatch):
+    """Sandbox file serving should resolve unique file keys, not only sandbox paths."""
+    monkeypatch.setattr(file_store, "_PERSIST_DIR", tmp_path)
+    file_store._reset_for_tests()
+    file_store.store_file("sandbox:/mnt/data/report.png", b"png-bytes", "image/png")
+    rewritten = file_store.rewrite_sandbox_urls("[report](sandbox:/mnt/data/report.png)")
+    file_key = re.search(r"/api/files/([^)]+)", rewritten).group(1)
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/files/{file_key}")
+
+    assert response.status_code == 200
+    assert response.content == b"png-bytes"
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_files_endpoint_returns_404_for_missing_file_key():
+    """Missing sandbox file keys should return 404 rather than an empty response."""
+    file_store._reset_for_tests()
+
+    with TestClient(app) as client:
+        response = client.get("/api/files/missing-file-key")
+
+    assert response.status_code == 404

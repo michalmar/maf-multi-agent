@@ -3,6 +3,16 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-04-27] — Quality & Documentation Cleanup
+
+### Added
+- **Frontend test harness** — Vitest coverage now exercises theme hydration and API proxy validation.
+- **Backend edge tests** — API and sandbox artifact tests now cover unsafe run IDs, active-result ownership, missing file keys, and disk fallback.
+
+### Changed
+- **Theme hydration** — The React theme hook now starts from the bootstrap DOM theme or saved preference, avoiding day/night flicker.
+- **Current project docs** — README and Python package metadata now describe the MAF multi-agent operations app instead of the original travel demo.
+
 ## [2026-04-27] — Security & Deployment Hardening
 
 ### Changed

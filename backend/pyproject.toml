@@ -1,7 +1,7 @@
 [project]
-name = "multi-agent-travel"
+name = "maf-multi-agent"
 version = "0.1.0"
-description = "Multi-agent travel agency demo showcasing scratchpad memory patterns"
+description = "MAF-based multi-agent orchestration app with Foundry, Fabric MCP, and scratchpad collaboration"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
