@@ -151,3 +151,11 @@ variable "history_retention_days" {
   type        = number
   default     = 90
 }
+
+# ── Observability ──────────────────────────────────────────────
+
+variable "enable_instrumentation" {
+  description = "Enable Azure Monitor / OpenTelemetry instrumentation. Disabled by default to avoid telemetry cost and privacy review surprises."
+  type        = bool
+  default     = false
+}

@@ -24,32 +24,57 @@ logger = logging.getLogger(__name__)
 # Disk persistence directory
 _PERSIST_DIR = Path(__file__).resolve().parent.parent / "output" / "sandbox_files"
 
-# Global store: sandbox_path → (bytes, content_type)
+# Global stores:
+# - file_key -> (bytes, content_type)
+# - sandbox_path -> latest file_key for URL rewriting during the active run
 _store: dict[str, tuple[bytes, str]] = {}
+_path_to_file_key: dict[str, str] = {}
 _lock = threading.Lock()
 
 # Image file extensions that should render inline (![alt](url) syntax)
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp"}
 
 
-def _disk_key(sandbox_path: str) -> str:
-    """Create a safe filename from a sandbox path."""
-    # Use the basename when possible, fall back to a hash
+def _safe_basename(sandbox_path: str) -> str:
+    """Return a filesystem-safe basename for a sandbox path."""
+    basename = os.path.basename(sandbox_path.replace("sandbox:", "")) or "artifact"
+    basename = re.sub(r"[^a-zA-Z0-9._-]+", "_", basename).strip("._")
+    return (basename or "artifact")[:180]
+
+
+def _disk_key(sandbox_path: str, data: bytes) -> str:
+    """Create a stable, collision-resistant filename for stored file bytes."""
+    digest = hashlib.sha256(sandbox_path.encode() + b"\0" + data).hexdigest()[:16]
+    return f"{digest}-{_safe_basename(sandbox_path)}"
+
+
+def _legacy_disk_key(sandbox_path: str) -> str:
+    """Return the pre-unique-key filename for backward-compatible disk lookup."""
     basename = os.path.basename(sandbox_path.replace("sandbox:", ""))
     if basename and len(basename) < 200:
         return basename
     return hashlib.sha256(sandbox_path.encode()).hexdigest()[:16]
 
 
+def _current_file_key(sandbox_path: str) -> str:
+    """Return the current stored file key for a sandbox path, if known."""
+    with _lock:
+        file_key = _path_to_file_key.get(sandbox_path)
+    if file_key:
+        return file_key
+    return f"{hashlib.sha256(sandbox_path.encode()).hexdigest()[:16]}-{_safe_basename(sandbox_path)}"
+
+
 def store_file(sandbox_path: str, data: bytes, content_type: str = "application/octet-stream") -> None:
     """Store downloaded file bytes keyed by the original sandbox path."""
+    disk_name = _disk_key(sandbox_path, data)
     with _lock:
-        _store[sandbox_path] = (data, content_type)
+        _store[disk_name] = (data, content_type)
+        _path_to_file_key[sandbox_path] = disk_name
 
     # Persist to disk
     try:
         _PERSIST_DIR.mkdir(parents=True, exist_ok=True)
-        disk_name = _disk_key(sandbox_path)
         disk_path = _PERSIST_DIR / disk_name
         disk_path.write_bytes(data)
         logger.info("📦 Stored sandbox file: %s → %s (%d bytes, %s)", sandbox_path, disk_path, len(data), content_type)
@@ -58,19 +83,23 @@ def store_file(sandbox_path: str, data: bytes, content_type: str = "application/
         logger.info("📦 Stored sandbox file (memory only): %s (%d bytes, %s)", sandbox_path, len(data), content_type)
 
 
-def get_file(sandbox_path: str) -> Optional[tuple[bytes, str]]:
+def get_file(file_key_or_sandbox_path: str) -> Optional[tuple[bytes, str]]:
     """Retrieve stored file bytes and content type.
 
     Falls back to disk search if not in memory (enables replay after restart).
     Searches ``output/sandbox_files/`` and all ``output/*/files/`` directories.
     """
+    sandbox_path = file_key_or_sandbox_path
     with _lock:
-        entry = _store.get(sandbox_path)
+        file_key = _path_to_file_key.get(sandbox_path, file_key_or_sandbox_path)
+        entry = _store.get(file_key)
     if entry:
         return entry
 
     # Disk fallback: search persistence dirs for the file
-    disk_name = _disk_key(sandbox_path)
+    candidates = [file_key]
+    if file_key_or_sandbox_path.startswith("sandbox:") or file_key_or_sandbox_path.startswith("/"):
+        candidates.append(_legacy_disk_key(sandbox_path))
     output_root = _PERSIST_DIR.parent  # output/
 
     search_dirs = [_PERSIST_DIR]  # output/sandbox_files/
@@ -78,29 +107,33 @@ def get_file(sandbox_path: str) -> Optional[tuple[bytes, str]]:
         search_dirs.extend(output_root.glob("*/files"))       # legacy: output/{run_id}/files/
         search_dirs.extend(output_root.glob("*/*/files"))     # per-user: output/{user}/{run_id}/files/
 
-    for search_dir in search_dirs:
-        disk_path = search_dir / disk_name
-        if disk_path.is_file():
-            try:
-                data = disk_path.read_bytes()
-                ct = guess_content_type(str(disk_path))
-                with _lock:
-                    _store[sandbox_path] = (data, ct)
-                logger.info("📦 Loaded from disk cache: %s → %s", sandbox_path, disk_path)
-                return (data, ct)
-            except Exception:
-                continue
+    for disk_name in dict.fromkeys(candidates):
+        for search_dir in search_dirs:
+            disk_path = search_dir / disk_name
+            if disk_path.is_file():
+                try:
+                    data = disk_path.read_bytes()
+                    ct = guess_content_type(str(disk_path))
+                    with _lock:
+                        _store[disk_name] = (data, ct)
+                        if sandbox_path.startswith("sandbox:"):
+                            _path_to_file_key[sandbox_path] = disk_name
+                    logger.info("📦 Loaded from disk cache: %s → %s", sandbox_path, disk_path)
+                    return (data, ct)
+                except Exception:
+                    continue
 
     return None
 
 
 def has_file(sandbox_path: str) -> bool:
     with _lock:
-        return sandbox_path in _store
+        file_key = _path_to_file_key.get(sandbox_path, sandbox_path)
+        return file_key in _store
 
 
 def get_all_files() -> dict[str, tuple[bytes, str]]:
-    """Return a snapshot of all stored files (thread-safe copy)."""
+    """Return a file-keyed snapshot of all stored files (thread-safe copy)."""
     with _lock:
         return dict(_store)
 
@@ -141,11 +174,10 @@ def rewrite_sandbox_urls(text: str, base_url: str = "/api/files") -> str:
     def _replace_link(match: re.Match) -> str:
         link_text = match.group(1)
         sandbox_url = match.group(2)
-        sandbox_path = sandbox_url.replace("sandbox:", "")
-        encoded = urllib.parse.quote(sandbox_path, safe="")
+        encoded = urllib.parse.quote(_current_file_key(sandbox_url), safe="")
         api_url = f"{base_url}/{encoded}"
 
-        if _is_image_file(sandbox_path):
+        if _is_image_file(sandbox_url):
             return f"![{link_text}]({api_url})"
         return f"[{link_text}]({api_url})"
 
@@ -156,8 +188,7 @@ def rewrite_sandbox_urls(text: str, base_url: str = "/api/files") -> str:
     # (not already inside a markdown link — these would be bare URLs)
     def _replace_bare(match: re.Match) -> str:
         sandbox_url = match.group(0)
-        sandbox_path = sandbox_url.replace("sandbox:", "")
-        encoded = urllib.parse.quote(sandbox_path, safe="")
+        encoded = urllib.parse.quote(_current_file_key(sandbox_url), safe="")
         return f"{base_url}/{encoded}"
 
     result = _SANDBOX_URL_RE.sub(_replace_bare, result)
@@ -176,11 +207,10 @@ def rewrite_sandbox_urls_for_disk(text: str, files_subdir: str = "./files") -> s
     def _replace_link(match: re.Match) -> str:
         link_text = match.group(1)
         sandbox_url = match.group(2)
-        sandbox_path = sandbox_url.replace("sandbox:", "")
-        filename = os.path.basename(sandbox_path)
+        filename = _current_file_key(sandbox_url)
         rel_path = f"{files_subdir}/{filename}"
 
-        if _is_image_file(sandbox_path):
+        if _is_image_file(sandbox_url):
             return f"![{link_text}]({rel_path})"
         return f"[{link_text}]({rel_path})"
 
@@ -188,8 +218,7 @@ def rewrite_sandbox_urls_for_disk(text: str, files_subdir: str = "./files") -> s
 
     def _replace_bare(match: re.Match) -> str:
         sandbox_url = match.group(0)
-        sandbox_path = sandbox_url.replace("sandbox:", "")
-        filename = os.path.basename(sandbox_path)
+        filename = _current_file_key(sandbox_url)
         return f"{files_subdir}/{filename}"
 
     result = _SANDBOX_URL_RE.sub(_replace_bare, result)
@@ -206,10 +235,7 @@ def copy_run_files(run_dir: str) -> int:
     os.makedirs(files_dir, exist_ok=True)
     count = 0
     with _lock:
-        for sandbox_path, (data, _ct) in _store.items():
-            filename = os.path.basename(sandbox_path.replace("sandbox:", ""))
-            if not filename:
-                continue
+        for filename, (data, _ct) in _store.items():
             dest = os.path.join(files_dir, filename)
             try:
                 with open(dest, "wb") as f:
@@ -220,3 +246,10 @@ def copy_run_files(run_dir: str) -> int:
     if count:
         logger.info("📂 Copied %d sandbox file(s) to %s", count, files_dir)
     return count
+
+
+def _reset_for_tests() -> None:
+    """Clear in-memory file mappings for tests."""
+    with _lock:
+        _store.clear()
+        _path_to_file_key.clear()

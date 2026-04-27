@@ -13,16 +13,21 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  let body: string;
+  let payload: Record<string, unknown>;
   try {
-    body = await request.text();
-    JSON.parse(body); // validate JSON
+    payload = await request.json();
+    if (payload === null || Array.isArray(payload) || typeof payload !== "object") {
+      throw new Error("Invalid payload");
+    }
   } catch {
     return NextResponse.json(
       { detail: "Request body must be valid JSON" },
       { status: 400 },
     );
   }
+
+  const { user_email: _ignoredUserEmail, ...forwardedPayload } = payload;
+  const body = JSON.stringify(forwardedPayload);
 
   // Forward Easy Auth token header if present (ACA injects it after login)
   const headers: Record<string, string> = { "Content-Type": "application/json" };

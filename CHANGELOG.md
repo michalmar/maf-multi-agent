@@ -3,6 +3,19 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-04-27] — Security & Deployment Hardening
+
+### Changed
+- **History access requires identity** — Saved history, result replay, and deletion now require authenticated user context unless explicit local-dev anonymous mode is enabled.
+- **Run identity is server-derived** — The run proxy strips client-supplied email identity, and the backend derives email behavior only from trusted Easy Auth headers or gated local-dev fallbacks.
+- **Telemetry is opt-in** — Azure Monitor/OpenTelemetry setup is disabled by default and controlled by `ENABLE_INSTRUMENTATION` / `enable_instrumentation`.
+- **SSE uses the proxy** — Live browser streams now connect through the Next.js stream proxy instead of bypassing it with a public backend URL.
+
+### Fixed
+- **Sandbox artifact collisions** — Downloaded Code Interpreter files now use content-addressed unique file keys instead of basename-only storage.
+- **Terraform plan hygiene** — Terraform plan outputs are ignored, the tracked plan artifact was removed, and Terraform is configured for an Azure Storage backend.
+- **Pinned container inputs** — Docker build stages now use explicit Python, Node, and uv versions instead of floating tags.
+
 ## [2026-04-21] — Resumable Background Runs
 
 ### Added

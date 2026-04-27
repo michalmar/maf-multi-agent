@@ -33,7 +33,13 @@ from src.config import get_config
 from src.events import AgentEvent, EventType
 from src.agent_loader import list_agent_definitions
 from src.fabric_capacity import get_fabric_capacity_status, resume_fabric_capacity
-from src.file_store import get_file, rewrite_sandbox_urls, rewrite_sandbox_urls_for_disk, copy_run_files, get_all_files
+from src.file_store import (
+    copy_run_files,
+    get_all_files,
+    get_file,
+    rewrite_sandbox_urls,
+    rewrite_sandbox_urls_for_disk,
+)
 from src.history_store import get_history_store
 from src.run_store import RunStore
 
@@ -73,20 +79,36 @@ def _safe_user_dir(email: str) -> str:
     return _SAFE_EMAIL_RE.sub("_", email.lower().strip())
 
 
+def _allow_anonymous_local_dev() -> bool:
+    """Return whether unauthenticated local-dev fallbacks are explicitly enabled."""
+    return get_config().allow_anonymous_local_dev
+
+
 def _resolve_user_email(request: Request) -> str | None:
-    """Extract user email from Easy Auth header or query param (local dev fallback)."""
-    return (
-        request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        or request.query_params.get("user_email")
-        or None
-    )
+    """Extract user email from trusted Easy Auth headers.
+
+    Query-string identity is accepted only in explicit local development mode.
+    """
+    principal = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+    if principal:
+        return principal
+    if _allow_anonymous_local_dev():
+        return request.query_params.get("user_email") or None
+    return None
+
+
+def _require_history_user_email(request: Request) -> str | None:
+    """Require authenticated identity for persisted history/result access."""
+    user_email = _resolve_user_email(request)
+    if user_email or _allow_anonymous_local_dev():
+        return user_email
+    raise HTTPException(status_code=401, detail="Authenticated user identity is required")
 
 
 def _is_super_user(user_email: str | None) -> bool:
     """Check if the authenticated user is the configured super-user."""
     if not user_email:
         return False
-    from src.config import get_config
     su = get_config().super_user_email
     return bool(su and user_email.lower().strip() == su.lower().strip())
 
@@ -124,7 +146,7 @@ class RunRequest(BaseModel):
     selected_agents: list[str] | None = None
     reasoning_effort: str | None = "low"  # "high", "medium", "low", or "none"
     user_token: str | None = None  # Fabric user token (Easy Auth header or body)
-    user_email: str | None = None  # Logged-in user's email (for email notifications)
+    user_email: str | None = None  # Local-dev identity fallback only; gated by config
 
 
 class RunResponse(BaseModel):
@@ -311,20 +333,23 @@ async def start_run(req: RunRequest, request: Request):
         else "absent"
     )
 
-    # Resolve user email: Easy Auth principal header > body field > JWT decode.
-    # JWT fallback is safe here because the token was already validated upstream
-    # by Easy Auth (ACA) or is a local-dev token from az login.
-    user_email = (
-        request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        or req.user_email
-        or _extract_email_from_token(user_token)
-    )
+    # Resolve user email only from trusted server-side identity sources.
+    # Body/query fallbacks are allowed only in explicit local development mode.
+    principal_email = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+    if principal_email:
+        user_email = principal_email
+    elif request.headers.get("X-MS-TOKEN-AAD-ACCESS-TOKEN"):
+        user_email = _extract_email_from_token(request.headers.get("X-MS-TOKEN-AAD-ACCESS-TOKEN"))
+    elif _allow_anonymous_local_dev():
+        user_email = req.user_email or _extract_email_from_token(req.user_token)
+    else:
+        user_email = None
 
     logger.info("🚀 RUN %s | user_token=%s | user_email=%s", run_id, token_source, user_email or "absent")
     store = _store()
-    run_state = store.create(run_id)
-    queue = run_state.queue
     user_dir = _safe_user_dir(user_email) if user_email else ""
+    run_state = store.create(run_id, user_dir=user_dir)
+    queue = run_state.queue
     snapshot_writer = _RunSnapshotWriter(
         run_id=run_id,
         user_dir=user_dir,
@@ -512,12 +537,15 @@ async def stream_events(run_id: str):
 async def get_result(run_id: str, request: Request):
     """Get the final result for a completed run."""
     _validate_run_id(run_id)
+    user_email = _require_history_user_email(request)
+    user_dir = _safe_user_dir(user_email) if user_email else ""
     store = _store()
-    result = store.get_result(run_id)
+    run_state = store.get(run_id)
+    result = run_state.result if run_state and (_is_super_user(user_email) or run_state.user_dir == user_dir) else None
     if result is not None:
         return result
 
-    snapshot = await _load_saved_session_for_user(run_id, _resolve_user_email(request))
+    snapshot = await _load_saved_session_for_user(run_id, user_email)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="Result not found")
 
@@ -545,8 +573,9 @@ async def serve_file(file_key: str):
     import urllib.parse
 
     decoded_key = urllib.parse.unquote(file_key)
-    # Try both with and without leading slash
-    entry = get_file(f"sandbox:{decoded_key}")
+    entry = get_file(decoded_key)
+    if entry is None:
+        entry = get_file(f"sandbox:{decoded_key}")
     if entry is None and not decoded_key.startswith("/"):
         entry = get_file(f"sandbox:/{decoded_key}")
     if entry is None:
@@ -766,8 +795,7 @@ async def _persist_session_snapshot(
     if not include_files:
         return
 
-    for sandbox_path, (data, _ct) in get_all_files().items():
-        filename = os.path.basename(sandbox_path.replace("sandbox:", ""))
+    for filename, (data, _ct) in get_all_files().items():
         if filename:
             try:
                 await history.save_file(user_dir, run_id, filename, data)
@@ -804,7 +832,7 @@ def _validate_run_id(run_id: str) -> None:
 @app.get("/api/history")
 async def list_history(request: Request):
     """List saved session snapshots for the authenticated user, newest first."""
-    user_email = _resolve_user_email(request)
+    user_email = _require_history_user_email(request)
     history = get_history_store()
 
     if _is_super_user(user_email):
@@ -818,7 +846,7 @@ async def list_history(request: Request):
 async def get_history_session(run_id: str, request: Request):
     """Load a complete session snapshot for replay (scoped to authenticated user)."""
     _validate_run_id(run_id)
-    snap = await _load_saved_session_for_user(run_id, _resolve_user_email(request))
+    snap = await _load_saved_session_for_user(run_id, _require_history_user_email(request))
     if snap is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return snap
@@ -828,7 +856,7 @@ async def get_history_session(run_id: str, request: Request):
 async def delete_history_session(run_id: str, request: Request):
     """Delete a saved session (scoped to authenticated user)."""
     _validate_run_id(run_id)
-    user_email = _resolve_user_email(request)
+    user_email = _require_history_user_email(request)
     history = get_history_store()
 
     if _is_super_user(user_email):

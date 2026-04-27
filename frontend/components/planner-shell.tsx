@@ -430,8 +430,7 @@ export function PlannerShell() {
 
   const connectSSE = useCallback(
     (runIdValue: string) => {
-      const sseBase = process.env.NEXT_PUBLIC_BACKEND_API_URL || "";
-      const eventSource = new EventSource(`${sseBase}/api/stream/${runIdValue}`);
+      const eventSource = new EventSource(`/api/stream/${encodeURIComponent(runIdValue)}`);
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
@@ -546,7 +545,6 @@ export function PlannerShell() {
             query,
             selected_agents: Array.from(enabledAgents).filter((name) => name !== "orchestrator"),
             reasoning_effort: reasoningEffort,
-            user_email: easyAuthUser?.email || undefined,
           }),
         });
 
@@ -565,7 +563,7 @@ export function PlannerShell() {
         setStreamLabel("The run could not be started. Verify the backend and try again.");
       }
     },
-    [closeStream, connectSSE, easyAuthUser?.email, enabledAgents, reasoningEffort],
+    [closeStream, connectSSE, enabledAgents, reasoningEffort],
   );
 
   const handleLoadMock = useCallback(async () => {
