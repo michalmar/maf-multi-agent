@@ -17,6 +17,8 @@ def test_config_loads_defaults():
         assert config.project_endpoint == ""
         assert config.mail_sender_address == ""
         assert config.mail_enabled is False
+        assert config.allow_anonymous_local_dev is False
+        assert config.enable_instrumentation is False
 
 
 def test_config_reads_env_vars():
@@ -26,6 +28,8 @@ def test_config_reads_env_vars():
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.com",
         "ALLOWED_ORIGINS": "https://myapp.com,https://other.com",
         "MAIL_SENDER_ADDRESS": "admin@test.com",
+        "ALLOW_ANONYMOUS_LOCAL_DEV": "true",
+        "ENABLE_INSTRUMENTATION": "true",
     }
     with patch.dict(os.environ, env, clear=True):
         from src.config import Config
@@ -36,6 +40,8 @@ def test_config_reads_env_vars():
         assert config.allowed_origins == "https://myapp.com,https://other.com"
         assert config.mail_sender_address == "admin@test.com"
         assert config.mail_enabled is True
+        assert config.allow_anonymous_local_dev is True
+        assert config.enable_instrumentation is True
 
 
 def test_config_mail_disabled_when_empty():

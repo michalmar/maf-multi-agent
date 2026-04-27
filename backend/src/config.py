@@ -20,6 +20,8 @@ class Config(BaseSettings):
     super_user_email: str = ""  # Super-user who can view all users' history (empty = disabled)
     allowed_origins: str = "*"  # Comma-separated CORS origins (default: allow all)
     history_storage_account_url: str = ""  # Blob Storage URL for persistent history (empty = local filesystem)
+    allow_anonymous_local_dev: bool = False  # Allow unauthenticated local history access (dev only)
+    enable_instrumentation: bool = False  # Enable Azure Monitor / OpenTelemetry instrumentation
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 

@@ -38,6 +38,13 @@ async def setup_observability() -> None:
         logger.debug("Observability already initialized, skipping.")
         return
 
+    from src.config import get_config
+
+    if not get_config().enable_instrumentation:
+        logger.info("Observability disabled. Set ENABLE_INSTRUMENTATION=true to enable telemetry.")
+        _initialized = True
+        return
+
     enable_sensitive = os.getenv("ENABLE_SENSITIVE_DATA", "false").lower() == "true"
     project_endpoint = os.getenv("PROJECT_ENDPOINT", "")
 

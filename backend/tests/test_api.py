@@ -63,16 +63,67 @@ def test_build_session_snapshot_tracks_running_progress():
 
 
 class _StubHistoryStore:
-    def __init__(self, snapshot: dict | None):
+    def __init__(self, snapshot: dict | None = None, sessions: dict[str, dict[str, dict]] | None = None):
         self.snapshot = snapshot
+        self.sessions = sessions or {}
+        if snapshot is not None:
+            self.sessions.setdefault("user@example.com", {})["run-123"] = snapshot
+        self.deleted: list[tuple[str, str]] = []
+
+    async def list_sessions(self, user_dir: str | None, include_user: bool = False) -> list[dict]:
+        sessions = self.sessions.get(user_dir or "", {})
+        return [
+            {
+                "run_id": run_id,
+                "query": snap.get("query", ""),
+                "timestamp": snap.get("timestamp", ""),
+                "updated_at": snap.get("updated_at", ""),
+                "status": snap.get("status", "done"),
+                "event_count": len(snap.get("events", [])),
+                "has_result": bool(snap.get("result")),
+            }
+            for run_id, snap in sessions.items()
+        ]
+
+    async def list_all_sessions(self, include_user: bool = True) -> list[dict]:
+        items: list[dict] = []
+        for user_dir, sessions in self.sessions.items():
+            for run_id, snap in sessions.items():
+                item = {
+                    "run_id": run_id,
+                    "query": snap.get("query", ""),
+                    "timestamp": snap.get("timestamp", ""),
+                    "updated_at": snap.get("updated_at", ""),
+                    "status": snap.get("status", "done"),
+                    "event_count": len(snap.get("events", [])),
+                    "has_result": bool(snap.get("result")),
+                }
+                if include_user:
+                    item["user_email"] = snap.get("user_email", user_dir)
+                items.append(item)
+        return items
 
     async def get_session(self, user_dir: str, run_id: str) -> dict | None:
-        assert user_dir == "user@example.com"
-        assert run_id == "run-123"
-        return self.snapshot
+        return self.sessions.get(user_dir, {}).get(run_id)
+
+    async def delete_session(self, user_dir: str, run_id: str) -> bool:
+        if run_id not in self.sessions.get(user_dir, {}):
+            return False
+        del self.sessions[user_dir][run_id]
+        self.deleted.append((user_dir, run_id))
+        return True
 
     async def find_session_any_user(self, run_id: str):
-        raise AssertionError("Super-user path should not be used in this test")
+        for user_dir, sessions in self.sessions.items():
+            if run_id in sessions:
+                return user_dir, sessions[run_id]
+        return None
+
+
+class _StubConfig:
+    def __init__(self, *, super_user_email: str = "", allow_anonymous_local_dev: bool = False):
+        self.super_user_email = super_user_email
+        self.allow_anonymous_local_dev = allow_anonymous_local_dev
 
 
 def test_get_result_falls_back_to_saved_session(monkeypatch):
@@ -94,3 +145,80 @@ def test_get_result_falls_back_to_saved_session(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"result": "Saved result", "document": "final document"}
+
+
+def test_history_and_result_require_identity(monkeypatch):
+    """Persisted session endpoints should fail closed when identity is missing."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore())
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        responses = [
+            client.get("/api/history"),
+            client.get("/api/history/run-123"),
+            client.get("/api/result/run-123"),
+            client.delete("/api/history/run-123"),
+        ]
+
+    assert [response.status_code for response in responses] == [401, 401, 401, 401]
+
+
+def test_history_access_is_scoped_to_authenticated_user(monkeypatch):
+    """A non-owner should not be able to read another user's saved run."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"owner@example.com": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        wrong_user = client.get(
+            "/api/history/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "intruder@example.com"},
+        )
+        owner = client.get(
+            "/api/history/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "owner@example.com"},
+        )
+
+    assert wrong_user.status_code == 404
+    assert owner.status_code == 200
+    assert owner.json()["result"] == "Saved"
+
+
+def test_super_user_can_access_and_delete_cross_user_history(monkeypatch):
+    """The configured super-user keeps cross-user history access."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"owner@example.com": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig(super_user_email="admin@example.com"))
+
+    with TestClient(app) as client:
+        read_response = client.get(
+            "/api/history/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "admin@example.com"},
+        )
+        delete_response = client.delete(
+            "/api/history/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "admin@example.com"},
+        )
+
+    assert read_response.status_code == 200
+    assert delete_response.status_code == 200
+    assert store.deleted == [("owner@example.com", "run-123")]
+
+
+def test_anonymous_history_requires_explicit_local_dev_flag(monkeypatch):
+    """Anonymous root history access is available only when explicitly enabled."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr(
+        "src.api.get_config",
+        lambda: _StubConfig(allow_anonymous_local_dev=True),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/history")
+
+    assert response.status_code == 200
+    assert response.json()[0]["run_id"] == "run-123"

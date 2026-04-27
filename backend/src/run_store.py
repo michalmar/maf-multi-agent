@@ -17,6 +17,7 @@ class RunState:
     queue: asyncio.Queue = field(default_factory=asyncio.Queue)
     result: dict | None = None
     streaming: bool = False
+    user_dir: str = ""
     created_at: float = field(default_factory=time.monotonic)
 
 
@@ -27,9 +28,9 @@ class RunStore:
         self._runs: dict[str, RunState] = {}
         self._ttl = ttl_seconds
 
-    def create(self, run_id: str) -> RunState:
+    def create(self, run_id: str, user_dir: str = "") -> RunState:
         self._evict_expired()
-        state = RunState()
+        state = RunState(user_dir=user_dir)
         self._runs[run_id] = state
         return state
 

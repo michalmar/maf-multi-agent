@@ -8,8 +8,8 @@
  */
 
 import http from "node:http";
-import { NextRequest, NextResponse } from "next/server";
-import { validateRunId, BACKEND } from "../../lib/proxy-helpers";
+import { NextRequest } from "next/server";
+import { validateRunId, BACKEND, forwardAuthHeaders } from "../../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 const UPSTREAM_TIMEOUT_MS = 10 * 60 * 1000; // 10 min for long agent runs
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
@@ -31,7 +31,10 @@ export async function GET(
   return new Promise<Response>((resolve) => {
     const req = http.get(
       url,
-      { headers: { Accept: "text/event-stream" }, timeout: UPSTREAM_TIMEOUT_MS },
+      {
+        headers: { Accept: "text/event-stream", ...forwardAuthHeaders(request) },
+        timeout: UPSTREAM_TIMEOUT_MS,
+      },
       (res) => {
       if (res.statusCode !== 200) {
         // Consume response to free the socket
@@ -80,4 +83,3 @@ export async function GET(
     });
   });
 }
-

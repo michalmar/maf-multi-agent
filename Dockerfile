@@ -1,11 +1,11 @@
 # ── Stage 1: Backend dependencies ─────────────────────────────
-FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim AS backend-build
+FROM mcr.microsoft.com/mirror/docker/library/python:3.11.14-slim-bookworm AS backend-build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
@@ -15,7 +15,7 @@ COPY backend/src ./src
 COPY backend/agents ./agents
 
 # ── Stage 2: Frontend build ───────────────────────────────────
-FROM mcr.microsoft.com/mirror/docker/library/node:20-bookworm-slim AS frontend-build
+FROM mcr.microsoft.com/mirror/docker/library/node:20.19.5-bookworm-slim AS frontend-build
 
 WORKDIR /app
 COPY frontend ./frontend
@@ -25,7 +25,7 @@ ENV BACKEND_API_URL=http://127.0.0.1:8000
 RUN cd frontend && npm run build
 
 # ── Stage 3: Runtime ──────────────────────────────────────────
-FROM mcr.microsoft.com/mirror/docker/library/python:3.11-slim
+FROM mcr.microsoft.com/mirror/docker/library/python:3.11.14-slim-bookworm
 
 ARG APP_VERSION="dev"
 ARG GIT_SHA="unknown"
