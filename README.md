@@ -52,8 +52,8 @@ User identity ──► Fabric API
 ## Prerequisites
 
 - Python 3.11+
-- Node.js 18+
-- Azure AI Foundry project with deployed Prompt Agents (`OperationsEngineering`, `Coder`, `WebSearch`)
+- Node.js 20+
+- Azure AI Foundry project with deployed Prompt Agents (`OperationsEngineering`, `CoderData`, `WebSearch`)
 - Azure OpenAI deployment (e.g. `gpt-5.2`) for the orchestrator
 - *(Optional)* Fabric Data Agent with MCP endpoint + ACA Easy Auth (Entra ID) for user authentication
 - *(Optional)* Shared/admin mailbox + Managed Identity with `Mail.Send` application permission for email notifications
@@ -130,7 +130,7 @@ cd backend
 uv sync
 
 # Run tests
-uv run pytest
+uv run pytest tests/ -v
 
 # Start API server
 uv run uvicorn src.api:app --reload --port 8000
@@ -142,6 +142,7 @@ uv run uvicorn src.api:app --reload --port 8000
 cd frontend
 npm install
 npm run dev          # Next.js dev server at http://localhost:3000
+npm run test         # Frontend tests
 npm run build        # Production build
 npm run start        # Run the production build
 ```
@@ -188,11 +189,20 @@ docs/                  # PRD and design documents
 
 1. Start both backend and frontend
 2. Open `http://localhost:3000`
-3. Enter a travel planning request (e.g. *"Plan a 5-day trip to Tokyo from NYC, budget $3000"*)
-4. Watch agents collaborate in real-time — tasks appear, agents activate, and a travel document is built incrementally
+3. Enter an operational or analytical request (e.g. *"Review compressor telemetry, identify anomalies, and summarize maintenance guidance"*)
+4. Watch agents collaborate in real-time — tasks appear, agents activate, and a shared operations document is built incrementally
 5. You can reload the page, switch views, or return later and reopen the run from **History** while it is still running or after it finishes
 
 For UI tuning without running the full backend flow, use the **Load mock replay** control in the query composer. It loads a completed maintenance-style run fixture directly in the browser so you can refine the layout, telemetry cards, long activity feed, task board, and document/result panes offline.
+
+## Production deployment checklist
+
+- Enable Easy Auth for shared environments and onboard users through the App-Users/Data-Users groups.
+- Use the Azure Storage Terraform backend and keep local `terraform.tfstate*`, `terraform.tfvars`, and plan outputs out of Git.
+- Set `enable_history_storage = true` for durable run history across ACA restarts and deployments.
+- Keep `ENABLE_INSTRUMENTATION=false` unless telemetry cost and privacy requirements have been reviewed.
+- Grant only the required Azure RBAC and Graph permissions to the managed identity.
+- Run backend tests, frontend tests, frontend build, and `terraform fmt -check` before deploying.
 
 ## License
 
