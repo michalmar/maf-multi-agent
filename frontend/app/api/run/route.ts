@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { BACKEND, safeFetch, safeJson } from "../lib/proxy-helpers";
+import { BACKEND, forwardAuthHeaders, safeFetch, safeJson } from "../lib/proxy-helpers";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,10 +36,7 @@ export async function POST(request: NextRequest) {
     headers["X-MS-TOKEN-AAD-ACCESS-TOKEN"] = easyAuthToken;
   }
   // Forward principal name for user email extraction in the backend
-  const principalName = request.headers.get("x-ms-client-principal-name");
-  if (principalName) {
-    headers["X-MS-CLIENT-PRINCIPAL-NAME"] = principalName;
-  }
+  Object.assign(headers, forwardAuthHeaders(request));
   const { response, error } = await safeFetch(`${BACKEND}/api/run`, {
     method: "POST",
     headers,

@@ -11,6 +11,7 @@ export const BACKEND =
   process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const LOCAL_DEV_HEADER = "X-MAF-LOCAL-DEV";
 
 /* ------------------------------------------------------------------ */
 /*  Input validation                                                   */
@@ -71,6 +72,8 @@ export function forwardAuthHeaders(
   const principalName = request.headers.get("x-ms-client-principal-name");
   if (principalName) {
     headers["X-MS-CLIENT-PRINCIPAL-NAME"] = principalName;
+  } else if (process.env.NODE_ENV !== "production") {
+    headers[LOCAL_DEV_HEADER] = "1";
   }
   return headers;
 }

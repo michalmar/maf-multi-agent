@@ -8,6 +8,7 @@ import re
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
+from ipaddress import ip_address
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -41,6 +42,15 @@ from src.file_store import (
     rewrite_sandbox_urls_for_disk,
 )
 from src.history_store import get_history_store
+from src.post_run_actions import (
+    ExecutePostRunActionRequest,
+    ExecutePostRunActionResponse,
+    PostRunActionsResponse,
+    SUPPORTED_ACTION_TYPES,
+    build_post_run_actions_response,
+    create_mock_action_submission,
+    validate_action_payload,
+)
 from src.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -84,15 +94,48 @@ def _allow_anonymous_local_dev() -> bool:
     return get_config().allow_anonymous_local_dev
 
 
+def _is_loopback_host(value: str | None) -> bool:
+    """Return whether a host string refers to the local machine."""
+    if not value:
+        return False
+    host = value.strip().lower()
+    if host.startswith("[") and "]" in host:
+        host = host[1:host.index("]")]
+    if host == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        if host.count(":") == 1:
+            try:
+                return ip_address(host.split(":", 1)[0]).is_loopback
+            except ValueError:
+                return False
+        return False
+
+
+def _allow_local_dev_request(request: Request) -> bool:
+    """Allow anonymous history access only for explicit or dev-proxy local mode."""
+    if _allow_anonymous_local_dev():
+        return True
+    if os.environ.get("NODE_ENV") == "production":
+        return False
+    if request.headers.get("X-MAF-LOCAL-DEV") == "1":
+        return True
+    client_host = request.client.host if request.client else ""
+    return _is_loopback_host(client_host) and _is_loopback_host(request.headers.get("host"))
+
+
+
 def _resolve_user_email(request: Request) -> str | None:
     """Extract user email from trusted Easy Auth headers.
 
-    Query-string identity is accepted only in explicit local development mode.
+    Query-string identity is accepted only in local development mode.
     """
     principal = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
     if principal:
         return principal
-    if _allow_anonymous_local_dev():
+    if _allow_local_dev_request(request):
         return request.query_params.get("user_email") or None
     return None
 
@@ -100,7 +143,7 @@ def _resolve_user_email(request: Request) -> str | None:
 def _require_history_user_email(request: Request) -> str | None:
     """Require authenticated identity for persisted history/result access."""
     user_email = _resolve_user_email(request)
-    if user_email or _allow_anonymous_local_dev():
+    if user_email or _allow_local_dev_request(request):
         return user_email
     raise HTTPException(status_code=401, detail="Authenticated user identity is required")
 
@@ -533,15 +576,39 @@ async def stream_events(run_id: str):
     )
 
 
+def _active_result_for_user(run_id: str, user_email: str | None) -> dict | None:
+    """Return an in-memory run result if the authenticated user can access it."""
+    store = _store()
+    run_state = store.get(run_id)
+    user_dir = _safe_user_dir(user_email) if user_email else ""
+    if run_state and (_is_super_user(user_email) or run_state.user_dir == user_dir):
+        return run_state.result
+    return None
+
+
+def _final_document_from_snapshot(snapshot: dict) -> str:
+    """Return the latest persisted document content from a session snapshot."""
+    for document in reversed(snapshot.get("documents", [])):
+        if isinstance(document, dict) and isinstance(document.get("content"), str):
+            return document["content"]
+    return ""
+
+
+def _post_run_submissions_from_snapshot(snapshot: dict) -> list[dict]:
+    """Return persisted post-run action submissions from a session snapshot."""
+    post_run_actions = snapshot.get("post_run_actions")
+    if not isinstance(post_run_actions, dict):
+        return []
+    submissions = post_run_actions.get("submissions")
+    return submissions if isinstance(submissions, list) else []
+
+
 @app.get("/api/result/{run_id}")
 async def get_result(run_id: str, request: Request):
     """Get the final result for a completed run."""
     _validate_run_id(run_id)
     user_email = _require_history_user_email(request)
-    user_dir = _safe_user_dir(user_email) if user_email else ""
-    store = _store()
-    run_state = store.get(run_id)
-    result = run_state.result if run_state and (_is_super_user(user_email) or run_state.user_dir == user_dir) else None
+    result = _active_result_for_user(run_id, user_email)
     if result is not None:
         return result
 
@@ -553,13 +620,117 @@ async def get_result(run_id: str, request: Request):
     if not result_text:
         raise HTTPException(status_code=404, detail="Result not ready")
 
-    final_document = ""
-    for document in reversed(snapshot.get("documents", [])):
-        if isinstance(document, dict) and isinstance(document.get("content"), str):
-            final_document = document["content"]
-            break
+    return {"result": result_text, "document": _final_document_from_snapshot(snapshot)}
 
-    return {"result": result_text, "document": final_document}
+
+@app.get("/api/post-run-actions/{run_id}", response_model=PostRunActionsResponse)
+async def get_post_run_actions(run_id: str, request: Request):
+    """Return suggested post-run actions for a completed run."""
+    _validate_run_id(run_id)
+    user_email = _require_history_user_email(request)
+    location = await _load_saved_session_location_for_user(run_id, user_email)
+
+    if location is not None:
+        _user_dir, snapshot = location
+        result_text = snapshot.get("result", "")
+        if not result_text:
+            raise HTTPException(status_code=409, detail="Result not ready")
+        return build_post_run_actions_response(
+            run_id=run_id,
+            query=snapshot.get("query", ""),
+            result=result_text,
+            document=_final_document_from_snapshot(snapshot),
+            recipient_email=user_email or "local-dev@example.local",
+            submissions=_post_run_submissions_from_snapshot(snapshot),
+        )
+
+    result = _active_result_for_user(run_id, user_email)
+    if result is not None:
+        result_text = result.get("result", "")
+        if not result_text:
+            raise HTTPException(status_code=409, detail="Result not ready")
+        return build_post_run_actions_response(
+            run_id=run_id,
+            query="",
+            result=result_text,
+            document=result.get("document", ""),
+            recipient_email=user_email or "local-dev@example.local",
+            submissions=[],
+        )
+
+    raise HTTPException(status_code=404, detail="Run not found")
+
+
+@app.post("/api/post-run-actions/{run_id}", response_model=ExecutePostRunActionResponse)
+async def execute_post_run_action(
+    run_id: str,
+    req: ExecutePostRunActionRequest,
+    request: Request,
+):
+    """Execute a mocked post-run action and persist the success state."""
+    _validate_run_id(run_id)
+    user_email = _require_history_user_email(request)
+    if req.action_type not in SUPPORTED_ACTION_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported post-run action type")
+    action_type = req.normalized_action_type
+    if not isinstance(req.payload, dict):
+        raise HTTPException(status_code=400, detail="Action payload must be a JSON object")
+
+    try:
+        payload = validate_action_payload(action_type, req.payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    location = await _load_saved_session_location_for_user(run_id, user_email)
+    if location is None:
+        if _active_result_for_user(run_id, user_email) is not None:
+            raise HTTPException(status_code=409, detail="Result snapshot not ready")
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    user_dir, snapshot = location
+    if not snapshot.get("result"):
+        raise HTTPException(status_code=409, detail="Result not ready")
+
+    if action_type == "send_email":
+        payload["recipient"] = user_email or "local-dev@example.local"
+
+    submission = create_mock_action_submission(
+        action_type=action_type,
+        payload=payload,
+        run_id=run_id,
+        submitted_by=user_email,
+    )
+
+    post_run_actions = snapshot.setdefault("post_run_actions", {})
+    if not isinstance(post_run_actions, dict):
+        post_run_actions = {}
+        snapshot["post_run_actions"] = post_run_actions
+    submissions = post_run_actions.setdefault("submissions", [])
+    if not isinstance(submissions, list):
+        submissions = []
+        post_run_actions["submissions"] = submissions
+    submissions.append(submission)
+    snapshot["updated_at"] = datetime.now().isoformat()
+
+    await get_history_store().save_session(user_dir, run_id, snapshot)
+
+    logger.info(
+        "POST-RUN ACTION run=%s type=%s reference=%s user=%s status=success",
+        run_id,
+        action_type,
+        submission["reference_id"],
+        user_email or "local-dev",
+    )
+
+    return ExecutePostRunActionResponse(
+        success=True,
+        run_id=run_id,
+        action_type=action_type,
+        submission_id=submission["submission_id"],
+        reference_id=submission["reference_id"],
+        message=submission["message"],
+        submitted_at=submission["submitted_at"],
+    )
 
 
 # ── Sandbox file serving ──────────────────────────────────────
@@ -803,16 +974,26 @@ async def _persist_session_snapshot(
                 logger.debug("Skipped blob file save for %s", filename)
 
 
-async def _load_saved_session_for_user(run_id: str, user_email: str | None) -> dict | None:
-    """Load a persisted session snapshot scoped to the authenticated user."""
+async def _load_saved_session_location_for_user(
+    run_id: str,
+    user_email: str | None,
+) -> tuple[str, dict] | None:
+    """Load a persisted session snapshot and user directory scoped to the user."""
     history = get_history_store()
 
     if _is_super_user(user_email):
         result = await history.find_session_any_user(run_id)
-        return result[1] if result else None
+        return result if result else None
 
     user_dir = _safe_user_dir(user_email) if user_email else ""
-    return await history.get_session(user_dir, run_id)
+    snapshot = await history.get_session(user_dir, run_id)
+    return (user_dir, snapshot) if snapshot is not None else None
+
+
+async def _load_saved_session_for_user(run_id: str, user_email: str | None) -> dict | None:
+    """Load a persisted session snapshot scoped to the authenticated user."""
+    location = await _load_saved_session_location_for_user(run_id, user_email)
+    return location[1] if location else None
 
 
 def _get_output_dir() -> str:

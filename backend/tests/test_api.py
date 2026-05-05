@@ -72,6 +72,7 @@ class _StubHistoryStore:
         if snapshot is not None:
             self.sessions.setdefault("user@example.com", {})["run-123"] = snapshot
         self.deleted: list[tuple[str, str]] = []
+        self.saved: list[tuple[str, str, dict]] = []
 
     async def list_sessions(self, user_dir: str | None, include_user: bool = False) -> list[dict]:
         sessions = self.sessions.get(user_dir or "", {})
@@ -108,6 +109,10 @@ class _StubHistoryStore:
 
     async def get_session(self, user_dir: str, run_id: str) -> dict | None:
         return self.sessions.get(user_dir, {}).get(run_id)
+
+    async def save_session(self, user_dir: str, run_id: str, snapshot: dict) -> None:
+        self.sessions.setdefault(user_dir, {})[run_id] = snapshot
+        self.saved.append((user_dir, run_id, snapshot))
 
     async def delete_session(self, user_dir: str, run_id: str) -> bool:
         if run_id not in self.sessions.get(user_dir, {}):
@@ -227,6 +232,48 @@ def test_anonymous_history_requires_explicit_local_dev_flag(monkeypatch):
     assert response.json()[0]["run_id"] == "run-123"
 
 
+def test_dev_proxy_marker_allows_local_anonymous_history(monkeypatch):
+    """The Next.js dev proxy can unlock root local history without changing Azure auth."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+    monkeypatch.delenv("NODE_ENV", raising=False)
+
+    with TestClient(app) as client:
+        response = client.get("/api/history", headers={"X-MAF-LOCAL-DEV": "1"})
+
+    assert response.status_code == 200
+    assert response.json()[0]["run_id"] == "run-123"
+
+
+def test_loopback_request_allows_local_anonymous_history(monkeypatch):
+    """Direct FastAPI calls from localhost should work during local development."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+    monkeypatch.delenv("NODE_ENV", raising=False)
+
+    with TestClient(app, base_url="http://127.0.0.1:8000", client=("127.0.0.1", 50000)) as client:
+        response = client.get("/api/history")
+
+    assert response.status_code == 200
+    assert response.json()[0]["run_id"] == "run-123"
+
+
+def test_dev_proxy_marker_is_ignored_in_production(monkeypatch):
+    """A spoofed local marker must not bypass auth in Azure/production mode."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore())
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+    monkeypatch.setenv("NODE_ENV", "production")
+
+    with TestClient(app) as client:
+        response = client.get("/api/history", headers={"X-MAF-LOCAL-DEV": "1"})
+
+    assert response.status_code == 401
+
+
 def test_invalid_run_ids_are_rejected_before_history_lookup(monkeypatch):
     """History/result/delete endpoints should reject unsafe run IDs."""
     monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore())
@@ -263,6 +310,137 @@ def test_active_result_is_scoped_to_run_owner(monkeypatch):
     assert wrong_user.status_code == 404
     assert owner.status_code == 200
     assert owner.json()["result"] == "live result"
+
+
+def _completed_action_snapshot() -> dict:
+    result = "\n".join([
+        "# COMP-001 maintenance brief",
+        "",
+        "## Health status",
+        "COMP-001 is showing a medium-high severity abnormal condition.",
+        "",
+        "## Likely cause",
+        "The most likely cause is cooler performance degradation.",
+        "",
+        "## Recommended next maintenance action",
+        "Inspect the cooler path and recycle valve before the next sustained high-load cycle.",
+    ])
+    return {
+        "run_id": "run-123",
+        "user_email": "user@example.com",
+        "query": "Assess COMP-001 health.",
+        "status": "done",
+        "result": result,
+        "documents": [{"version": "final", "content": result, "action": "final"}],
+    }
+
+
+def test_post_run_actions_require_identity(monkeypatch):
+    """Post-run actions should use the same fail-closed identity gate as history."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore(_completed_action_snapshot()))
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        get_response = client.get("/api/post-run-actions/run-123")
+        post_response = client.post(
+            "/api/post-run-actions/run-123",
+            json={"action_type": "send_email", "payload": {"subject": "s", "body": "b"}},
+        )
+
+    assert get_response.status_code == 401
+    assert post_response.status_code == 401
+
+
+def test_post_run_actions_return_deterministic_drafts(monkeypatch):
+    """Completed run output should produce all three ordered post-run actions."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore(_completed_action_snapshot()))
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/post-run-actions/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["result_title"] == "COMP-001 maintenance brief"
+    assert [action["type"] for action in payload["actions"]] == [
+        "schedule_maintenance",
+        "create_support_ticket",
+        "send_email",
+    ]
+    maintenance = payload["actions"][0]
+    assert maintenance["priority"] == "urgent"
+    assert maintenance["draft"]["asset_id"] == "COMP-001"
+    assert maintenance["draft"]["priority"] == "Urgent"
+    assert "Inspect the cooler path" in maintenance["draft"]["summary"]
+    ticket = payload["actions"][1]
+    assert ticket["draft"]["priority"] == "High"
+    assert "Assess COMP-001 health." in ticket["draft"]["description"]
+    email = payload["actions"][2]
+    assert email["draft"]["recipient"] == "user@example.com"
+
+
+def test_post_run_action_persists_mock_submission(monkeypatch):
+    """Executing a mocked action should persist success state into the snapshot."""
+    store = _StubHistoryStore(_completed_action_snapshot())
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        post_response = client.post(
+            "/api/post-run-actions/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+            json={
+                "action_type": "schedule_maintenance",
+                "payload": {
+                    "asset_id": "COMP-001",
+                    "priority": "Urgent",
+                    "requested_timing": "Immediate / next available maintenance window",
+                    "summary": "Inspect cooler path.",
+                },
+            },
+        )
+        get_response = client.get(
+            "/api/post-run-actions/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+        )
+
+    assert post_response.status_code == 200
+    post_payload = post_response.json()
+    assert post_payload["success"] is True
+    assert post_payload["reference_id"].startswith("MNT-")
+    assert store.saved
+    saved_snapshot = store.sessions["user@example.com"]["run-123"]
+    submissions = saved_snapshot["post_run_actions"]["submissions"]
+    assert submissions[0]["action_type"] == "schedule_maintenance"
+    assert submissions[0]["submitted_by"] == "user@example.com"
+
+    assert get_response.status_code == 200
+    maintenance = get_response.json()["actions"][0]
+    assert maintenance["latest_submission"]["reference_id"] == post_payload["reference_id"]
+
+
+def test_post_run_action_rejects_invalid_payloads(monkeypatch):
+    """Unsupported action types and malformed payloads should return 400."""
+    monkeypatch.setattr("src.api.get_history_store", lambda: _StubHistoryStore(_completed_action_snapshot()))
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        unsupported = client.post(
+            "/api/post-run-actions/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+            json={"action_type": "unknown", "payload": {}},
+        )
+        missing = client.post(
+            "/api/post-run-actions/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+            json={"action_type": "send_email", "payload": {"subject": "Only subject"}},
+        )
+
+    assert unsupported.status_code == 400
+    assert missing.status_code == 400
 
 
 def test_files_endpoint_serves_stored_file_keys(tmp_path, monkeypatch):
