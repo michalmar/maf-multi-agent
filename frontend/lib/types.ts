@@ -76,6 +76,51 @@ export interface TokenUsage {
   by_source: Record<string, SourceTokenUsage>;
 }
 
+export type PostRunActionType =
+  | "send_email"
+  | "create_support_ticket"
+  | "schedule_maintenance";
+
+export type PostRunActionPriority = "normal" | "high" | "urgent";
+
+export interface PostRunActionSubmission {
+  submission_id: string;
+  action_type: PostRunActionType;
+  reference_id: string;
+  status: "success";
+  message: string;
+  submitted_at: string;
+  payload?: Record<string, unknown>;
+  submitted_by?: string | null;
+}
+
+export interface PostRunAction {
+  type: PostRunActionType;
+  label: string;
+  description: string;
+  priority: PostRunActionPriority;
+  enabled: boolean;
+  draft: Record<string, unknown>;
+  latest_submission?: PostRunActionSubmission | null;
+}
+
+export interface PostRunActionsResponse {
+  run_id: string;
+  status: "ready";
+  result_title: string;
+  actions: PostRunAction[];
+}
+
+export interface ExecutePostRunActionResponse {
+  success: boolean;
+  run_id: string;
+  action_type: PostRunActionType;
+  submission_id: string;
+  reference_id: string;
+  message: string;
+  submitted_at: string;
+}
+
 export interface EventData {
   // workflow_started
   query?: string;
@@ -161,4 +206,7 @@ export interface SessionSnapshot {
   result: string;
   stream_label: string;
   token_usage?: TokenUsage;
+  post_run_actions?: {
+    submissions?: PostRunActionSubmission[];
+  };
 }

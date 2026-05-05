@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { forwardAuthHeaders, validatePathSegments, validateRunId } from "./proxy-helpers";
 
 describe("proxy helpers", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("rejects invalid run IDs", () => {
     expect(validateRunId("20260427-abc_123")).toBeNull();
     expect(validateRunId("../secret")?.status).toBe(400);
@@ -28,5 +32,17 @@ describe("proxy helpers", () => {
     expect(forwardAuthHeaders(request)).toEqual({
       "X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com",
     });
+  });
+
+  it("adds a development-only local auth marker when Easy Auth is absent", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const localRequest = new NextRequest("http://localhost:3000/api/history");
+    expect(forwardAuthHeaders(localRequest)).toEqual({
+      "X-MAF-LOCAL-DEV": "1",
+    });
+
+    vi.stubEnv("NODE_ENV", "production");
+    const prodRequest = new NextRequest("https://example.test/api/history");
+    expect(forwardAuthHeaders(prodRequest)).toEqual({});
   });
 });

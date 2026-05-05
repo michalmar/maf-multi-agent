@@ -6,8 +6,10 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ActivityFeed } from "@/components/activity-feed";
+import { PostRunActions } from "@/components/post-run-actions";
 import { TaskBoard } from "@/components/task-board";
-import { AgentEvent, DocumentVersion, RunStatus, TaskItem, WorkspaceTab } from "@/lib/types";
+import type { ToastLevel } from "@/components/toast";
+import { AgentEvent, DocumentVersion, RunSource, RunStatus, TaskItem, WorkspaceTab } from "@/lib/types";
 
 /* ── Custom ReactMarkdown renderers ───────────────── */
 
@@ -80,11 +82,13 @@ interface WorkspacePanelsProps {
   highlightedTask: number | null;
   result: string;
   running: boolean;
+  runSource: RunSource;
   status: RunStatus;
   onTabChange: (tab: WorkspaceTab) => void;
   runId?: string | null;
   tasks: TaskItem[];
   onSelectTask: (taskId: number | null) => void;
+  onNotify?: (message: string, level: ToastLevel) => void;
 }
 
 interface DiffLine {
@@ -145,11 +149,13 @@ export function WorkspacePanels({
   highlightedTask,
   result,
   running,
+  runSource,
   status,
   onTabChange,
   runId,
   tasks,
   onSelectTask,
+  onNotify,
 }: WorkspacePanelsProps) {
   const [selectedDocumentIndex, setSelectedDocumentIndex] = useState<number | null>(null);
   const [showDiff, setShowDiff] = useState(false);
@@ -360,11 +366,20 @@ export function WorkspacePanels({
             </div>
 
             {result ? (
-               <div className="workspace-surface px-6 py-6">
-                 <div className="prose-report max-w-none">
-                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{result}</ReactMarkdown>
-                 </div>
-              </div>
+              <>
+                <div className="workspace-surface px-6 py-6">
+                  <div className="prose-report max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{result}</ReactMarkdown>
+                  </div>
+                </div>
+                <PostRunActions
+                  result={result}
+                  runId={runId}
+                  runSource={runSource}
+                  status={status}
+                  onNotify={onNotify}
+                />
+              </>
             ) : (
               <div className="workspace-empty">The markdown result will render here after the output event arrives.</div>
             )}

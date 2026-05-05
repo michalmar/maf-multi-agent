@@ -1040,8 +1040,10 @@ export function PlannerShell() {
               events={events}
               highlightedTask={highlightedTask}
               onTabChange={setActiveTab}
+              onNotify={addToast}
               result={result}
               running={status === "running"}
+              runSource={runSource}
               status={status}
               runId={runId}
               tasks={tasks}

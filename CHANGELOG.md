@@ -3,6 +3,12 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-05-05] — Post-Run Actions
+
+### Added
+- **Recommended next actions** — Completed results now show mocked follow-up actions for sending an email, creating a support ticket, and scheduling asset maintenance.
+- **Action review flow** — Users can review or edit prefilled action drafts before submitting, then see success status and reference IDs in the result pane.
+
 ## [2026-04-27] — Quality & Documentation Cleanup
 
 ### Added
