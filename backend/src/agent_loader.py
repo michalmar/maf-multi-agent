@@ -71,6 +71,7 @@ class AgentDefinition:
     mcp_url_env: str = ""
     mcp_tool_name: str = ""
     mcp_auth: McpAuthConfig | None = None
+    dispatch_instructions: str = ""
 
 
 def parse_agent_yaml(path: Path) -> AgentDefinition:
@@ -124,6 +125,7 @@ def parse_agent_yaml(path: Path) -> AgentDefinition:
         mcp_url_env=data.get("mcp_url_env", ""),
         mcp_tool_name=data.get("mcp_tool_name", ""),
         mcp_auth=mcp_auth,
+        dispatch_instructions=data.get("dispatch_instructions", "").strip(),
     )
 
 

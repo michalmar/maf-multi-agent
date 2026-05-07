@@ -18,6 +18,18 @@ task_description: >
   A detailed data analysis request including the data source, specific
   questions to answer, metrics to compute, and desired output format.
 
+dispatch_instructions: >
+  For COMP-001 telemetry, use lakehouse table mylake1.sensor.
+  Filter sensor rows with EquipmentID equal to the exact string literal
+  'COMP-001'. Use Timestamp as the timestamp column. Use Temperature_C,
+  Vibration_mm_s, Pressure_bar, and RunningHours as metric columns.
+  Run simple separate queries instead of one complex combined query:
+  row count, timestamp range, metric aggregates, threshold counts, and
+  recent-window summaries. If one query fails, return the exact
+  validation/query error and continue with the remaining simpler queries
+  when possible. Do not state that telemetry cannot be retrieved unless
+  a concrete query fails.
+
 mcp_url_env: FABRIC_DATA_AGENT_MCP_URL
 mcp_tool_name: fabric-data-agent
 mcp_auth:
