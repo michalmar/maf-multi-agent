@@ -65,6 +65,18 @@ variable "fabric_data_agent_mcp_url" {
   default     = ""
 }
 
+variable "enable_fabric_mcp_debug_logging" {
+  description = "Enable verbose Fabric MCP JSON-RPC diagnostics in Container App logs. Redacts bearer tokens but logs bounded request/response body previews."
+  type        = bool
+  default     = false
+}
+
+variable "fabric_mcp_log_body_limit" {
+  description = "Maximum characters to log for each Fabric MCP request/response body preview when debug logging is enabled."
+  type        = number
+  default     = 4000
+}
+
 variable "fabric_capacity_resource_id" {
   description = "Full ARM resource ID of the Fabric capacity (for status checks). Leave empty to disable."
   type        = string

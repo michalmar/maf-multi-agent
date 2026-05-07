@@ -82,6 +82,8 @@ FABRIC_DATA_AGENT_MCP_URL=https://api.fabric.microsoft.com/v1/mcp/workspaces/<id
 
 Authentication uses **ACA Easy Auth** — the entire app is gated behind Entra ID login. Easy Auth injects user tokens into request headers, which the backend uses for Fabric API calls. Service principals and managed identities are rejected by Fabric at the data layer.
 
+For deep MCP troubleshooting, set `FABRIC_MCP_DEBUG=true` to log bounded JSON-RPC request/response body previews with bearer tokens redacted. Use `FABRIC_MCP_LOG_BODY_LIMIT` to change the preview size (default: `4000` chars). In Terraform deployments, set `enable_fabric_mcp_debug_logging = true` and optionally `fabric_mcp_log_body_limit`.
+
 **Setup (automated via Terraform):**
 Set `enable_easy_auth = true` and `enable_fabric_data_agent = true` in `terraform.tfvars`, then run `terraform apply`. This creates the Entra app registration, client secret, admin consent grants, token store, and ACA auth config automatically.
 

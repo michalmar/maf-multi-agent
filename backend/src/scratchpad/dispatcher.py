@@ -20,6 +20,13 @@ from src.scratchpad.shared_document import SharedDocument
 logger = logging.getLogger(__name__)
 
 
+def _truncate(text: object, max_len: int = 2_000) -> str:
+    value = text if isinstance(text, str) else str(text)
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + f"... ({len(value)} chars total)"
+
+
 class DispatchInput(BaseModel):
     task_ids: str = Field(description="JSON array of task ID integers to assign to this specialist, e.g. '[1, 2]'")
     message: str = Field(description="Short natural-language instruction for the specialist. Keep it brief — reference task IDs, the task details are on the TaskBoard.")
@@ -54,12 +61,34 @@ def _make_dispatch_func(
 
         logger.info("═" * 60)
         logger.info("📤 DISPATCH: %s (tasks: %s)", display, ids)
-        logger.info("💬 Message: %s", message)
+        logger.info(
+            "💬 Dispatch args       │ task_ids_raw=%s parsed=%s message_len=%d message=%s",
+            task_ids,
+            ids,
+            len(message),
+            _truncate(message),
+        )
+        logger.info(
+            "🧭 Dispatch target     │ agent=%s type=%s user_token=%s",
+            agent_def.name,
+            agent_def.agent_type,
+            "present" if user_token else "absent",
+        )
         logger.info("═" * 60)
 
         # Read assigned tasks to build context for the Foundry agent
         tasks = taskboard.read_tasks(ids)
+        found_ids = {t.id for t in tasks}
+        missing_ids = [task_id for task_id in ids if task_id not in found_ids]
+        if missing_ids:
+            logger.warning("⚠️ TaskBoard missing requested task IDs for %s: %s", display, missing_ids)
         task_context = "\n".join(f"- Task {t.id}: {t.text}" for t in tasks)
+        logger.info(
+            "📋 TaskBoard context   │ found=%d missing=%s context=%s",
+            len(tasks),
+            missing_ids or "none",
+            _truncate(task_context),
+        )
 
         # Build the full prompt for the Foundry agent
         full_prompt = f"""{message}
@@ -68,6 +97,12 @@ Your assigned tasks:
 {task_context}
 
 Please provide detailed recommendations for each task. Be specific with names, prices, times, and practical details."""
+        logger.info(
+            "🧵 Specialist prompt   │ agent=%s len=%d preview=%s",
+            agent_def.name,
+            len(full_prompt),
+            _truncate(full_prompt, 4_000),
+        )
 
         # Call the agent in a worker thread so the event loop stays free
         config = get_config()
@@ -75,6 +110,13 @@ Please provide detailed recommendations for each task. Be specific with names, p
         try:
             if agent_def.agent_type == "mcp":
                 auth = agent_def.mcp_auth
+                logger.info(
+                    "📡 MCP dispatch call   │ agent=%s tool=%s auth_mode=%s scope=%s",
+                    agent_def.name,
+                    agent_def.mcp_tool_name,
+                    "user_token" if user_token else auth.type,
+                    auth.scope,
+                )
                 response = await asyncio.to_thread(
                     run_fabric_mcp,
                     mcp_url_env=agent_def.mcp_url_env,
@@ -90,6 +132,11 @@ Please provide detailed recommendations for each task. Be specific with names, p
                     user_token=user_token,
                 )
             else:
+                logger.info(
+                    "📡 Foundry dispatch    │ agent=%s foundry_agent=%s",
+                    agent_def.name,
+                    agent_def.foundry_agent_name,
+                )
                 response = await asyncio.to_thread(
                     run_foundry_agent,
                     project_endpoint=config.project_endpoint,
@@ -109,6 +156,12 @@ Please provide detailed recommendations for each task. Be specific with names, p
             return f"Error: specialist {display} failed: {e}"
 
         elapsed = time.perf_counter() - t0
+        logger.info(
+            "📥 Specialist response │ agent=%s len=%d preview=%s",
+            agent_def.name,
+            len(response),
+            _truncate(response, 4_000),
+        )
 
         # Write response to the SharedDocument
         document.write_section(
@@ -127,6 +180,7 @@ Please provide detailed recommendations for each task. Be specific with names, p
 
         logger.info("═" * 60)
         logger.info("📥 %s → FACILITATOR (%.1fs)", display, elapsed)
+        logger.info("📝 Shared document    │ version=%d", document.version)
         logger.info("═" * 60)
 
         # Return summary to facilitator

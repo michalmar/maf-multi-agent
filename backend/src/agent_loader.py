@@ -30,6 +30,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 
 
+def _truncate(text: object, max_len: int = 2_000) -> str:
+    value = text if isinstance(text, str) else str(text)
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + f"... ({len(value)} chars total)"
+
+
 @dataclass(frozen=True)
 class McpAuthConfig:
     """Authentication configuration for MCP agents.
@@ -167,10 +174,17 @@ def _make_mcp_tool_func(agent_def: AgentDefinition):
         logger.info("═" * 60)
         logger.info("🔧 TOOL INVOKED: %s (MCP)", _agent_def.name)
         logger.info("📋 ORCHESTRATOR → %s", display)
-        logger.info("📝 Task: %s", task)
+        logger.info("📝 Task len=%d preview=%s", len(task), _truncate(task, 4_000))
         logger.info("═" * 60)
 
         auth = _agent_def.mcp_auth
+        logger.info(
+            "📡 MCP tool config: url_env=%s tool=%s auth_mode=%s scope=%s",
+            _agent_def.mcp_url_env,
+            _agent_def.mcp_tool_name,
+            auth.type,
+            auth.scope,
+        )
         t0 = time.perf_counter()
         result = run_fabric_mcp(
             mcp_url_env=_agent_def.mcp_url_env,
@@ -187,6 +201,7 @@ def _make_mcp_tool_func(agent_def: AgentDefinition):
         logger.info("═" * 60)
         logger.info("📋 %s → ORCHESTRATOR  (%.1fs)", display, elapsed)
         logger.info("📄 Response length: %d chars", len(result))
+        logger.info("📄 Response preview: %s", _truncate(result, 4_000))
         logger.info("═" * 60)
         return result
 
