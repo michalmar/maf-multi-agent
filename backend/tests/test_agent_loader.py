@@ -65,6 +65,24 @@ def test_parse_agent_yaml(tmp_path):
     assert agent_def.name == "my_tool"
     assert agent_def.display_name == "My Agent"
     assert agent_def.foundry_agent_name == "my-agent-v1"
+    assert agent_def.dispatch_instructions == ""
+
+
+def test_parse_agent_yaml_dispatch_instructions(tmp_path):
+    """Optional dispatch instructions are loaded from YAML."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text(yaml.dump({
+        "name": "my_tool",
+        "display_name": "My Agent",
+        "description": "Does something.",
+        "task_description": "Task details.",
+        "foundry_agent_name": "my-agent-v1",
+        "dispatch_instructions": " Use source table foo.bar. ",
+    }))
+
+    agent_def = parse_agent_yaml(yaml_file)
+
+    assert agent_def.dispatch_instructions == "Use source table foo.bar."
 
 
 def test_parse_agent_yaml_missing_keys(tmp_path):

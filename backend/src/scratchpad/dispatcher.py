@@ -32,6 +32,24 @@ class DispatchInput(BaseModel):
     message: str = Field(description="Short natural-language instruction for the specialist. Keep it brief — reference task IDs, the task details are on the TaskBoard.")
 
 
+def _build_specialist_prompt(message: str, task_context: str, dispatch_instructions: str = "") -> str:
+    prompt = f"""{message}
+
+Your assigned tasks:
+{task_context}"""
+
+    if dispatch_instructions:
+        prompt += f"""
+
+Specialist-specific instructions:
+{dispatch_instructions.strip()}"""
+
+    prompt += """
+
+Please complete the assigned task with concrete evidence, source names, and any limitations. If data cannot be retrieved, explain the exact error or limitation."""
+    return prompt
+
+
 def _make_dispatch_func(
     agent_def: AgentDefinition,
     taskboard: TaskBoard,
@@ -90,13 +108,12 @@ def _make_dispatch_func(
             _truncate(task_context),
         )
 
-        # Build the full prompt for the Foundry agent
-        full_prompt = f"""{message}
-
-Your assigned tasks:
-{task_context}
-
-Please provide detailed recommendations for each task. Be specific with names, prices, times, and practical details."""
+        # Build the full prompt for the specialist agent
+        full_prompt = _build_specialist_prompt(
+            message=message,
+            task_context=task_context,
+            dispatch_instructions=agent_def.dispatch_instructions,
+        )
         logger.info(
             "🧵 Specialist prompt   │ agent=%s len=%d preview=%s",
             agent_def.name,
