@@ -24,6 +24,7 @@ AGENT_ICONS = {
     "flights_tool": "✈️ ",
     "hotels_tool": "🏨",
     "orchestrator": "🤖",
+    "data_analyst_tool": "📊",
     "websearch_tool": "🔍"
 }
 

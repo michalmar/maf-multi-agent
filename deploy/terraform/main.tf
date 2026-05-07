@@ -584,6 +584,22 @@ resource "azurerm_container_app" "main" {
         }
       }
 
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent && var.enable_fabric_mcp_debug_logging ? [1] : []
+        content {
+          name  = "FABRIC_MCP_DEBUG"
+          value = "true"
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.enable_fabric_data_agent && var.enable_fabric_mcp_debug_logging ? [1] : []
+        content {
+          name  = "FABRIC_MCP_LOG_BODY_LIMIT"
+          value = tostring(var.fabric_mcp_log_body_limit)
+        }
+      }
+
       # Super-user who can view all users' history — only injected when configured
       dynamic "env" {
         for_each = var.super_user_email != "" ? [1] : []

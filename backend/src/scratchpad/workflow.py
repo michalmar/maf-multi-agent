@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 
+def _truncate(text: object, max_len: int = 2_000) -> str:
+    value = text if isinstance(text, str) else str(text)
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + f"... ({len(value)} chars total)"
+
+
 def _build_facilitator_prompt(dispatch_tools, has_mail_tools: bool = False, user_email: str = "") -> str:
     """Render the facilitator system prompt from Jinja2 template."""
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), keep_trailing_newline=True)
@@ -61,6 +68,15 @@ async def run_scratchpad_workflow(
     Returns a tuple of (facilitator's final response text, shared document markdown).
     """
     config = get_config()
+    logger.info(
+        "🎯 Workflow input      │ query_len=%d selected_agents=%s reasoning=%s user_token=%s user_email=%s query=%s",
+        len(query),
+        selected_agents or "all",
+        reasoning_effort or "none",
+        "present" if user_token else "absent",
+        user_email or "absent",
+        _truncate(query, 4_000),
+    )
 
     # Create summary service for enriching events with LLM-generated summaries
     summary_service = SummaryService()
@@ -90,14 +106,20 @@ async def run_scratchpad_workflow(
 
     # Build tools
     facilitator_tools = FacilitatorTools(taskboard, document)
+    facilitator_tool_list = facilitator_tools.get_tools()
     dispatch_tools = create_dispatch_tools(
         taskboard, document, agents_dir,
         event_callback=event_callback,
         selected_agents=selected_agents,
         user_token=user_token,
     )
+    logger.info(
+        "🧰 Workflow tools      │ dispatch_tools=%s total_before_mail=%d",
+        [tool.name for tool in dispatch_tools],
+        len(facilitator_tool_list) + len(dispatch_tools),
+    )
 
-    all_tools = facilitator_tools.get_tools() + dispatch_tools
+    all_tools = facilitator_tool_list + dispatch_tools
 
     # Add mail tools if configured (MAIL_SENDER_ADDRESS set + user email available)
     has_mail_tools = False
@@ -119,6 +141,11 @@ async def run_scratchpad_workflow(
         dispatch_tools,
         has_mail_tools=has_mail_tools,
         user_email=user_email or "",
+    )
+    logger.info(
+        "📜 Facilitator prompt │ len=%d preview=%s",
+        len(facilitator_prompt),
+        _truncate(facilitator_prompt, 2_000),
     )
 
     # Create the Facilitator agent

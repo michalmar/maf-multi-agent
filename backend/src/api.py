@@ -89,6 +89,13 @@ def _safe_user_dir(email: str) -> str:
     return _SAFE_EMAIL_RE.sub("_", email.lower().strip())
 
 
+def _truncate_for_log(text: object, max_len: int = 4_000) -> str:
+    value = text if isinstance(text, str) else str(text)
+    if len(value) <= max_len:
+        return value
+    return value[:max_len] + f"... ({len(value)} chars total)"
+
+
 def _allow_anonymous_local_dev() -> bool:
     """Return whether unauthenticated local-dev fallbacks are explicitly enabled."""
     return get_config().allow_anonymous_local_dev
@@ -388,7 +395,16 @@ async def start_run(req: RunRequest, request: Request):
     else:
         user_email = None
 
-    logger.info("🚀 RUN %s | user_token=%s | user_email=%s", run_id, token_source, user_email or "absent")
+    logger.info(
+        "🚀 RUN %s | user_token=%s | user_email=%s | selected_agents=%s | reasoning=%s | query_len=%d | query=%s",
+        run_id,
+        token_source,
+        user_email or "absent",
+        req.selected_agents or "all",
+        req.reasoning_effort or "none",
+        len(req.query),
+        _truncate_for_log(req.query),
+    )
     store = _store()
     user_dir = _safe_user_dir(user_email) if user_email else ""
     run_state = store.create(run_id, user_dir=user_dir)
@@ -471,6 +487,12 @@ async def _run_workflow(
             reasoning_effort=reasoning_effort,
             user_token=user_token,
             user_email=user_email,
+        )
+        logger.info(
+            "✅ RUN %s workflow returned | result_len=%d document_len=%d",
+            run_id,
+            len(result_text or ""),
+            len(document_md or ""),
         )
 
         # Copy sandbox files into local run folder (for disk-based markdown)
