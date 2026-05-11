@@ -3,6 +3,12 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-05-11] — Member User Onboarding
+
+### Changed
+- **User onboarding script** — `deploy/add_user.sh` now creates or invites missing users as Entra ID Members, enforces `userType=Member` for existing users, and fills missing name fields from the email address before assigning groups.
+- **Batch onboarding support** — `deploy/add_user.sh` now accepts `--display-name`, making it easier to process files that contain `Display Name <email>` entries.
+
 ## [2026-05-05] — Post-Run Actions
 
 ### Added
