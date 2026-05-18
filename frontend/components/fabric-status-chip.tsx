@@ -16,14 +16,14 @@ export function FabricStatusChip({ status, onResume }: FabricStatusChipProps) {
   const isPaused = state === "Paused" || state === "Suspended";
   const isTransitioning = ["Resuming", "Provisioning", "Scaling", "Preparing"].includes(state);
 
-  const color = isActive ? "#22c55e" : isPaused ? "#ef4444" : isTransitioning ? "#f59e0b" : "#8a8f98";
+  const color = isActive ? "#3fb950" : isPaused ? "#f85149" : isTransitioning ? "#d29922" : "#8b949e";
   const bg = isActive
-    ? "rgba(34,197,94,0.12)"
+    ? "rgba(63,185,80,0.14)"
     : isPaused
-      ? "rgba(239,68,68,0.12)"
+      ? "rgba(248,81,73,0.14)"
       : isTransitioning
-        ? "rgba(245,158,11,0.12)"
-        : "rgba(138,143,152,0.12)";
+        ? "rgba(210,153,34,0.14)"
+        : "rgba(139,148,158,0.14)";
 
   const label = isActive ? "Active" : state;
   const title = `Fabric capacity: ${label}${status.name ? ` · ${status.name}` : ""}${status.sku ? ` · ${status.sku}` : ""}`;
@@ -47,7 +47,7 @@ export function FabricStatusChip({ status, onResume }: FabricStatusChipProps) {
             onResume();
           }}
           className="fabric-chip-resume"
-          style={{ color: "#22c55e", background: "rgba(34,197,94,0.18)" }}
+          style={{ color: "#3fb950", background: "rgba(63,185,80,0.18)" }}
           title="Resume Fabric capacity"
           aria-label="Resume Fabric capacity"
         >

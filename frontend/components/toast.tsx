@@ -56,8 +56,8 @@ export function useToast() {
 /* ── Component ─────────────────────────────────────── */
 
 const LEVEL_STYLES: Record<ToastLevel, { icon: typeof Info; color: string; bg: string }> = {
-  success: { icon: CheckCircle2, color: "var(--success, #0f9f7c)", bg: "rgba(15,159,124,0.10)" },
-  error: { icon: AlertTriangle, color: "var(--danger, #d14343)", bg: "rgba(209,67,67,0.10)" },
+  success: { icon: CheckCircle2, color: "var(--success)", bg: "color-mix(in srgb, var(--success) 12%, var(--bg-panel))" },
+  error: { icon: AlertTriangle, color: "var(--danger)", bg: "color-mix(in srgb, var(--danger) 12%, var(--bg-panel))" },
   info: { icon: Info, color: "var(--accent)", bg: "var(--accent-soft)" },
 };
 

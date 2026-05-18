@@ -127,9 +127,7 @@ export function AgentRosterGraph({
             </span>
           )}
           {doneCount > 0 && workingCount === 0 && (
-            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--success)]"
-              style={{ background: "rgba(16, 185, 129, 0.1)" }}
-            >
+            <span className="rounded-full bg-[color:var(--surface-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--success)]">
               {doneCount} done
             </span>
           )}

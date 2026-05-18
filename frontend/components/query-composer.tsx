@@ -79,7 +79,7 @@ export function QueryComposer({
         ) : null}
 
         {isCondensed ? (
-          <div className="rounded-[10px] border border-[var(--border-soft)] bg-[var(--surface-elevated)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
+          <div className="rounded-md border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2.5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]">Task brief saved</p>
