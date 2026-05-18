@@ -318,9 +318,9 @@ export function WorkspacePanels({
                         style={{
                           background:
                             line.type === "add"
-                              ? "rgba(133, 212, 174, 0.10)"
+                              ? "color-mix(in srgb, var(--success) 12%, transparent)"
                               : line.type === "remove"
-                                ? "rgba(243, 139, 139, 0.10)"
+                                ? "color-mix(in srgb, var(--danger) 12%, transparent)"
                                 : "transparent",
                         }}
                       >
