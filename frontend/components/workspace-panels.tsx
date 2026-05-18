@@ -1,17 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Children, isValidElement, useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, FileText, GitCompare, ListTodo, Radio, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ActivityFeed } from "@/components/activity-feed";
+import { NativeChartArtifact, chartLinkTitle, isNativeChartLink } from "@/components/native-chart-artifact";
 import { PostRunActions } from "@/components/post-run-actions";
 import { TaskBoard } from "@/components/task-board";
 import type { ToastLevel } from "@/components/toast";
 import { AgentEvent, DocumentVersion, RunSource, RunStatus, TaskItem, WorkspaceTab } from "@/lib/types";
 
 /* ── Custom ReactMarkdown renderers ───────────────── */
+
+function plainTextFromChildren(children: React.ReactNode): string {
+  return Children.toArray(children)
+    .map((child) => {
+      if (typeof child === "string" || typeof child === "number") return String(child);
+      if (isValidElement<{ children?: React.ReactNode }>(child)) return plainTextFromChildren(child.props.children);
+      return "";
+    })
+    .join("");
+}
 
 function SandboxImage({ src, alt, ...rest }: React.ImgHTMLAttributes<HTMLImageElement>) {
   const [expanded, setExpanded] = useState(false);
@@ -72,6 +83,17 @@ function SandboxImage({ src, alt, ...rest }: React.ImgHTMLAttributes<HTMLImageEl
 
 const markdownComponents: Components = {
   img: (props) => <SandboxImage {...props} />,
+  a: ({ href, children, ...props }) => {
+    const label = plainTextFromChildren(children);
+    if (href && isNativeChartLink(label, href)) {
+      return <NativeChartArtifact href={href} title={chartLinkTitle(label)} />;
+    }
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
 };
 
 interface WorkspacePanelsProps {

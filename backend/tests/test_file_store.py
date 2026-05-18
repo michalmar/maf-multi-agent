@@ -56,3 +56,23 @@ def test_disk_fallback_resolves_persisted_unique_key(tmp_path, monkeypatch):
     file_store._reset_for_tests()
 
     assert file_store.get_file(file_key) == (b"chart", "image/png")
+
+
+def test_native_chart_artifact_links_remain_markdown_links(tmp_path, monkeypatch):
+    """Native chart JSON artifacts should be served like files, not converted to images."""
+    monkeypatch.setattr(file_store, "_PERSIST_DIR", tmp_path)
+    file_store._reset_for_tests()
+
+    file_store.store_file(
+        "sandbox:/mnt/data/vibration.mafchart.json",
+        b'{"version":1,"renderer":"maf-native","type":"bar","data":[]}',
+        "application/json",
+    )
+
+    rewritten = file_store.rewrite_sandbox_urls(
+        "[chart:Vibration trend](sandbox:/mnt/data/vibration.mafchart.json)"
+    )
+
+    assert rewritten.startswith("[chart:Vibration trend](/api/files/")
+    assert rewritten.endswith("vibration.mafchart.json)")
+    assert not rewritten.startswith("![")
