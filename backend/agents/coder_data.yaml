@@ -10,7 +10,7 @@ model: gpt-5.2 (Foundry)
 description: >
   Delegate data analysis, coding, or code execution tasks to the coder specialist agent.
   Performs higher-level data analysis (anomaly detection, complex trend correlation, etc.)
-  and generates charts as inline images for the shared document.
+  and generates browser-rendered native chart artifacts for the shared document.
   Use this tool when you need to write, review, debug, or execute code, generate scripts,
   create visualizations, or solve technical problems. The agent has access to all needed data.
 
@@ -18,8 +18,17 @@ task_description: >
   A detailed coding or data analysis request. Include the programming language,
   desired functionality, input/output expectations, and any constraints.
   IMPORTANT: When requesting charts or visualizations, specify that the agent must
-  save them as PNG files and embed them inline using markdown image syntax
-  (e.g., ![Chart](sandbox:/mnt/data/chart.png)). All charts must be rendered
-  as actual images, never described in text only.
+  save each chart as a JSON file ending in .mafchart.json and link it using
+  markdown chart link syntax (e.g., [chart:Vibration trend](sandbox:/mnt/data/vibration_trend.mafchart.json)).
+  Charts must use the maf-native renderer and only supported chart types.
+
+dispatch_instructions: >
+  For every chart or visualization, create a browser-rendered native chart artifact instead of a PNG.
+  Save each chart spec to /mnt/data with a .mafchart.json filename, then link it in the response as
+  [chart:Readable chart title](sandbox:/mnt/data/file_name.mafchart.json). The JSON must be valid,
+  self-contained, and use {"version": 1, "renderer": "maf-native", "type": "..."}.
+  Supported types only: bar, horizontal_bar, stacked_bar, line, timeseries, multi_timeseries,
+  scatter, and correlation_matrix. Do not emit matplotlib/seaborn/plotly images unless explicitly
+  asked for a static fallback. Aggregate or downsample large time-series before embedding data.
 
 foundry_agent_name: CoderData

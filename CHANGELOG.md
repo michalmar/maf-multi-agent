@@ -3,6 +3,15 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-05-18] — Native Agent Charts
+
+### Added
+- **Browser-rendered chart artifacts** — Coder Data Agent visualizations can now render as native frontend charts from `.mafchart.json` sandbox artifacts instead of static PNG images.
+- **Expanded chart types** — The workspace supports native bar, horizontal bar, stacked bar, line/time-series, multi-panel time-series, scatter, and correlation matrix charts.
+
+### Changed
+- **Chart-aware orchestration** — The facilitator preserves native chart artifact links during consolidation and final answer generation.
+
 ## [2026-05-11] — Member User Onboarding
 
 ### Changed
