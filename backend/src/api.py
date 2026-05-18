@@ -303,6 +303,7 @@ class _RunSnapshotWriter:
 @app.get("/api/agents")
 async def get_agents():
     """Return available agent definitions with avatar and role metadata."""
+    config = get_config()
     # Always include the orchestrator as a built-in agent
     agents = [
         {
@@ -310,7 +311,7 @@ async def get_agents():
             "display_name": "Orchestrator",
             "avatar": "🤖",
             "role": "Facilitator & Coordinator",
-            "model": "gpt-5.1",
+            "model": f"{config.azure_openai_chat_deployment_name} (Foundry)",
             "description": "Coordinates all specialist agents, plans tasks, and synthesizes results.",
         }
     ]

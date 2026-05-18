@@ -91,7 +91,7 @@ export function AgentRoster({
               type="button"
               onClick={() => onSelectAgent(isActive ? null : agent.name)}
               className={`sidebar-avatar-btn ${isActive ? "sidebar-avatar-btn-active" : ""} ${statusAnimationClass(status)} ${!isEnabled ? "opacity-35" : ""}`}
-              title={`${identity.displayName} — ${statusTone.label}${!isEnabled ? " (disabled)" : ""}`}
+              title={`${identity.displayName}${identity.model ? ` · ${identity.model}` : ""} — ${statusTone.label}${!isEnabled ? " (disabled)" : ""}`}
             >
               <span className="sidebar-agent-avatar">
                 <identity.icon className="h-4 w-4" strokeWidth={1.75} />
@@ -163,13 +163,20 @@ export function AgentRoster({
                 type="button"
                 onClick={() => onSelectAgent(isActive ? null : agent.name)}
                 className={`sidebar-agent-row flex-1 ${isActive ? "sidebar-agent-row-active" : ""} ${statusAnimationClass(status)}`}
-                title={`${identity.displayName} — ${statusTone.label}`}
+                title={`${identity.displayName}${identity.model ? ` · ${identity.model}` : ""} — ${statusTone.label}`}
               >
                 <span className="sidebar-agent-avatar">
                   <identity.icon className="h-4 w-4" strokeWidth={1.75} />
                 </span>
-                <span className="truncate text-[0.8rem] font-medium text-[var(--text-primary)] flex-1 text-left">
-                  {identity.displayName}
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[0.8rem] font-medium text-[var(--text-primary)]">
+                    {identity.displayName}
+                  </span>
+                  {identity.model ? (
+                    <span className="sidebar-agent-model-badge" title={`${identity.displayName} model: ${identity.model}`}>
+                      {identity.model}
+                    </span>
+                  ) : null}
                 </span>
               </button>
               {!isOrchestrator ? (
