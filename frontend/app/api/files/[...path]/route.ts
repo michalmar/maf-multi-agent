@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
@@ -21,7 +21,14 @@ export async function GET(
   const pathError = validatePathSegments(path);
   if (pathError) return pathError;
 
-  const fileKey = path.map(encodeURIComponent).join("/");
+  // Preserve the original encoded suffix so historical URLs like
+  // /api/files/%2Fmnt%2Fdata%2Fplot.png are not double-encoded to %252F...
+  const pathname = request.nextUrl.pathname;
+  const marker = "/api/files/";
+  const rawFileKey = pathname.includes(marker)
+    ? pathname.slice(pathname.indexOf(marker) + marker.length)
+    : "";
+  const fileKey = rawFileKey || path.map(encodeURIComponent).join("/");
   const url = `${BACKEND}/api/files/${fileKey}`;
 
   const { response, error } = await safeFetch(url, undefined, 60_000);

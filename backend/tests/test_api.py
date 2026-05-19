@@ -73,6 +73,7 @@ class _StubHistoryStore:
             self.sessions.setdefault("user@example.com", {})["run-123"] = snapshot
         self.deleted: list[tuple[str, str]] = []
         self.saved: list[tuple[str, str, dict]] = []
+        self.files: dict[tuple[str, str, str], bytes] = {}
 
     async def list_sessions(self, user_dir: str | None, include_user: bool = False) -> list[dict]:
         sessions = self.sessions.get(user_dir or "", {})
@@ -114,6 +115,9 @@ class _StubHistoryStore:
         self.sessions.setdefault(user_dir, {})[run_id] = snapshot
         self.saved.append((user_dir, run_id, snapshot))
 
+    async def save_file(self, user_dir: str, run_id: str, filename: str, data: bytes) -> None:
+        self.files[(user_dir, run_id, filename)] = data
+
     async def delete_session(self, user_dir: str, run_id: str) -> bool:
         if run_id not in self.sessions.get(user_dir, {}):
             return False
@@ -126,6 +130,9 @@ class _StubHistoryStore:
             if run_id in sessions:
                 return user_dir, sessions[run_id]
         return None
+
+    async def get_file(self, user_dir: str, run_id: str, filename: str) -> bytes | None:
+        return self.files.get((user_dir, run_id, filename))
 
 
 class _StubConfig:
@@ -191,6 +198,59 @@ def test_history_access_is_scoped_to_authenticated_user(monkeypatch):
     assert wrong_user.status_code == 404
     assert owner.status_code == 200
     assert owner.json()["result"] == "Saved"
+
+
+def test_history_replay_rewrites_artifact_urls_to_run_scoped_files(monkeypatch):
+    """Saved snapshots should use run-scoped artifact URLs so old PNGs replay after restart."""
+    snapshot = {
+        "run_id": "run-123",
+        "result": "![Chart](/api/files/%2Fmnt%2Fdata%2Fchart.png)",
+        "documents": [
+            {"version": "final", "content": "![Doc](/api/files/chart.png)", "action": "final"},
+        ],
+        "events": [
+            {
+                "event_type": "document_updated",
+                "source": "document",
+                "data": {"content": "![Event](/api/files/chart.png)"},
+                "timestamp": 1.0,
+            }
+        ],
+    }
+    store = _StubHistoryStore(sessions={"user@example.com": {"run-123": snapshot}})
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/history/run-123",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["result"] == "![Chart](/api/history/run-123/files/%2Fmnt%2Fdata%2Fchart.png)"
+    assert payload["documents"][0]["content"] == "![Doc](/api/history/run-123/files/chart.png)"
+    assert payload["events"][0]["data"]["content"] == "![Event](/api/history/run-123/files/chart.png)"
+
+
+def test_history_file_endpoint_serves_saved_artifact(monkeypatch):
+    """Run-scoped history files should be served from persisted history storage."""
+    snapshot = {"run_id": "run-123", "result": "Saved", "documents": []}
+    store = _StubHistoryStore(sessions={"user@example.com": {"run-123": snapshot}})
+    store.files[("user@example.com", "run-123", "chart.png")] = b"png-bytes"
+    monkeypatch.setattr("src.api.get_history_store", lambda: store)
+    monkeypatch.setattr("src.api.get_config", lambda: _StubConfig())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/history/run-123/files/%2Fmnt%2Fdata%2Fchart.png",
+            headers={"X-MS-CLIENT-PRINCIPAL-NAME": "user@example.com"},
+        )
+
+    assert response.status_code == 200
+    assert response.content == b"png-bytes"
+    assert response.headers["content-type"] == "image/png"
 
 
 def test_super_user_can_access_and_delete_cross_user_history(monkeypatch):
