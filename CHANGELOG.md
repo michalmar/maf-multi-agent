@@ -12,6 +12,9 @@ Update this file with every merge/commit to the main branch.
 ### Changed
 - **Chart-aware orchestration** — The facilitator preserves native chart artifact links during consolidation and final answer generation.
 
+### Fixed
+- **History chart replay** — Previously saved PNG-based sessions now load chart images from run-scoped history artifacts, preventing broken image links after replay or redeploy.
+
 ## [2026-05-11] — Member User Onboarding
 
 ### Changed

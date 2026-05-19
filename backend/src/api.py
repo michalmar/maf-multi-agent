@@ -38,6 +38,7 @@ from src.file_store import (
     copy_run_files,
     get_all_files,
     get_file,
+    guess_content_type,
     rewrite_sandbox_urls,
     rewrite_sandbox_urls_for_disk,
 )
@@ -617,6 +618,63 @@ def _final_document_from_snapshot(snapshot: dict) -> str:
     return ""
 
 
+_API_FILES_URL_RE = re.compile(r"/api/files/([^\s)\]]+)")
+
+
+def _rewrite_history_file_urls_in_text(text: str, run_id: str) -> str:
+    """Rewrite generic artifact URLs to run-scoped history file URLs.
+
+    Persisted history can outlive the in-memory/global sandbox file cache. The
+    run-scoped endpoint can retrieve files from the specific saved run folder or
+    Blob prefix, so old PNG-only sessions keep rendering after restart/redeploy.
+    """
+    if not text or "/api/files/" not in text:
+        return text
+    return _API_FILES_URL_RE.sub(f"/api/history/{run_id}/files/\\1", text)
+
+
+def _rewrite_history_file_urls(snapshot: dict, run_id: str) -> dict:
+    """Return a snapshot copy whose markdown artifact links are run-scoped."""
+    rewritten = dict(snapshot)
+
+    result = rewritten.get("result")
+    if isinstance(result, str):
+        rewritten["result"] = _rewrite_history_file_urls_in_text(result, run_id)
+
+    documents = []
+    for document in rewritten.get("documents", []):
+        if not isinstance(document, dict):
+            documents.append(document)
+            continue
+        doc_copy = dict(document)
+        content = doc_copy.get("content")
+        if isinstance(content, str):
+            doc_copy["content"] = _rewrite_history_file_urls_in_text(content, run_id)
+        documents.append(doc_copy)
+    if documents:
+        rewritten["documents"] = documents
+
+    events = []
+    for event in rewritten.get("events", []):
+        if not isinstance(event, dict):
+            events.append(event)
+            continue
+        event_copy = dict(event)
+        data = event_copy.get("data")
+        if isinstance(data, dict):
+            data_copy = dict(data)
+            for key in ("text", "result", "content", "document"):
+                value = data_copy.get(key)
+                if isinstance(value, str):
+                    data_copy[key] = _rewrite_history_file_urls_in_text(value, run_id)
+            event_copy["data"] = data_copy
+        events.append(event_copy)
+    if events:
+        rewritten["events"] = events
+
+    return rewritten
+
+
 def _post_run_submissions_from_snapshot(snapshot: dict) -> list[dict]:
     """Return persisted post-run action submissions from a session snapshot."""
     post_run_actions = snapshot.get("post_run_actions")
@@ -643,7 +701,11 @@ async def get_result(run_id: str, request: Request):
     if not result_text:
         raise HTTPException(status_code=404, detail="Result not ready")
 
-    return {"result": result_text, "document": _final_document_from_snapshot(snapshot)}
+    rewritten_snapshot = _rewrite_history_file_urls(snapshot, run_id)
+    return {
+        "result": rewritten_snapshot.get("result", ""),
+        "document": _final_document_from_snapshot(rewritten_snapshot),
+    }
 
 
 @app.get("/api/post-run-actions/{run_id}", response_model=PostRunActionsResponse)
@@ -1053,7 +1115,56 @@ async def get_history_session(run_id: str, request: Request):
     snap = await _load_saved_session_for_user(run_id, _require_history_user_email(request))
     if snap is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    return snap
+    return _rewrite_history_file_urls(snap, run_id)
+
+
+@app.get("/api/history/{run_id}/files/{file_key:path}")
+async def get_history_file(run_id: str, file_key: str, request: Request):
+    """Serve a sandbox artifact from a persisted run's files folder/blob prefix."""
+    import urllib.parse
+
+    _validate_run_id(run_id)
+    user_email = _require_history_user_email(request)
+    location = await _load_saved_session_location_for_user(run_id, user_email)
+    if location is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    user_dir, _snapshot = location
+    decoded_key = urllib.parse.unquote(file_key)
+    # Some historical snapshots contain already-encoded /mnt/data paths. Decode
+    # twice at most so both /api/files/%2Fmnt... and double-proxied %252Fmnt...
+    # links resolve to the same saved basename.
+    if "%" in decoded_key:
+        decoded_key = urllib.parse.unquote(decoded_key)
+    filename = os.path.basename(decoded_key)
+    if not filename or filename in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    data = await get_history_store().get_file(user_dir, run_id, filename)
+    if data is None:
+        # Fallback for local/dev sessions where files are still available in the
+        # legacy global sandbox cache or output/*/files scan path.
+        entry = get_file(decoded_key) or get_file(filename)
+        if entry is not None:
+            data, content_type = entry
+            return Response(
+                content=data,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "private, max-age=3600",
+                    "Content-Disposition": "inline",
+                },
+            )
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return Response(
+        content=data,
+        media_type=guess_content_type(filename),
+        headers={
+            "Cache-Control": "private, max-age=3600",
+            "Content-Disposition": "inline",
+        },
+    )
 
 
 @app.delete("/api/history/{run_id}")
