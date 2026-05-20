@@ -2,7 +2,7 @@
 
 import base64
 import json
-import queue
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,61 +10,71 @@ from src.events import EventType
 from src.fabric_mcp_client import (
     FabricMcpError,
     _decode_jwt_claims,
-    _extract_text_from_mcp_payload,
-    _parse_mcp_call_response,
+    _parse_mcp_tool_result,
     _redact_headers,
     _sanitize_url,
+    run_fabric_mcp,
 )
 
 
-def test_extract_text_from_all_mcp_content_items():
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "result": {
-            "content": [
-                {"type": "text", "text": "first section"},
-                {"type": "text", "text": "second section"},
-            ],
-        },
-    }
+def test_parse_mcp_tool_result_extracts_all_text_items():
+    result = SimpleNamespace(content=[
+        SimpleNamespace(type="text", text="first section"),
+        SimpleNamespace(type="text", text="second section"),
+    ])
 
-    assert _extract_text_from_mcp_payload(payload) == "first section\nsecond section"
+    assert _parse_mcp_tool_result(result) == "first section\nsecond section"
 
 
-def test_parse_sse_call_response_emits_stream_event():
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "result": {"content": [{"type": "text", "text": "analysis output"}]},
-    }
-    events = queue.Queue()
-    result = _parse_mcp_call_response(
-        f"event: message\ndata: {json.dumps(payload)}\n\n",
-        event_queue=events,
+def test_parse_mcp_tool_result_returns_structured_content_json():
+    result = SimpleNamespace(content=[], structuredContent={"answer": 42})
+
+    assert _parse_mcp_tool_result(result) == '{"answer": 42}'
+
+
+def test_run_fabric_mcp_uses_user_token_and_emits_lifecycle_events(monkeypatch):
+    events = []
+    captured = {}
+
+    async def fake_call(mcp_url, tool_name, task, token):
+        captured.update({"mcp_url": mcp_url, "tool_name": tool_name, "task": task, "token": token})
+        return "analysis output"
+
+    monkeypatch.setenv("FABRIC_DATA_AGENT_MCP_URL", "https://fabric.example/mcp")
+    monkeypatch.setattr("src.fabric_mcp_client._call_mcp_async", fake_call)
+
+    result = run_fabric_mcp(
+        mcp_url_env="FABRIC_DATA_AGENT_MCP_URL",
+        mcp_tool_name="fabric-data-agent",
+        task="Analyze telemetry",
+        event_callback=events.append,
         source_name="data_analyst_tool",
+        user_token="header.eyJhdWQiOiAiZmFicmljIn0.signature",
     )
 
-    event = events.get_nowait()
     assert result == "analysis output"
-    assert event.event_type == EventType.AGENT_STREAMING
-    assert event.source == "data_analyst_tool"
-    assert event.data == {"delta": "analysis output"}
-
-
-def test_parse_plain_text_response_falls_back_to_raw_text():
-    assert _parse_mcp_call_response("plain response") == "plain response"
-
-
-def test_json_rpc_error_raises_fabric_mcp_error():
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "error": {"code": -32000, "message": "data source failed"},
+    assert captured == {
+        "mcp_url": "https://fabric.example/mcp",
+        "tool_name": "fabric-data-agent",
+        "task": "Analyze telemetry",
+        "token": "header.eyJhdWQiOiAiZmFicmljIn0.signature",
     }
+    assert [event.event_type for event in events] == [
+        EventType.AGENT_STARTED,
+        EventType.AGENT_STREAMING,
+        EventType.AGENT_COMPLETED,
+    ]
+    assert events[1].data == {"delta": "analysis output"}
 
-    with pytest.raises(FabricMcpError, match="data source failed"):
-        _extract_text_from_mcp_payload(payload)
+
+def test_run_fabric_mcp_wraps_missing_url_as_fabric_error():
+    with pytest.raises(FabricMcpError, match="Required environment variable"):
+        run_fabric_mcp(
+            mcp_url_env="MISSING_MCP_URL",
+            mcp_tool_name="fabric-data-agent",
+            task="Analyze telemetry",
+            user_token="token",
+        )
 
 
 def test_redact_headers_hides_bearer_token():
