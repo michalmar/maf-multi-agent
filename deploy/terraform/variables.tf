@@ -51,6 +51,12 @@ variable "ai_services_resource_id" {
   default     = ""
 }
 
+variable "ai_foundry_project_resource_id" {
+  description = "Full resource ID of the Azure AI Foundry project (for project-level RBAC needed by Foundry telemetry). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
 # ── Fabric Data Agent ─────────────────────────────────────────
 
 variable "enable_fabric_data_agent" {
@@ -168,6 +174,12 @@ variable "history_retention_days" {
 
 variable "enable_instrumentation" {
   description = "Enable Azure Monitor / OpenTelemetry instrumentation. Disabled by default to avoid telemetry cost and privacy review surprises."
+  type        = bool
+  default     = false
+}
+
+variable "enable_live_metrics" {
+  description = "Enable Azure Monitor Live Metrics / QuickPulse exporter. Disabled by default because it can be noisy in restricted networks."
   type        = bool
   default     = false
 }

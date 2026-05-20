@@ -8,6 +8,7 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 
 # Optional: full resource ID for automatic RBAC assignment
 # ai_services_resource_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>"
+# ai_foundry_project_resource_id = "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<name>/projects/<project>"
 
 # ── Fabric Data Agent ──────────────────────────────────────────
 # enable_fabric_data_agent  = true
@@ -73,3 +74,4 @@ azure_openai_summary_deployment_name = "gpt-4.1-nano"
 # implications for prompts, traces, logs, and tool metadata.
 #
 # enable_instrumentation = true
+# enable_live_metrics    = false

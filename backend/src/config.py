@@ -22,6 +22,7 @@ class Config(BaseSettings):
     history_storage_account_url: str = ""  # Blob Storage URL for persistent history (empty = local filesystem)
     allow_anonymous_local_dev: bool = False  # Allow unauthenticated local history access (dev only)
     enable_instrumentation: bool = False  # Enable Azure Monitor / OpenTelemetry instrumentation
+    enable_live_metrics: bool = False  # Enable Azure Monitor Live Metrics / QuickPulse exporter
 
     model_config = {"env_file": ".env", "case_sensitive": False}
 

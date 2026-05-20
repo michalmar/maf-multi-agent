@@ -202,7 +202,7 @@ For UI tuning without running the full backend flow, use the **Load mock replay*
 - Enable Easy Auth for shared environments and onboard users through the App-Users/Data-Users groups.
 - Use the Azure Storage Terraform backend and keep local `terraform.tfstate*`, `terraform.tfvars`, and plan outputs out of Git.
 - Set `enable_history_storage = true` for durable run history across ACA restarts and deployments.
-- Keep `ENABLE_INSTRUMENTATION=false` unless telemetry cost and privacy requirements have been reviewed.
+- Keep `ENABLE_INSTRUMENTATION=false` unless telemetry cost and privacy requirements have been reviewed; keep `ENABLE_LIVE_METRICS=false` unless Live Metrics/QuickPulse is explicitly needed.
 - Grant only the required Azure RBAC and Graph permissions to the managed identity.
 - Run backend tests, frontend tests, frontend build, and `terraform fmt -check` before deploying.
 

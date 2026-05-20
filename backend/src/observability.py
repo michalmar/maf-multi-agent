@@ -40,7 +40,8 @@ async def setup_observability() -> None:
 
     from src.config import get_config
 
-    if not get_config().enable_instrumentation:
+    config = get_config()
+    if not config.enable_instrumentation:
         logger.info("Observability disabled. Set ENABLE_INSTRUMENTATION=true to enable telemetry.")
         _initialized = True
         return
@@ -51,7 +52,11 @@ async def setup_observability() -> None:
     # Try Foundry-native setup first
     if project_endpoint:
         try:
-            success = await _setup_foundry_monitor(project_endpoint, enable_sensitive)
+            success = await _setup_foundry_monitor(
+                project_endpoint,
+                enable_sensitive,
+                enable_live_metrics=config.enable_live_metrics,
+            )
             if success:
                 _initialized = True
                 return
@@ -65,7 +70,12 @@ async def setup_observability() -> None:
     _initialized = True
 
 
-async def _setup_foundry_monitor(project_endpoint: str, enable_sensitive: bool) -> bool:
+async def _setup_foundry_monitor(
+    project_endpoint: str,
+    enable_sensitive: bool,
+    *,
+    enable_live_metrics: bool = False,
+) -> bool:
     """Configure Azure Monitor using the Foundry project's linked App Insights.
 
     Returns True on success, False if the required packages are not available.
@@ -79,7 +89,7 @@ async def _setup_foundry_monitor(project_endpoint: str, enable_sensitive: bool) 
         AIProjectClient(endpoint=project_endpoint, credential=credential) as project_client,
         AzureAIClient(project_client=project_client) as client,
     ):
-        await client.configure_azure_monitor(enable_live_metrics=True)
+        await client.configure_azure_monitor(enable_live_metrics=enable_live_metrics)
 
     # Activate MAF instrumentation code paths
     from agent_framework.observability import enable_instrumentation
@@ -87,6 +97,8 @@ async def _setup_foundry_monitor(project_endpoint: str, enable_sensitive: bool) 
 
     logger.info("✅ Observability configured via Azure AI Foundry (Application Insights)")
     logger.info("   Traces, metrics, and logs will be sent to the project's linked App Insights")
+    if enable_live_metrics:
+        logger.info("   Live Metrics / QuickPulse exporter is ENABLED")
     if enable_sensitive:
         logger.info("   ⚠️  Sensitive data logging is ENABLED (prompts, responses, tool args)")
     return True
