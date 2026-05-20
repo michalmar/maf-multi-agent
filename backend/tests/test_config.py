@@ -19,6 +19,7 @@ def test_config_loads_defaults():
         assert config.mail_enabled is False
         assert config.allow_anonymous_local_dev is False
         assert config.enable_instrumentation is False
+        assert config.enable_live_metrics is False
 
 
 def test_config_reads_env_vars():
@@ -30,6 +31,7 @@ def test_config_reads_env_vars():
         "MAIL_SENDER_ADDRESS": "admin@test.com",
         "ALLOW_ANONYMOUS_LOCAL_DEV": "true",
         "ENABLE_INSTRUMENTATION": "true",
+        "ENABLE_LIVE_METRICS": "true",
     }
     with patch.dict(os.environ, env, clear=True):
         from src.config import Config
@@ -42,6 +44,7 @@ def test_config_reads_env_vars():
         assert config.mail_enabled is True
         assert config.allow_anonymous_local_dev is True
         assert config.enable_instrumentation is True
+        assert config.enable_live_metrics is True
 
 
 def test_config_mail_disabled_when_empty():

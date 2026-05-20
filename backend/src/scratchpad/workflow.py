@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from src.config import get_config
 from src.events import AgentEvent, EventCallback, EventType
-from src.orchestrator import attach_reasoning_logger
+from src.orchestrator import create_orchestrator_trace_middlewares
 from src.scratchpad.taskboard import TaskBoard
 from src.scratchpad.shared_document import SharedDocument
 from src.scratchpad.facilitator_tools import FacilitatorTools
@@ -153,9 +153,8 @@ async def run_scratchpad_workflow(
         credential=DefaultAzureCredential(),
         project_endpoint=config.project_endpoint,
         deployment_name=config.azure_openai_chat_deployment_name,
+        middleware=create_orchestrator_trace_middlewares(event_callback=event_callback),
     )
-
-    attach_reasoning_logger(client, event_callback=event_callback)
 
     logger.info(f"Using Azure OpenAI deployment: {config.azure_openai_chat_deployment_name}")
 

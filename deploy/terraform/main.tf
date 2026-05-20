@@ -155,7 +155,23 @@ resource "azurerm_role_assignment" "acr_pull" {
 resource "azurerm_role_assignment" "ai_developer" {
   count                = var.ai_services_resource_id != "" ? 1 : 0
   scope                = var.ai_services_resource_id
-  role_definition_name = "Azure AI User"
+  role_definition_name = "Azure AI Developer"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+resource "azurerm_role_assignment" "cognitive_services_user" {
+  count                = var.ai_services_resource_id != "" ? 1 : 0
+  scope                = var.ai_services_resource_id
+  role_definition_name = "Cognitive Services User"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
+}
+
+# Foundry-native observability reads the project's App Insights connection with
+# credentials through the project data plane, which requires project-level RBAC.
+resource "azurerm_role_assignment" "foundry_project_ai_administrator" {
+  count                = var.ai_foundry_project_resource_id != "" ? 1 : 0
+  scope                = var.ai_foundry_project_resource_id
+  role_definition_name = "Azure AI Administrator"
   principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
@@ -564,6 +580,10 @@ resource "azurerm_container_app" "main" {
       env {
         name  = "ENABLE_INSTRUMENTATION"
         value = tostring(var.enable_instrumentation)
+      }
+      env {
+        name  = "ENABLE_LIVE_METRICS"
+        value = tostring(var.enable_live_metrics)
       }
 
       # Fabric capacity status check (optional)

@@ -15,6 +15,7 @@ import os
 import re
 
 import httpx
+from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -42,6 +43,13 @@ def _parse_resource_id(resource_id: str) -> dict:
     return match.groupdict()
 
 
+async def _get_arm_access_token() -> str:
+    """Acquire an ARM bearer token for Fabric capacity management."""
+    async with DefaultAzureCredential() as credential:
+        token = await credential.get_token(ARM_SCOPE)
+    return token.token
+
+
 async def get_fabric_capacity_status() -> dict:
     """Query the ARM API for the current Fabric capacity state.
 
@@ -63,11 +71,18 @@ async def get_fabric_capacity_status() -> dict:
         f"?api-version={ARM_API_VERSION}"
     )
 
-    async with DefaultAzureCredential() as credential:
-        token = await credential.get_token(ARM_SCOPE)
+    try:
+        token = await _get_arm_access_token()
+    except ClientAuthenticationError as e:
+        logger.warning("Fabric capacity status auth unavailable: %s", e)
+        return {
+            "enabled": True,
+            "state": "Unknown",
+            "error": "Azure authentication unavailable for Fabric capacity status",
+        }
 
     headers = {
-        "Authorization": f"Bearer {token.token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
@@ -125,11 +140,14 @@ async def resume_fabric_capacity() -> dict:
         f"?api-version={ARM_API_VERSION}"
     )
 
-    async with DefaultAzureCredential() as credential:
-        token = await credential.get_token(ARM_SCOPE)
+    try:
+        token = await _get_arm_access_token()
+    except ClientAuthenticationError as e:
+        logger.warning("Fabric capacity resume auth unavailable: %s", e)
+        return {"success": False, "error": "Azure authentication unavailable for Fabric capacity resume"}
 
     headers = {
-        "Authorization": f"Bearer {token.token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
