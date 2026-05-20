@@ -1,4 +1,7 @@
-"""AgentDispatcher — creates dispatch tools that invoke Foundry specialist agents."""
+"""AgentDispatcher — creates dispatch tools that invoke specialist agents.
+
+See docs/CONTRACT-specialist.md for the dispatch contract.
+"""
 
 import asyncio
 import json
