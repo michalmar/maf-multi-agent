@@ -11,7 +11,7 @@ import time
 from typing import Optional
 
 from agent_framework import ChatMiddleware, FunctionMiddleware
-from agent_framework.azure import AzureOpenAIResponsesClient
+from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential
 
 from src.agent_loader import generate_orchestrator_instructions, load_agents
@@ -221,11 +221,11 @@ def create_orchestrator(
     if project_endpoint:
         kwargs["project_endpoint"] = project_endpoint
     if deployment_name:
-        kwargs["deployment_name"] = deployment_name
+        kwargs["model"] = deployment_name
 
     logger.info("Creating Azure OpenAI client for orchestrator with kwargs: %s", kwargs)
 
-    client = AzureOpenAIResponsesClient(
+    client = FoundryChatClient(
         credential=DefaultAzureCredential(),
         middleware=create_orchestrator_trace_middlewares(),
         **kwargs,

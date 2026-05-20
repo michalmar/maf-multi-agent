@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from agent_framework.azure import AzureOpenAIResponsesClient
+from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential
 from jinja2 import Environment, FileSystemLoader
 
@@ -149,10 +149,10 @@ async def run_scratchpad_workflow(
     )
 
     # Create the Facilitator agent
-    client = AzureOpenAIResponsesClient(
+    client = FoundryChatClient(
         credential=DefaultAzureCredential(),
         project_endpoint=config.project_endpoint,
-        deployment_name=config.azure_openai_chat_deployment_name,
+        model=config.azure_openai_chat_deployment_name,
         middleware=create_orchestrator_trace_middlewares(event_callback=event_callback),
     )
 
