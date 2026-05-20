@@ -3,6 +3,8 @@
 All layers (orchestrator, dispatcher, foundry sub-agents) emit AgentEvent
 instances through a callback or async queue. This enables real-time
 visibility into the entire orchestration process.
+
+See docs/CONTRACT-events.md for the public event envelope and data contract.
 """
 
 import time

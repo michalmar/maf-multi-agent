@@ -1,6 +1,6 @@
 # AGENTS.md — MAF Multi-Agent Architecture
 
-> Auto-generated from the current implementation. Last updated: 2026-04-04.
+> Auto-generated from the current implementation. Last updated: 2026-05-20.
 
 ---
 
@@ -32,6 +32,7 @@ This project implements a **multi-agent orchestration system** using the [Micros
 - **Scratchpad Pattern**: Agents communicate via a shared `TaskBoard` (task tracking) and `SharedDocument` (collaborative writing) rather than direct message passing.
 - **Facilitator Orchestration**: A central facilitator agent plans, dispatches tasks to specialists, reviews their contributions, consolidates the shared document, and synthesizes a final answer.
 - **Event Streaming**: All agent activity is emitted as `AgentEvent` objects via SSE for real-time frontend display.
+- **Runtime Contracts**: The dispatch, specialist, and event contracts are documented in `docs/CONTRACT-orchestrator.md`, `docs/CONTRACT-specialist.md`, and `docs/CONTRACT-events.md`.
 
 ---
 
@@ -39,7 +40,7 @@ This project implements a **multi-agent orchestration system** using the [Micros
 
 | Property | Value |
 |----------|-------|
-| **Type** | MAF `ChatAgent` via `AzureOpenAIResponsesClient` |
+| **Type** | MAF `ChatAgent` via `FoundryChatClient` |
 | **Model** | Configurable via `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` env var |
 | **Reasoning** | Configurable effort: `high`, `medium`, `low`, or `none` (UI-selectable) |
 | **Prompt template** | `src/templates/facilitator_prompt.jinja2` |
@@ -90,7 +91,7 @@ Invoked via the Azure AI Foundry Responses API (conversations). Each call:
 **Client:** `src/foundry_client.py` → `run_foundry_agent()`
 
 #### Fabric MCP Agents
-Invoked via direct HTTP calls to the Fabric Data Agent MCP endpoint using JSON-RPC protocol. Fabric Data Agent **requires user identity tokens** — service principal and managed identity tokens are rejected at the data query layer.
+Invoked through MAF's Streamable HTTP MCP transport with a thin wrapper for Fabric-specific user-token handling. Fabric Data Agent **requires user identity tokens** — service principal and managed identity tokens are rejected at the data query layer.
 
 **Authentication flow (ACA Easy Auth):**
 1. User accesses the app — ACA Easy Auth redirects to Entra ID login

@@ -1,4 +1,7 @@
-"""Scratchpad workflow — orchestrates the full plan-and-dispatch pattern."""
+"""Scratchpad workflow — orchestrates the full plan-and-dispatch pattern.
+
+See docs/CONTRACT-orchestrator.md for the runtime contract.
+"""
 
 import logging
 import time
