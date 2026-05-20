@@ -28,7 +28,7 @@ def agents_dir(tmp_path):
     return tmp_path
 
 
-@patch("src.orchestrator.AzureOpenAIResponsesClient")
+@patch("src.orchestrator.FoundryChatClient")
 @patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator(mock_cred, mock_client_cls, agents_dir):
     """create_orchestrator returns an agent with dynamically loaded tools."""
@@ -51,7 +51,7 @@ def test_create_orchestrator(mock_cred, mock_client_cls, agents_dir):
     assert isinstance(constructor_kwargs["middleware"][1], ToolDecisionTraceMiddleware)
 
 
-@patch("src.orchestrator.AzureOpenAIResponsesClient")
+@patch("src.orchestrator.FoundryChatClient")
 @patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator_with_custom_params(mock_cred, mock_client_cls, agents_dir):
     """create_orchestrator accepts optional endpoint and deployment_name."""
@@ -68,7 +68,7 @@ def test_create_orchestrator_with_custom_params(mock_cred, mock_client_cls, agen
     mock_client_cls.assert_called_once_with(
         credential=mock_cred.return_value,
         project_endpoint="https://custom.services.ai.azure.com/api/projects/test",
-        deployment_name="gpt-4o-mini",
+        model="gpt-4o-mini",
         middleware=mock_client_cls.call_args.kwargs["middleware"],
     )
 
@@ -202,7 +202,7 @@ async def test_reasoning_trace_middleware_uses_stream_result_hook():
     assert events[0].data == {"iteration": 1, "text": "streamed final answer"}
 
 
-@patch("src.orchestrator.AzureOpenAIResponsesClient")
+@patch("src.orchestrator.FoundryChatClient")
 @patch("src.orchestrator.DefaultAzureCredential")
 def test_create_orchestrator_no_agents_raises(mock_cred, mock_client_cls, tmp_path):
     """create_orchestrator raises if no agent YAML files are found."""

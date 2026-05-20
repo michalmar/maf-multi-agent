@@ -80,14 +80,18 @@ async def _setup_foundry_monitor(
 
     Returns True on success, False if the required packages are not available.
     """
-    from agent_framework.azure import AzureAIClient
+    from agent_framework.foundry import FoundryChatClient
     from azure.ai.projects.aio import AIProjectClient
     from azure.identity.aio import DefaultAzureCredential
+    from src.config import get_config
 
     async with (
         DefaultAzureCredential() as credential,
         AIProjectClient(endpoint=project_endpoint, credential=credential) as project_client,
-        AzureAIClient(project_client=project_client) as client,
+        FoundryChatClient(
+            project_client=project_client,
+            model=get_config().azure_openai_chat_deployment_name,
+        ) as client,
     ):
         await client.configure_azure_monitor(enable_live_metrics=enable_live_metrics)
 
