@@ -10,7 +10,7 @@ model: gpt-5.2 (Foundry)
 description: >
   Delegate data analysis, coding, or code execution tasks to the coder specialist agent.
   Performs higher-level data analysis (anomaly detection, complex trend correlation, etc.)
-  and generates browser-rendered native chart artifacts for the shared document.
+  and generates Chart.js-backed browser-rendered native chart artifacts for the shared document.
   Use this tool when you need to write, review, debug, or execute code, generate scripts,
   create visualizations, or solve technical problems. The agent has access to all needed data.
 
@@ -26,9 +26,22 @@ dispatch_instructions: >
   For every chart or visualization, create a browser-rendered native chart artifact instead of a PNG.
   Save each chart spec to /mnt/data with a .mafchart.json filename, then link it in the response as
   [chart:Readable chart title](sandbox:/mnt/data/file_name.mafchart.json). The JSON must be valid,
-  self-contained, and use {"version": 1, "renderer": "maf-native", "type": "..."}.
+  self-contained, declarative, and use {"version": 1, "renderer": "maf-native", "type": "..."}.
   Supported types only: bar, horizontal_bar, stacked_bar, line, timeseries, multi_timeseries,
-  scatter, and correlation_matrix. Do not emit matplotlib/seaborn/plotly images unless explicitly
-  asked for a static fallback. Aggregate or downsample large time-series before embedding data.
+  scatter, and correlation_matrix. The frontend maps those safe specs to Chart.js rendering options,
+  so do not include raw JavaScript, arbitrary Chart.js options, or unsupported plugins in the JSON.
+  For line or timeseries charts, a series can optionally set yAxisID to "y1" for a secondary axis.
+  For line, timeseries, and multi_timeseries charts, every bands[].xStart and bands[].xEnd anomaly
+  window must use the exact same x-domain and value type as the series points: ISO timestamp strings
+  with ISO timestamp series x values, or numeric indexes/measurements with numeric series x values.
+  Never mix timestamp series values with numeric band indexes, and never use display labels for band
+  boundaries unless the series x values are those same labels. Use bands for continuous anomaly
+  windows, and use anomaly: true or highlight: true on individual data points only for point anomalies.
+  If you include non-anomaly context bands such as recovery, residual, delta, after-effect, maintenance,
+  or reference intervals, explicitly set kind (for example "recovery", "context", or "after_effect")
+  and color so they are visually distinct from the primary red anomaly band. Do not label recovery or
+  after-effect intervals as anomaly bands unless the underlying points are still anomalous.
+  Do not emit matplotlib/seaborn/plotly images unless explicitly asked for a static fallback.
+  Aggregate or downsample large time-series before embedding data.
 
 foundry_agent_name: CoderData

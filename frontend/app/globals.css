@@ -1343,6 +1343,20 @@ button:disabled {
   padding: 14px;
 }
 
+.native-chart-canvas-shell {
+  position: relative;
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  padding: 12px;
+}
+
+.native-chart-canvas-shell canvas {
+  width: 100% !important;
+}
+
 .native-chart-state {
   display: flex;
   align-items: center;

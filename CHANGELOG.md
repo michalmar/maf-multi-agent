@@ -3,6 +3,18 @@
 All notable changes to the MAF Multi-Agent app are documented here.
 Update this file with every merge/commit to the main branch.
 
+## [2026-05-20] — Chart.js Agent Charts
+
+### Changed
+- **Interactive agent charts** — Native `.mafchart.json` artifacts now render with Chart.js-backed bar, stacked bar, line/time-series, multi-panel, and scatter charts while preserving the existing sandbox/history artifact links.
+- **Safer chart contract** — Coder Data instructions keep chart JSON declarative so the frontend owns Chart.js options, theming, tooltips, and plugins.
+- **Anomaly prompt guidance** — Coder Data now explicitly keeps line-chart anomaly windows on the same x-domain as the series data.
+
+### Fixed
+- **Anomaly windows** — Line chart highlight bands now align to the actual numeric or time-series x-range instead of snapping to the first visible tick.
+- **Time-series axes** — Chart.js line charts now use a continuous x-scale for numeric and timestamp data, avoiding index-style labels on date-based charts.
+- **Band semantics** — Recovery, residual, and after-effect bands now render with a non-red contextual fill unless explicitly colored as anomalies.
+
 ## [2026-05-18] — Native Agent Charts
 
 ### Added
