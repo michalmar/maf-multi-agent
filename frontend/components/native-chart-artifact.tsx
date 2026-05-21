@@ -1,26 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend as ChartLegend,
+  LinearScale,
+  LineElement,
+  PointElement,
+  Tooltip,
+  type ChartData,
+  type ChartDataset,
+  type ChartOptions,
+  type Plugin,
+  type ScatterDataPoint,
+  type TooltipItem,
+} from "chart.js";
 import { AlertCircle, Download, Loader2 } from "lucide-react";
+import { Bar, Line, Scatter } from "react-chartjs-2";
 import { chartLinkTitle, isNativeChartHref, isNativeChartLink } from "@/lib/native-chart-links";
+import {
+  chartAxisValueToNumber,
+  formatChartPrimitive,
+  resolveBandFill,
+  resolveBandPixelRange,
+  type ChartPrimitive,
+  type LineXAxisModel,
+  type NativeChartBand as Band,
+} from "@/lib/native-chart-ranges";
+
+// Chart.js option patterns adapted from michalmar/copilot-billing-preview (MIT, Copyright GitHub, Inc.).
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler, Tooltip, ChartLegend);
 
 const MAX_CHART_JSON_BYTES = 1_500_000;
-const SVG_WIDTH = 840;
-const SVG_HEIGHT = 280;
-const PADDING = { top: 24, right: 28, bottom: 52, left: 64 };
-const PALETTE = [
-  "var(--accent)",
-  "var(--accent-warm)",
-  "var(--success)",
-  "var(--accent-alt)",
-  "var(--attention)",
-  "#2dd4bf",
-  "#60a5fa",
-  "#fb7185",
-];
+const DEFAULT_CHART_HEIGHT = 320;
+const DEFAULT_PANEL_HEIGHT = 230;
+const PALETTE_FALLBACK = ["#2f81f7", "#f78166", "#3fb950", "#a371f7", "#d29922", "#2dd4bf", "#60a5fa", "#fb7185"];
 
-type ChartPrimitive = string | number;
 type ChartType =
   | "bar"
   | "horizontal_bar"
@@ -40,7 +58,9 @@ interface NativeChartSpec {
   description?: string;
   xLabel?: string;
   yLabel?: string;
+  y1Label?: string;
   colorLabel?: string;
+  height?: number;
   data?: unknown;
   series?: unknown;
   panels?: unknown;
@@ -83,6 +103,7 @@ interface SeriesPoint {
 interface ChartSeries {
   name: string;
   color?: string;
+  yAxisID: "y" | "y1";
   data: SeriesPoint[];
 }
 
@@ -91,13 +112,6 @@ interface Threshold {
   label?: string;
   color?: string;
   dashed?: boolean;
-}
-
-interface Band {
-  xStart: ChartPrimitive;
-  xEnd: ChartPrimitive;
-  label?: string;
-  color?: string;
 }
 
 interface ScatterPoint {
@@ -111,19 +125,39 @@ interface ScatterPoint {
   tooltip?: string;
 }
 
-interface XScaleModel {
-  mode: "time" | "linear" | "ordinal";
-  min: number;
-  max: number;
-  categories: string[];
-  toNumber: (value: ChartPrimitive) => number;
-  format: (value: number) => string;
+interface ChartTheme {
+  text: string;
+  muted: string;
+  grid: string;
+  border: string;
+  panel: string;
+  tooltipBg: string;
+  tooltipText: string;
+  fontFamily: string;
+  danger: string;
+  dangerSoft: string;
+  attention: string;
+  attentionSoft: string;
+  accentSoft: string;
+  palette: string[];
 }
 
-interface TooltipState {
-  label: string;
-  value?: string;
-}
+const DEFAULT_THEME: ChartTheme = {
+  text: "#f0f6fc",
+  muted: "#8b949e",
+  grid: "rgba(139, 148, 158, 0.24)",
+  border: "#30363d",
+  panel: "#0d1117",
+  tooltipBg: "#161b22",
+  tooltipText: "#f0f6fc",
+  fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+  danger: "#f85149",
+  dangerSoft: "rgba(248, 81, 73, 0.14)",
+  attention: "#d29922",
+  attentionSoft: "rgba(210, 153, 34, 0.12)",
+  accentSoft: "rgba(47, 129, 247, 0.10)",
+  palette: PALETTE_FALLBACK,
+};
 
 export { chartLinkTitle, isNativeChartHref, isNativeChartLink };
 
@@ -212,158 +246,164 @@ function ChartFrame({ spec, href, fallbackTitle }: { spec: NativeChartSpec; href
           JSON
         </a>
       </figcaption>
-      <div className="native-chart-body">
-        {type === "bar" ? <BarChart spec={spec} /> : null}
-        {type === "horizontal_bar" ? <HorizontalBarChart spec={spec} /> : null}
-        {type === "stacked_bar" ? <StackedBarChart spec={spec} /> : null}
-        {type === "line" || type === "timeseries" ? <LineChart spec={spec} /> : null}
-        {type === "multi_timeseries" ? <MultiTimeseriesChart spec={spec} /> : null}
-        {type === "scatter" ? <ScatterChart spec={spec} /> : null}
-        {type === "correlation_matrix" ? <CorrelationMatrixChart spec={spec} /> : null}
-        {!isSupportedType(type) ? (
-          <div className="native-chart-state native-chart-error">
-            <AlertCircle className="h-4 w-4" />
-            Unsupported chart type: {String(type || "missing")}
-          </div>
-        ) : null}
-      </div>
+      <div className="native-chart-body">{renderChart(type, spec)}</div>
     </figure>
   );
 }
 
-function BarChart({ spec }: { spec: NativeChartSpec }) {
-  const items = coerceValueItems(spec.data);
-  const max = Math.max(...items.map((item) => item.value), 1);
-  const labelInterval = Math.max(1, Math.ceil(items.length / 8));
+function renderChart(type: NativeChartSpec["type"], spec: NativeChartSpec) {
+  switch (type) {
+    case "bar":
+      return <BarChart spec={spec} />;
+    case "horizontal_bar":
+      return <HorizontalBarChart spec={spec} />;
+    case "stacked_bar":
+      return <StackedBarChart spec={spec} />;
+    case "line":
+    case "timeseries":
+      return <LineChart spec={spec} />;
+    case "multi_timeseries":
+      return <MultiTimeseriesChart spec={spec} />;
+    case "scatter":
+      return <ScatterChart spec={spec} />;
+    case "correlation_matrix":
+      return <CorrelationMatrixChart spec={spec} />;
+    default:
+      return (
+        <div className="native-chart-state native-chart-error">
+          <AlertCircle className="h-4 w-4" />
+          Unsupported chart type: {String(type || "missing")}
+        </div>
+      );
+  }
+}
 
+function BarChart({ spec }: { spec: NativeChartSpec }) {
+  const theme = useChartTheme();
+  const items = coerceValueItems(spec.data);
   if (!items.length) return <EmptyChart />;
 
+  const chartData: ChartData<"bar", number[], string> = {
+    labels: items.map((item) => item.label),
+    datasets: [
+      {
+        label: asString(spec.yLabel) || "Value",
+        data: items.map((item) => item.value),
+        backgroundColor: items.map((item, index) => safeCanvasColor(item.color, theme.palette[index % theme.palette.length])),
+        borderColor: items.map((item, index) => safeCanvasColor(item.color, theme.palette[index % theme.palette.length])),
+        borderWidth: 1,
+        borderRadius: 3,
+      },
+    ],
+  };
+
   return (
-    <div className="native-chart-vertical">
-      <div className="dash-chart-bars native-chart-bar-area">
-        {items.map((item, index) => (
-          <div key={`${item.label}-${index}`} className="dash-chart-col" title={item.tooltip || `${item.label}: ${formatNumber(item.value)}`}>
-            <div className="dash-chart-bar-wrap">
-              <motion.div
-                className="dash-chart-bar"
-                style={{ backgroundColor: item.color || "var(--accent-strong)" }}
-                initial={{ height: 0 }}
-                animate={{ height: `${Math.max(item.value > 0 ? 8 : 0, (item.value / max) * 100)}%` }}
-                transition={{ duration: 0.4, delay: index * 0.01, ease: "easeOut" }}
-              />
-            </div>
-            {index % labelInterval === 0 ? <span className="dash-chart-label">{item.label}</span> : null}
-          </div>
-        ))}
-      </div>
-      <AxisFooter xLabel={asString(spec.xLabel)} yLabel={asString(spec.yLabel)} />
-    </div>
+    <ChartCanvasShell height={chartHeight(spec)}>
+      <Bar
+        data={chartData}
+        options={buildBarOptions(theme, spec, { stacked: false, indexAxis: "x", legend: false }, items.map((item) => item.tooltip))}
+      />
+    </ChartCanvasShell>
   );
 }
 
 function HorizontalBarChart({ spec }: { spec: NativeChartSpec }) {
+  const theme = useChartTheme();
   const items = coerceValueItems(spec.data);
-  const max = Math.max(...items.map((item) => item.value), 1);
-
   if (!items.length) return <EmptyChart />;
 
+  const chartData: ChartData<"bar", number[], string> = {
+    labels: items.map((item) => item.label),
+    datasets: [
+      {
+        label: asString(spec.xLabel) || "Value",
+        data: items.map((item) => item.value),
+        backgroundColor: items.map((item, index) => safeCanvasColor(item.color, theme.palette[index % theme.palette.length])),
+        borderColor: items.map((item, index) => safeCanvasColor(item.color, theme.palette[index % theme.palette.length])),
+        borderWidth: 1,
+        borderRadius: 3,
+      },
+    ],
+  };
+
   return (
-    <div className="dash-hbars">
-      {items.map((item, index) => (
-        <div key={`${item.label}-${index}`} className="dash-hbar-row" title={item.tooltip || `${item.label}: ${formatNumber(item.value)}`}>
-          <span className="dash-hbar-label native-chart-hbar-label">{item.label}</span>
-          <div className="dash-hbar-track">
-            <motion.div
-              className="dash-hbar-fill"
-              style={{ backgroundColor: item.color || "var(--accent)" }}
-              initial={{ width: 0 }}
-              animate={{ width: `${(item.value / max) * 100}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
-          </div>
-          <span className="dash-hbar-value native-chart-hbar-value">{formatNumber(item.value)}</span>
-        </div>
-      ))}
-    </div>
+    <ChartCanvasShell height={chartHeight(spec)}>
+      <Bar
+        data={chartData}
+        options={buildBarOptions(theme, spec, { stacked: false, indexAxis: "y", legend: false }, items.map((item) => item.tooltip))}
+      />
+    </ChartCanvasShell>
   );
 }
 
 function StackedBarChart({ spec }: { spec: NativeChartSpec }) {
+  const theme = useChartTheme();
   const rows = coerceStackItems(spec.data);
   if (!rows.length) return <EmptyChart />;
 
+  const segmentNames = collectSegmentNames(rows);
+  const segmentColors = collectSegmentColors(rows, theme);
+  const datasets: ChartDataset<"bar", number[]>[] = segmentNames.map((segmentName) => ({
+    label: segmentName,
+    data: rows.map((row) => row.segments.find((segment) => segment.label === segmentName)?.value ?? 0),
+    backgroundColor: segmentColors.get(segmentName) ?? theme.palette[0],
+    borderColor: segmentColors.get(segmentName) ?? theme.palette[0],
+    borderWidth: 1,
+    borderRadius: 2,
+  }));
+  const chartData: ChartData<"bar", number[], string> = {
+    labels: rows.map((row) => row.label),
+    datasets,
+  };
+
   return (
-    <div className="native-chart-stacked">
-      {rows.map((row, rowIndex) => {
-        const total = row.segments.reduce((sum, segment) => sum + segment.value, 0);
-        return (
-          <div key={`${row.label}-${rowIndex}`} className="native-chart-stack-row" title={row.tooltip || `${row.label}: ${formatNumber(total)}`}>
-            <span className="native-chart-stack-label">{row.label}</span>
-            <div className="dash-token-bar native-chart-stack-track">
-              {row.segments.map((segment, segmentIndex) => (
-                <motion.div
-                  key={`${segment.label}-${segmentIndex}`}
-                  className="dash-token-segment"
-                  style={{
-                    backgroundColor: segment.color || PALETTE[segmentIndex % PALETTE.length],
-                    width: `${total > 0 ? (segment.value / total) * 100 : 0}%`,
-                  }}
-                  title={`${segment.label}: ${formatNumber(segment.value)} (${total > 0 ? Math.round((segment.value / total) * 100) : 0}%)`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${total > 0 ? (segment.value / total) * 100 : 0}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                />
-              ))}
-            </div>
-            <span className="native-chart-stack-total">{formatNumber(total)}</span>
-          </div>
-        );
-      })}
-      <Legend items={collectSegmentLegend(rows)} />
-    </div>
+    <ChartCanvasShell height={chartHeight(spec)}>
+      <Bar data={chartData} options={buildBarOptions(theme, spec, { stacked: true, indexAxis: "x", legend: true })} />
+    </ChartCanvasShell>
   );
 }
 
-function LineChart({ spec }: { spec: NativeChartSpec }) {
+function LineChart({ spec, height, compact = false }: { spec: NativeChartSpec; height?: number; compact?: boolean }) {
+  const theme = useChartTheme();
   const series = coerceSeries(spec.series, spec.data);
   const thresholds = coerceThresholds(spec.thresholds);
   const bands = coerceBands(spec.bands);
+  const xAxis = collectLineXAxis(series);
+  const labels = xAxis.labels;
+  const bandPlugin = useMemo(() => makeBandPlugin(bands, xAxis, theme), [bands, xAxis, theme]);
+
   if (!series.some((entry) => entry.data.length)) return <EmptyChart />;
 
+  const datasets: ChartDataset<"line", ScatterDataPoint[]>[] = [
+    ...series.map((entry, index) => lineDataset(entry, xAxis, theme, index)),
+    ...thresholds.map((threshold, index) => thresholdDataset(threshold, xAxis, theme, index)),
+  ];
+  const chartData: ChartData<"line", ScatterDataPoint[], string> = { labels, datasets };
+
   return (
-    <LineSvg
-      series={series}
-      thresholds={thresholds}
-      bands={bands}
-      xLabel={asString(spec.xLabel)}
-      yLabel={asString(spec.yLabel)}
-      height={SVG_HEIGHT}
-    />
+    <ChartCanvasShell height={height ?? chartHeight(spec)}>
+      <Line
+        data={chartData}
+        options={buildLineOptions(theme, spec, series, xAxis, { compact })}
+        plugins={bands.length ? [bandPlugin] : undefined}
+      />
+    </ChartCanvasShell>
   );
 }
 
 function MultiTimeseriesChart({ spec }: { spec: NativeChartSpec }) {
   const panels = Array.isArray(spec.panels) ? spec.panels.filter(isRecord) : [];
-  if (!panels.length) return <EmptyChart />;
+  if (!panels.length) return <LineChart spec={spec} />;
 
   return (
     <div className="native-chart-multipanel">
       {panels.map((panel, index) => {
-        const series = coerceSeries(panel.series, panel.data);
-        const thresholds = coerceThresholds(panel.thresholds);
-        const bands = coerceBands(panel.bands ?? spec.bands);
+        const title = asString(panel.title);
+        const panelSpec: NativeChartSpec = { ...spec, ...panel, type: "line" };
         return (
-          <div key={`${asString(panel.title) || "panel"}-${index}`} className="native-chart-panel">
-            {asString(panel.title) ? <div className="native-chart-panel-title">{asString(panel.title)}</div> : null}
-            <LineSvg
-              series={series}
-              thresholds={thresholds}
-              bands={bands}
-              xLabel={index === panels.length - 1 ? asString(spec.xLabel) : ""}
-              yLabel={asString(panel.yLabel) || asString(panel.title)}
-              height={190}
-              compact
-            />
+          <div key={`${title || "panel"}-${index}`} className="native-chart-panel">
+            {title ? <div className="native-chart-panel-title">{title}</div> : null}
+            <LineChart spec={panelSpec} height={chartHeight(panelSpec, DEFAULT_PANEL_HEIGHT)} compact />
           </div>
         );
       })}
@@ -372,68 +412,30 @@ function MultiTimeseriesChart({ spec }: { spec: NativeChartSpec }) {
 }
 
 function ScatterChart({ spec }: { spec: NativeChartSpec }) {
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const theme = useChartTheme();
   const points = coerceScatterPoints(spec.data);
-  const normalPoints = points.filter((point) => !point.highlight && !point.anomaly);
-  const highlightedPoints = points.filter((point) => point.highlight || point.anomaly);
   if (!points.length) return <EmptyChart />;
 
-  const xDomain = paddedDomain(points.map((point) => point.x));
-  const yDomain = paddedDomain(points.map((point) => point.y));
   const colorValues = points.map((point) => point.colorValue).filter(isFiniteNumber);
   const colorDomain = colorValues.length ? paddedDomain(colorValues, 0.02) : [0, 1];
-  const xTicks = makeTicks(xDomain[0], xDomain[1], 5);
-  const yTicks = makeTicks(yDomain[0], yDomain[1], 5);
-  const plot = plotBox();
-  const sx = (x: number) => scale(x, xDomain[0], xDomain[1], plot.left, plot.right);
-  const sy = (y: number) => scale(y, yDomain[0], yDomain[1], plot.bottom, plot.top);
-  const colorFor = (point: ScatterPoint) => {
-    if (point.highlight || point.anomaly) return "var(--danger)";
-    if (point.color) return point.color;
-    if (isFiniteNumber(point.colorValue)) {
-      return gradientColor(scale(point.colorValue, colorDomain[0], colorDomain[1], 0, 1));
-    }
-    return "var(--accent)";
+  const chartData: ChartData<"scatter", ScatterDataPoint[], string> = {
+    datasets: [
+      {
+        label: asString(spec.colorLabel) || "Points",
+        data: points.map((point) => ({ x: point.x, y: point.y })),
+        pointBackgroundColor: points.map((point) => scatterPointColor(point, colorDomain, theme)),
+        pointBorderColor: points.map((point) => (point.highlight || point.anomaly ? theme.panel : scatterPointColor(point, colorDomain, theme))),
+        pointBorderWidth: points.map((point) => (point.highlight || point.anomaly ? 1.5 : 0)),
+        pointRadius: points.map((point) => (point.highlight || point.anomaly ? 5.5 : 3.5)),
+        pointHoverRadius: 6,
+      },
+    ],
   };
 
   return (
-    <div className="native-chart-scatter-shell">
-      <svg className="native-chart-svg" viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`} role="img">
-        <Grid xTicks={xTicks} yTicks={yTicks} xScale={sx} yScale={sy} xFormat={formatNumber} yFormat={formatNumber} />
-        <AxisLabels xLabel={asString(spec.xLabel)} yLabel={asString(spec.yLabel)} />
-        {[...normalPoints, ...highlightedPoints].map((point, index) => (
-          <motion.circle
-            key={`${point.label}-${index}`}
-            cx={sx(point.x)}
-            cy={sy(point.y)}
-            r={point.highlight || point.anomaly ? 5.5 : 3.2}
-            fill={colorFor(point)}
-            fillOpacity={point.highlight || point.anomaly ? 1 : 0.68}
-            stroke={point.highlight || point.anomaly ? "var(--bg-panel)" : "transparent"}
-            strokeWidth={point.highlight || point.anomaly ? 1.5 : 0}
-            className="native-chart-point"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.22, delay: Math.min(index * 0.002, 0.25) }}
-            onMouseEnter={() => setTooltip({
-              label: point.label,
-              value: point.tooltip || `x=${formatNumber(point.x)}, y=${formatNumber(point.y)}${isFiniteNumber(point.colorValue) ? `, color=${formatNumber(point.colorValue)}` : ""}`,
-            })}
-            onMouseLeave={() => setTooltip(null)}
-          >
-            <title>{point.tooltip || `${point.label}: x=${formatNumber(point.x)}, y=${formatNumber(point.y)}`}</title>
-          </motion.circle>
-        ))}
-      </svg>
-      {colorValues.length ? <ColorBar label={asString(spec.colorLabel)} min={colorDomain[0]} max={colorDomain[1]} /> : null}
-      <div className="native-chart-overlay">{tooltip ? <TooltipBox tooltip={tooltip} /> : null}</div>
-      <Legend
-        items={[
-          { label: "Normal", color: "var(--accent)" },
-          ...(highlightedPoints.length ? [{ label: "Anomaly", color: "var(--danger)" }] : []),
-        ]}
-      />
-    </div>
+    <ChartCanvasShell height={chartHeight(spec)}>
+      <Scatter data={chartData} options={buildScatterOptions(theme, spec, points)} />
+    </ChartCanvasShell>
   );
 }
 
@@ -456,7 +458,7 @@ function CorrelationMatrixChart({ spec }: { spec: NativeChartSpec }) {
     <div className="native-chart-matrix-wrap">
       <svg className="native-chart-matrix" viewBox={`0 0 ${width} ${height}`} role="img">
         {variables.slice(0, n).map((label, index) => (
-          <g key={`x-${label}`}>
+          <g key={`axis-${label}`}>
             <text
               x={labelSize + index * cell + cell / 2}
               y={labelSize - 12}
@@ -510,225 +512,10 @@ function CorrelationMatrixChart({ spec }: { spec: NativeChartSpec }) {
   );
 }
 
-function LineSvg({
-  series,
-  thresholds,
-  bands,
-  xLabel,
-  yLabel,
-  height,
-  compact = false,
-}: {
-  series: ChartSeries[];
-  thresholds: Threshold[];
-  bands: Band[];
-  xLabel?: string;
-  yLabel?: string;
-  height: number;
-  compact?: boolean;
-}) {
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-  const allPoints = series.flatMap((entry) => entry.data);
-  const xScaleModel = useMemo(() => createXScale(allPoints), [allPoints]);
-  const yValues = [
-    ...allPoints.map((point) => point.y),
-    ...thresholds.map((threshold) => threshold.value),
-  ];
-  const yDomain = paddedDomain(yValues);
-  const plot = plotBox(height, compact);
-  const sx = (x: ChartPrimitive) => scale(xScaleModel.toNumber(x), xScaleModel.min, xScaleModel.max, plot.left, plot.right);
-  const sy = (y: number) => scale(y, yDomain[0], yDomain[1], plot.bottom, plot.top);
-  const xTicks = makeTicks(xScaleModel.min, xScaleModel.max, compact ? 4 : 6);
-  const yTicks = makeTicks(yDomain[0], yDomain[1], compact ? 4 : 5);
-
+function ChartCanvasShell({ children, height }: { children: ReactNode; height: number }) {
   return (
-    <div className="native-chart-svg-wrap">
-      <svg className="native-chart-svg" viewBox={`0 0 ${SVG_WIDTH} ${height}`} role="img">
-        <Grid xTicks={xTicks} yTicks={yTicks} xScale={(x) => scale(x, xScaleModel.min, xScaleModel.max, plot.left, plot.right)} yScale={sy} xFormat={xScaleModel.format} yFormat={formatNumber} height={height} compact={compact} />
-        {bands.map((band, index) => {
-          const x1 = sx(band.xStart);
-          const x2 = sx(band.xEnd);
-          return (
-            <rect
-              key={`${band.label || "band"}-${index}`}
-              x={Math.min(x1, x2)}
-              y={plot.top}
-              width={Math.abs(x2 - x1)}
-              height={plot.bottom - plot.top}
-              fill={band.color || "rgba(248, 81, 73, 0.16)"}
-              stroke={band.color || "rgba(248, 81, 73, 0.28)"}
-              className="native-chart-band"
-            >
-              <title>{band.label || "Highlighted interval"}</title>
-            </rect>
-          );
-        })}
-        {thresholds.map((threshold, index) => (
-          <g key={`${threshold.label || "threshold"}-${index}`}>
-            <line
-              x1={plot.left}
-              x2={plot.right}
-              y1={sy(threshold.value)}
-              y2={sy(threshold.value)}
-              stroke={threshold.color || "var(--danger)"}
-              strokeDasharray={threshold.dashed === false ? undefined : "6 4"}
-              strokeWidth={1.4}
-            />
-            {threshold.label ? (
-              <text x={plot.left + 6} y={sy(threshold.value) - 5} className="native-chart-threshold-label">
-                {threshold.label}
-              </text>
-            ) : null}
-          </g>
-        ))}
-        {series.map((entry, index) => {
-          const color = entry.color || PALETTE[index % PALETTE.length];
-          const path = linePath(entry.data, sx, sy);
-          return (
-            <g key={`${entry.name}-${index}`}>
-              <motion.path
-                d={path}
-                fill="none"
-                stroke={color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.7, ease: "easeOut" }}
-              />
-              {entry.data.map((point, pointIndex) => (
-                <circle
-                  key={`${entry.name}-${point.label}-${pointIndex}`}
-                  cx={sx(point.x)}
-                  cy={sy(point.y)}
-                  r={point.anomaly || point.highlight ? 4.2 : 2.4}
-                  fill={point.anomaly || point.highlight ? "var(--danger)" : color}
-                  className="native-chart-point"
-                  onMouseEnter={() => setTooltip({ label: point.label, value: point.tooltip || `${entry.name}: ${formatNumber(point.y)}` })}
-                  onMouseLeave={() => setTooltip(null)}
-                >
-                  <title>{point.tooltip || `${entry.name} ${point.label}: ${formatNumber(point.y)}`}</title>
-                </circle>
-              ))}
-            </g>
-          );
-        })}
-        <AxisLabels xLabel={xLabel} yLabel={yLabel} height={height} compact={compact} />
-      </svg>
-      <div className="native-chart-overlay">{tooltip ? <TooltipBox tooltip={tooltip} /> : null}</div>
-      {!compact ? <Legend items={series.map((entry, index) => ({ label: entry.name, color: entry.color || PALETTE[index % PALETTE.length] }))} /> : null}
-    </div>
-  );
-}
-
-function Grid({
-  xTicks,
-  yTicks,
-  xScale,
-  yScale,
-  xFormat,
-  yFormat,
-  height = SVG_HEIGHT,
-  compact = false,
-}: {
-  xTicks: number[];
-  yTicks: number[];
-  xScale: (value: number) => number;
-  yScale: (value: number) => number;
-  xFormat: (value: number) => string;
-  yFormat: (value: number) => string;
-  height?: number;
-  compact?: boolean;
-}) {
-  const plot = plotBox(height, compact);
-  return (
-    <g>
-      <rect x={plot.left} y={plot.top} width={plot.right - plot.left} height={plot.bottom - plot.top} fill="transparent" stroke="var(--border-soft)" />
-      {yTicks.map((tick) => (
-        <g key={`y-${tick}`}>
-          <line x1={plot.left} x2={plot.right} y1={yScale(tick)} y2={yScale(tick)} className="native-chart-grid-line" />
-          <text x={plot.left - 10} y={yScale(tick) + 4} textAnchor="end" className="native-chart-axis-text">
-            {yFormat(tick)}
-          </text>
-        </g>
-      ))}
-      {xTicks.map((tick) => (
-        <g key={`x-${tick}`}>
-          <line x1={xScale(tick)} x2={xScale(tick)} y1={plot.top} y2={plot.bottom} className="native-chart-grid-line" />
-          <text x={xScale(tick)} y={plot.bottom + 20} textAnchor="middle" className="native-chart-axis-text">
-            {xFormat(tick)}
-          </text>
-        </g>
-      ))}
-    </g>
-  );
-}
-
-function AxisLabels({ xLabel, yLabel, height = SVG_HEIGHT, compact = false }: { xLabel?: string; yLabel?: string; height?: number; compact?: boolean }) {
-  const plot = plotBox(height, compact);
-  return (
-    <g>
-      {xLabel ? (
-        <text x={(plot.left + plot.right) / 2} y={height - 8} textAnchor="middle" className="native-chart-axis-label">
-          {xLabel}
-        </text>
-      ) : null}
-      {yLabel ? (
-        <text
-          x={14}
-          y={(plot.top + plot.bottom) / 2}
-          textAnchor="middle"
-          transform={`rotate(-90 14 ${(plot.top + plot.bottom) / 2})`}
-          className="native-chart-axis-label"
-        >
-          {yLabel}
-        </text>
-      ) : null}
-    </g>
-  );
-}
-
-function AxisFooter({ xLabel, yLabel }: { xLabel?: string; yLabel?: string }) {
-  if (!xLabel && !yLabel) return null;
-  return (
-    <div className="native-chart-axis-footer">
-      {yLabel ? <span>{yLabel}</span> : null}
-      {xLabel ? <span>{xLabel}</span> : null}
-    </div>
-  );
-}
-
-function ColorBar({ label, min, max }: { label?: string; min: number; max: number }) {
-  return (
-    <div className="native-chart-colorbar" aria-label={label || "Color scale"}>
-      <span>{formatNumber(max)}</span>
-      <span className="native-chart-colorbar-track" />
-      <span>{formatNumber(min)}</span>
-      {label ? <span className="native-chart-colorbar-label">{label}</span> : null}
-    </div>
-  );
-}
-
-function Legend({ items }: { items: { label: string; color: string }[] }) {
-  if (!items.length) return null;
-  return (
-    <div className="native-chart-legend">
-      {items.map((item, index) => (
-        <span key={`${item.label}-${index}`} className="native-chart-legend-item">
-          <span className="native-chart-legend-dot" style={{ backgroundColor: item.color }} />
-          {item.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function TooltipBox({ tooltip }: { tooltip: TooltipState }) {
-  return (
-    <div className="native-chart-tooltip">
-      <strong>{tooltip.label}</strong>
-      {tooltip.value ? <span>{tooltip.value}</span> : null}
+    <div className="native-chart-canvas-shell" style={{ height }}>
+      {children}
     </div>
   );
 }
@@ -737,17 +524,355 @@ function EmptyChart() {
   return <div className="native-chart-state">No renderable chart data.</div>;
 }
 
-function isSupportedType(type: unknown): type is ChartType {
-  return (
-    type === "bar" ||
-    type === "horizontal_bar" ||
-    type === "stacked_bar" ||
-    type === "line" ||
-    type === "timeseries" ||
-    type === "multi_timeseries" ||
-    type === "scatter" ||
-    type === "correlation_matrix"
-  );
+function buildBarOptions(
+  theme: ChartTheme,
+  spec: NativeChartSpec,
+  options: { stacked: boolean; indexAxis: "x" | "y"; legend: boolean },
+  valueTooltips?: Array<string | undefined>,
+): ChartOptions<"bar"> {
+  const horizontal = options.indexAxis === "y";
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: options.indexAxis,
+    plugins: {
+      legend: {
+        display: options.legend,
+        position: "top" as const,
+        labels: legendLabelOptions(theme),
+      },
+      tooltip: {
+        backgroundColor: theme.tooltipBg,
+        titleColor: theme.tooltipText,
+        bodyColor: theme.tooltipText,
+        borderColor: theme.border,
+        borderWidth: 1,
+        callbacks: {
+          label: (context) => {
+            const tooltip = valueTooltips?.[context.dataIndex];
+            if (tooltip) return tooltip;
+            const parsed = context.parsed;
+            const value = horizontal ? parsed.x : parsed.y;
+            return `${context.dataset.label ?? "Value"}: ${formatMaybeNumber(value)}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        stacked: options.stacked,
+        beginAtZero: horizontal,
+        grid: { display: horizontal, color: theme.grid },
+        border: { color: theme.border },
+        ticks: tickOptions(theme),
+        title: axisTitle(theme, horizontal ? asString(spec.xLabel) || asString(spec.yLabel) : asString(spec.xLabel)),
+      },
+      y: {
+        stacked: options.stacked,
+        beginAtZero: !horizontal,
+        grid: { display: !horizontal, color: theme.grid },
+        border: { color: theme.border },
+        ticks: tickOptions(theme),
+        title: axisTitle(theme, horizontal ? asString(spec.yLabel) : asString(spec.yLabel)),
+      },
+    },
+    interaction: {
+      mode: "index" as const,
+      intersect: false,
+    },
+  };
+}
+
+function buildLineOptions(
+  theme: ChartTheme,
+  spec: NativeChartSpec,
+  series: ChartSeries[],
+  xAxis: LineXAxisModel,
+  { compact }: { compact: boolean },
+): ChartOptions<"line"> {
+  const usesSecondaryAxis = series.some((entry) => entry.yAxisID === "y1");
+  const primarySeries = series.find((entry) => entry.yAxisID !== "y1") ?? series[0];
+  const secondarySeries = series.find((entry) => entry.yAxisID === "y1");
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: !compact,
+        position: "top" as const,
+        labels: legendLabelOptions(theme),
+      },
+      tooltip: {
+        backgroundColor: theme.tooltipBg,
+        titleColor: theme.tooltipText,
+        bodyColor: theme.tooltipText,
+        borderColor: theme.border,
+        borderWidth: 1,
+        callbacks: {
+          title: (items) => {
+            const value = items[0]?.parsed.x;
+            return isFiniteNumber(value) ? formatLineXAxisValue(value, xAxis) : "";
+          },
+          label: (context) => lineTooltipLabel(context, series, xAxis),
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: "linear" as const,
+        min: lineXAxisMin(xAxis),
+        max: lineXAxisMax(xAxis),
+        grid: { display: false },
+        border: { color: theme.border },
+        ticks: {
+          color: theme.muted,
+          font: {
+            family: theme.fontFamily,
+            size: 11,
+          },
+          callback: (value) => (typeof value === "number" ? formatLineXAxisValue(value, xAxis) : value),
+          maxRotation: compact ? 0 : 40,
+          autoSkip: true,
+          maxTicksLimit: compact ? 5 : 8,
+        },
+        title: axisTitle(theme, compact ? "" : asString(spec.xLabel)),
+      },
+      y: {
+        type: "linear" as const,
+        position: "left" as const,
+        grid: { color: theme.grid },
+        border: { color: theme.border },
+        ticks: tickOptions(theme),
+        title: axisTitle(theme, asString(spec.yLabel) || primarySeries?.name || "Value", primarySeries?.color),
+      },
+      y1: {
+        display: usesSecondaryAxis,
+        type: "linear" as const,
+        position: "right" as const,
+        grid: { drawOnChartArea: false },
+        border: { color: theme.border },
+        ticks: tickOptions(theme, secondarySeries?.color),
+        title: axisTitle(theme, asString(spec.y1Label) || secondarySeries?.name || "", secondarySeries?.color),
+      },
+    },
+    interaction: {
+      mode: "index" as const,
+      intersect: false,
+    },
+  };
+}
+
+function buildScatterOptions(theme: ChartTheme, spec: NativeChartSpec, points: ScatterPoint[]): ChartOptions<"scatter"> {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: theme.tooltipBg,
+        titleColor: theme.tooltipText,
+        bodyColor: theme.tooltipText,
+        borderColor: theme.border,
+        borderWidth: 1,
+        callbacks: {
+          title: (items) => {
+            const point = items[0] ? points[items[0].dataIndex] : undefined;
+            return point?.label ?? "";
+          },
+          label: (context) => {
+            const point = points[context.dataIndex];
+            if (point?.tooltip) return point.tooltip;
+            return `x=${formatMaybeNumber(context.parsed.x)}, y=${formatMaybeNumber(context.parsed.y)}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: "linear" as const,
+        grid: { color: theme.grid },
+        border: { color: theme.border },
+        ticks: tickOptions(theme),
+        title: axisTitle(theme, asString(spec.xLabel) || "X"),
+      },
+      y: {
+        type: "linear" as const,
+        grid: { color: theme.grid },
+        border: { color: theme.border },
+        ticks: tickOptions(theme),
+        title: axisTitle(theme, asString(spec.yLabel) || "Y"),
+      },
+    },
+    interaction: {
+      mode: "nearest" as const,
+      intersect: true,
+    },
+  };
+}
+
+function legendLabelOptions(theme: ChartTheme) {
+  return {
+    usePointStyle: true,
+    color: theme.text,
+    padding: 12,
+    font: {
+      family: theme.fontFamily,
+      size: 11,
+      weight: 500,
+    },
+  };
+}
+
+function tickOptions(theme: ChartTheme, color?: string) {
+  return {
+    color: safeCanvasColor(color, theme.muted),
+    font: {
+      family: theme.fontFamily,
+      size: 11,
+    },
+    callback: (value: string | number) => (typeof value === "number" ? formatNumber(value) : value),
+  };
+}
+
+function axisTitle(theme: ChartTheme, text?: string, color?: string) {
+  return {
+    display: Boolean(text),
+    text,
+    color: safeCanvasColor(color, theme.muted),
+    font: {
+      family: theme.fontFamily,
+      size: 11,
+      weight: 500,
+    },
+  };
+}
+
+function lineDataset(entry: ChartSeries, xAxis: LineXAxisModel, theme: ChartTheme, index: number): ChartDataset<"line", ScatterDataPoint[]> {
+  const color = safeCanvasColor(entry.color, theme.palette[index % theme.palette.length]);
+  const points = entry.data
+    .map((point) => ({ point, x: lineXAxisValueToNumber(point.x, xAxis) }))
+    .filter((item): item is { point: SeriesPoint; x: number } => isFiniteNumber(item.x))
+    .sort((a, b) => a.x - b.x);
+
+  return {
+    label: entry.name,
+    data: points.map(({ point, x }) => ({ x, y: point.y })),
+    borderColor: color,
+    backgroundColor: withAlpha(color, 0.16),
+    pointBackgroundColor: points.map(({ point }) => {
+      return point?.anomaly || point?.highlight ? theme.danger : color;
+    }),
+    pointBorderColor: points.map(({ point }) => {
+      return point?.anomaly || point?.highlight ? theme.panel : color;
+    }),
+    pointRadius: points.map(({ point }) => {
+      return point?.anomaly || point?.highlight ? 4.5 : 2.2;
+    }),
+    pointHoverRadius: 5,
+    borderWidth: 2,
+    tension: 0.28,
+    spanGaps: true,
+    fill: false,
+    yAxisID: entry.yAxisID,
+  };
+}
+
+function thresholdDataset(
+  threshold: Threshold,
+  xAxis: LineXAxisModel,
+  theme: ChartTheme,
+  index: number,
+): ChartDataset<"line", ScatterDataPoint[]> {
+  const color = safeCanvasColor(threshold.color, index === 0 ? theme.danger : theme.palette[(index + 4) % theme.palette.length]);
+  const min = lineXAxisMin(xAxis);
+  const max = lineXAxisMax(xAxis);
+  return {
+    label: threshold.label || `Threshold ${index + 1}`,
+    data: isFiniteNumber(min) && isFiniteNumber(max) ? [{ x: min, y: threshold.value }, { x: max, y: threshold.value }] : [],
+    borderColor: color,
+    backgroundColor: color,
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    borderWidth: 1.5,
+    borderDash: threshold.dashed === false ? undefined : [6, 5],
+    tension: 0,
+    fill: false,
+  };
+}
+
+function makeBandPlugin(bands: Band[], xAxis: LineXAxisModel, theme: ChartTheme): Plugin<"line"> {
+  return {
+    id: "native-chart-bands",
+    beforeDatasetsDraw(chart) {
+      if (!bands.length || !xAxis.labels.length) return;
+      const { top, bottom, left: areaLeft, right: areaRight } = chart.chartArea;
+
+      chart.ctx.save();
+      for (const band of bands) {
+        const range = resolveBandPixelRange(band, xAxis, areaLeft, areaRight);
+        if (!range) continue;
+        const [left, right] = range;
+
+        chart.ctx.fillStyle = resolveBandFill(band, theme);
+        chart.ctx.fillRect(left, top, right - left, bottom - top);
+      }
+      chart.ctx.restore();
+    },
+  };
+}
+
+function lineTooltipLabel(context: TooltipItem<"line">, series: ChartSeries[], xAxis: LineXAxisModel): string {
+  const entry = series[context.datasetIndex];
+  const parsedX = context.parsed.x;
+  const point = isFiniteNumber(parsedX)
+    ? entry?.data.find((candidate) => Math.abs(lineXAxisValueToNumber(candidate.x, xAxis) - parsedX) < 0.5)
+    : undefined;
+  if (point?.tooltip) return point.tooltip;
+  const value = context.parsed.y;
+  return `${context.dataset.label ?? "Value"}: ${formatMaybeNumber(value)}`;
+}
+
+function useChartTheme(): ChartTheme {
+  const [theme, setTheme] = useState(DEFAULT_THEME);
+
+  useEffect(() => {
+    const updateTheme = () => setTheme(readChartTheme());
+    updateTheme();
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+    return () => observer.disconnect();
+  }, []);
+
+  return theme;
+}
+
+function readChartTheme(): ChartTheme {
+  const styles = getComputedStyle(document.documentElement);
+  const css = (name: string, fallback: string) => styles.getPropertyValue(name).trim() || fallback;
+  const accent = css("--accent", DEFAULT_THEME.palette[0]);
+  const accentWarm = css("--accent-warm", DEFAULT_THEME.palette[1]);
+  const success = css("--success", DEFAULT_THEME.palette[2]);
+  const accentAlt = css("--accent-alt", DEFAULT_THEME.palette[3]);
+  const attention = css("--attention", DEFAULT_THEME.palette[4]);
+
+  return {
+    text: css("--text-primary", DEFAULT_THEME.text),
+    muted: css("--text-muted", DEFAULT_THEME.muted),
+    grid: colorMix(css("--border-soft", DEFAULT_THEME.border), 0.58),
+    border: css("--border-soft", DEFAULT_THEME.border),
+    panel: css("--bg-panel", DEFAULT_THEME.panel),
+    tooltipBg: css("--surface-overlay", DEFAULT_THEME.tooltipBg),
+    tooltipText: css("--text-primary", DEFAULT_THEME.tooltipText),
+    fontFamily: css("--font-body", DEFAULT_THEME.fontFamily),
+    danger: css("--danger", DEFAULT_THEME.danger),
+    dangerSoft: colorMix(css("--danger", DEFAULT_THEME.danger), 0.16),
+    attention,
+    attentionSoft: colorMix(attention, 0.14),
+    accentSoft: colorMix(accent, 0.10),
+    palette: [accent, accentWarm, success, accentAlt, attention, "#2dd4bf", "#60a5fa", "#fb7185"],
+  };
 }
 
 function coerceValueItems(candidate: unknown): ValueItem[] {
@@ -756,12 +881,14 @@ function coerceValueItems(candidate: unknown): ValueItem[] {
     if (!isRecord(item)) return [];
     const value = asNumber(item.value ?? item.y ?? item.count);
     if (!isFiniteNumber(value)) return [];
-    return [{
-      label: asString(item.label ?? item.x ?? item.name) || `Item ${index + 1}`,
-      value,
-      color: asString(item.color),
-      tooltip: asString(item.tooltip),
-    }];
+    return [
+      {
+        label: asString(item.label ?? item.x ?? item.name) || `Item ${index + 1}`,
+        value,
+        color: asString(item.color),
+        tooltip: asString(item.tooltip),
+      },
+    ];
   });
 }
 
@@ -775,18 +902,22 @@ function coerceStackItems(candidate: unknown): StackItem[] {
       if (!isRecord(segment)) return [];
       const value = asNumber(segment.value);
       if (!isFiniteNumber(value)) return [];
-      return [{
-        label: asString(segment.label ?? segment.name) || `Segment ${segmentIndex + 1}`,
-        value,
-        color: asString(segment.color),
-      }];
+      return [
+        {
+          label: asString(segment.label ?? segment.name) || `Segment ${segmentIndex + 1}`,
+          value,
+          color: asString(segment.color),
+        },
+      ];
     });
     if (!segments.length) return [];
-    return [{
-      label: asString(item.label ?? item.name) || `Item ${index + 1}`,
-      segments,
-      tooltip: asString(item.tooltip),
-    }];
+    return [
+      {
+        label: asString(item.label ?? item.name) || `Item ${index + 1}`,
+        segments,
+        tooltip: asString(item.tooltip),
+      },
+    ];
   });
 }
 
@@ -796,17 +927,20 @@ function coerceSeries(seriesCandidate: unknown, dataCandidate: unknown): ChartSe
       if (!isRecord(entry)) return [];
       const data = coerceSeriesPoints(entry.data);
       if (!data.length) return [];
-      return [{
-        name: asString(entry.name ?? entry.label) || `Series ${index + 1}`,
-        color: asString(entry.color),
-        data,
-      }];
+      return [
+        {
+          name: asString(entry.name ?? entry.label) || `Series ${index + 1}`,
+          color: asString(entry.color),
+          yAxisID: coerceYAxisID(entry.yAxisID ?? entry.yAxis ?? entry.axis),
+          data,
+        },
+      ];
     });
   }
 
   const points = coerceSeriesPoints(dataCandidate);
   if (!points.length) return [];
-  return [{ name: "Value", data: points }];
+  return [{ name: "Value", yAxisID: "y", data: points }];
 }
 
 function coerceSeriesPoints(candidate: unknown): SeriesPoint[] {
@@ -818,14 +952,16 @@ function coerceSeriesPoints(candidate: unknown): SeriesPoint[] {
     const xCandidate = item.x ?? item.timestamp ?? item.label ?? index;
     const x = isChartPrimitive(xCandidate) ? xCandidate : index;
     const label = asString(item.label) || formatPrimitive(x);
-    return [{
-      x,
-      y,
-      label,
-      anomaly: item.anomaly === true,
-      highlight: item.highlight === true,
-      tooltip: asString(item.tooltip),
-    }];
+    return [
+      {
+        x,
+        y,
+        label,
+        anomaly: item.anomaly === true,
+        highlight: item.highlight === true,
+        tooltip: asString(item.tooltip),
+      },
+    ];
   });
 }
 
@@ -835,12 +971,14 @@ function coerceThresholds(candidate: unknown): Threshold[] {
     if (!isRecord(item)) return [];
     const value = asNumber(item.value);
     if (!isFiniteNumber(value)) return [];
-    return [{
-      value,
-      label: asString(item.label),
-      color: asString(item.color),
-      dashed: item.dashed === false ? false : true,
-    }];
+    return [
+      {
+        value,
+        label: asString(item.label),
+        color: asString(item.color),
+        dashed: item.dashed === false ? false : true,
+      },
+    ];
   });
 }
 
@@ -851,12 +989,16 @@ function coerceBands(candidate: unknown): Band[] {
     const start = item.xStart ?? item.start ?? item.from;
     const end = item.xEnd ?? item.end ?? item.to;
     if (!isChartPrimitive(start) || !isChartPrimitive(end)) return [];
-    return [{
-      xStart: start,
-      xEnd: end,
-      label: asString(item.label),
-      color: asString(item.color),
-    }];
+    return [
+      {
+        xStart: start,
+        xEnd: end,
+        label: asString(item.label),
+        color: asString(item.color),
+        kind: asString(item.kind ?? item.type ?? item.category),
+        severity: asString(item.severity),
+      },
+    ];
   });
 }
 
@@ -867,87 +1009,140 @@ function coerceScatterPoints(candidate: unknown): ScatterPoint[] {
     const x = asNumber(item.x);
     const y = asNumber(item.y);
     if (!isFiniteNumber(x) || !isFiniteNumber(y)) return [];
-    return [{
-      x,
-      y,
-      label: asString(item.label ?? item.name) || `Point ${index + 1}`,
-      colorValue: asNumber(item.colorValue ?? item.color_value ?? item.z),
-      color: asString(item.color),
-      highlight: item.highlight === true,
-      anomaly: item.anomaly === true,
-      tooltip: asString(item.tooltip),
-    }];
+    return [
+      {
+        x,
+        y,
+        label: asString(item.label ?? item.name) || `Point ${index + 1}`,
+        colorValue: asNumber(item.colorValue ?? item.color_value ?? item.z),
+        color: asString(item.color),
+        highlight: item.highlight === true,
+        anomaly: item.anomaly === true,
+        tooltip: asString(item.tooltip),
+      },
+    ];
   });
 }
 
-function collectSegmentLegend(rows: StackItem[]) {
-  const seen = new Map<string, string>();
+function collectSegmentNames(rows: StackItem[]): string[] {
+  const seen = new Set<string>();
   for (const row of rows) {
-    row.segments.forEach((segment, index) => {
-      if (!seen.has(segment.label)) {
-        seen.set(segment.label, segment.color || PALETTE[index % PALETTE.length]);
+    for (const segment of row.segments) {
+      seen.add(segment.label);
+    }
+  }
+  return Array.from(seen);
+}
+
+function collectSegmentColors(rows: StackItem[], theme: ChartTheme): Map<string, string> {
+  const colors = new Map<string, string>();
+  for (const row of rows) {
+    for (const segment of row.segments) {
+      if (!colors.has(segment.label)) {
+        colors.set(segment.label, safeCanvasColor(segment.color, theme.palette[colors.size % theme.palette.length]));
       }
-    });
+    }
   }
-  return Array.from(seen.entries()).map(([label, color]) => ({ label, color }));
+  return colors;
 }
 
-function createXScale(points: SeriesPoint[]): XScaleModel {
-  const xValues = points.map((point) => point.x);
-  const numeric = xValues.map((value) => (typeof value === "number" ? value : Number(value)));
+function collectLineXAxis(series: ChartSeries[]): LineXAxisModel {
+  const valuesByLabel = new Map<string, ChartPrimitive>();
+  for (const entry of series) {
+    for (const point of entry.data) {
+      const label = formatPrimitive(point.x);
+      if (!valuesByLabel.has(label)) {
+        valuesByLabel.set(label, point.x);
+      }
+    }
+  }
+
+  const values = Array.from(valuesByLabel.values());
+  const numeric = values.map((value) => (typeof value === "number" ? value : Number(value)));
   if (numeric.every(isFiniteNumber)) {
-    const domain = paddedDomain(numeric);
+    const sortedValues = [...values].sort((a, b) => Number(a) - Number(b));
     return {
-      mode: "linear",
-      min: domain[0],
-      max: domain[1],
-      categories: [],
-      toNumber: (value) => Number(value),
-      format: formatNumber,
+      labels: sortedValues.map(formatPrimitive),
+      values: sortedValues,
+      mode: "numeric",
     };
   }
 
-  const times = xValues.map((value) => (typeof value === "string" ? Date.parse(value) : Number.NaN));
-  if (times.every(isFiniteNumber)) {
-    const domain = paddedDomain(times, 0.01);
+  const timestamps = values.map((value) => (typeof value === "string" ? Date.parse(value) : Number.NaN));
+  if (timestamps.every(isFiniteNumber)) {
+    const sortedValues = [...values].sort((a, b) => Date.parse(String(a)) - Date.parse(String(b)));
     return {
+      labels: sortedValues.map(formatPrimitive),
+      values: sortedValues,
       mode: "time",
-      min: domain[0],
-      max: domain[1],
-      categories: [],
-      toNumber: (value) => (typeof value === "string" ? Date.parse(value) : Number(value)),
-      format: formatDateTick,
     };
   }
 
-  const categories = Array.from(new Set(xValues.map(formatPrimitive)));
-  const max = Math.max(categories.length - 1, 1);
   return {
+    labels: Array.from(valuesByLabel.keys()),
+    values: Array.from(valuesByLabel.values()),
     mode: "ordinal",
-    min: 0,
-    max,
-    categories,
-    toNumber: (value) => Math.max(0, categories.indexOf(formatPrimitive(value))),
-    format: (value) => categories[Math.round(value)] || "",
   };
 }
 
-function linePath(points: SeriesPoint[], sx: (value: ChartPrimitive) => number, sy: (value: number) => number): string {
-  return points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${sx(point.x).toFixed(2)} ${sy(point.y).toFixed(2)}`)
-    .join(" ");
+function lineXAxisValueToNumber(value: ChartPrimitive, xAxis: LineXAxisModel): number {
+  if (xAxis.mode === "ordinal") {
+    return xAxis.labels.findIndex((label) => label === formatPrimitive(value));
+  }
+  return chartAxisValueToNumber(value, xAxis.mode);
 }
 
-function plotBox(height = SVG_HEIGHT, compact = false) {
-  const padding = compact
-    ? { top: 12, right: 24, bottom: 38, left: 64 }
-    : PADDING;
-  return {
-    left: padding.left,
-    right: SVG_WIDTH - padding.right,
-    top: padding.top,
-    bottom: height - padding.bottom,
-  };
+function lineXAxisNumbers(xAxis: LineXAxisModel): number[] {
+  return xAxis.values.map((value) => lineXAxisValueToNumber(value, xAxis)).filter(isFiniteNumber);
+}
+
+function lineXAxisMin(xAxis: LineXAxisModel): number | undefined {
+  const values = lineXAxisNumbers(xAxis);
+  return values.length ? Math.min(...values) : undefined;
+}
+
+function lineXAxisMax(xAxis: LineXAxisModel): number | undefined {
+  const values = lineXAxisNumbers(xAxis);
+  return values.length ? Math.max(...values) : undefined;
+}
+
+function formatLineXAxisValue(value: number, xAxis: LineXAxisModel): string {
+  if (xAxis.mode === "time") {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("en-GB", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  }
+
+  if (xAxis.mode === "ordinal") {
+    return xAxis.labels[Math.round(value)] ?? "";
+  }
+
+  return formatNumber(value);
+}
+
+function coerceYAxisID(value: unknown): "y" | "y1" {
+  const axis = asString(value).toLowerCase();
+  return axis === "y1" || axis === "right" || axis === "secondary" ? "y1" : "y";
+}
+
+function chartHeight(spec: NativeChartSpec, fallback = DEFAULT_CHART_HEIGHT): number {
+  const value = asNumber(spec.height);
+  if (!isFiniteNumber(value)) return fallback;
+  return Math.max(180, Math.min(720, value));
+}
+
+function scatterPointColor(point: ScatterPoint, colorDomain: number[], theme: ChartTheme): string {
+  if (point.highlight || point.anomaly) return theme.danger;
+  if (point.color) return safeCanvasColor(point.color, theme.palette[0]);
+  if (isFiniteNumber(point.colorValue)) {
+    return gradientColor(scale(point.colorValue, colorDomain[0], colorDomain[1], 0, 1));
+  }
+  return theme.palette[0];
 }
 
 function paddedDomain(values: number[], ratio = 0.08): [number, number] {
@@ -963,12 +1158,6 @@ function paddedDomain(values: number[], ratio = 0.08): [number, number] {
   return [min - pad, max + pad];
 }
 
-function makeTicks(min: number, max: number, count: number): number[] {
-  if (!isFiniteNumber(min) || !isFiniteNumber(max) || count <= 1) return [];
-  const step = (max - min) / (count - 1);
-  return Array.from({ length: count }, (_, index) => min + step * index);
-}
-
 function scale(value: number, domainMin: number, domainMax: number, rangeMin: number, rangeMax: number): number {
   if (domainMax === domainMin) return (rangeMin + rangeMax) / 2;
   const ratio = (value - domainMin) / (domainMax - domainMin);
@@ -979,9 +1168,9 @@ function gradientColor(value: number): string {
   const t = Math.max(0, Math.min(1, value));
   if (t < 0.5) {
     const local = t / 0.5;
-    return interpolateRgb([138, 92, 150], [45, 190, 170], local);
+    return interpolateRgb([47, 129, 247], [45, 190, 170], local);
   }
-  return interpolateRgb([45, 190, 170], [250, 230, 85], (t - 0.5) / 0.5);
+  return interpolateRgb([45, 190, 170], [248, 81, 73], (t - 0.5) / 0.5);
 }
 
 function correlationColor(value: number): string {
@@ -996,27 +1185,49 @@ function interpolateRgb(a: [number, number, number], b: [number, number, number]
   return `rgb(${values[0]}, ${values[1]}, ${values[2]})`;
 }
 
-function formatNumber(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  if (abs >= 100) return value.toFixed(0);
-  if (abs >= 10) return value.toFixed(1);
-  return value.toFixed(2).replace(/\.?0+$/, "");
+function withAlpha(color: string, alpha: number): string {
+  if (color.startsWith("#") && (color.length === 7 || color.length === 4)) {
+    const normalized = color.length === 4
+      ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+      : color;
+    const opacity = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, "0");
+    return `${normalized}${opacity}`;
+  }
+  return color;
 }
 
-function formatDateTick(value: number): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-GB", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function colorMix(color: string, alpha: number): string {
+  if (color.startsWith("#") && color.length === 7) {
+    const r = Number.parseInt(color.slice(1, 3), 16);
+    const g = Number.parseInt(color.slice(3, 5), 16);
+    const b = Number.parseInt(color.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+  }
+  return color;
+}
+
+function safeCanvasColor(value: string | undefined, fallback: string): string {
+  if (!value || value.trim().startsWith("var(")) return fallback;
+  return value;
+}
+
+function formatNumber(value: number): string {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 10_000) return `${sign}${(abs / 1_000).toFixed(0)}K`;
+  if (abs >= 1000) return `${sign}${abs.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (abs >= 100) return `${sign}${abs.toFixed(0)}`;
+  if (abs >= 10) return `${sign}${abs.toFixed(1)}`;
+  return `${sign}${abs.toFixed(2).replace(/\.?0+$/, "")}`;
+}
+
+function formatMaybeNumber(value: number | null | undefined): string {
+  return isFiniteNumber(value) ? formatNumber(value) : "n/a";
 }
 
 function formatPrimitive(value: ChartPrimitive): string {
-  return typeof value === "number" ? formatNumber(value) : value;
+  return formatChartPrimitive(value);
 }
 
 function asString(value: unknown): string {
