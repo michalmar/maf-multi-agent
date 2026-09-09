@@ -49,6 +49,34 @@ User identity ──► Fabric API
 - **Background resumability** — active runs checkpoint their latest status, events, tasks, and documents so users can reload, navigate away, and later resume a still-running session from history
 - **Email notifications** — facilitator can email results to the logged-in user via Microsoft Graph when explicitly requested
 
+## Terraform credential hygiene
+
+Terraform saved plans and state contain credential values even when Terraform
+marks them `sensitive`. Never commit or upload state, saved plans, populated
+`.tfvars` files, or JSON exports of plans/state. Store state in the access-controlled
+remote backend; keep local artifacts private and out of build contexts. Example
+variable files must end in `.example` and contain placeholders only.
+
+Before pushing, run `python scripts/check_repository_artifacts.py` from the
+repository root. This checks the Git index (including staged contents), not Git
+history or untracked files. CI runs the same check on pull requests and before
+deployment. It detects Terraform artifact filenames, renamed plan ZIPs, and
+state/plan JSON; it is not a general-purpose secret scanner. Keep GitHub secret
+scanning and push protection enabled, and require the repository-hygiene check
+in branch protection.
+
+For a confirmed exposure, invalidate the exposed credentials first according to
+the incident owner's instructions. Removing the current file does not remove
+public history or invalidate downloaded copies. Inventory all credentials in the
+artifact, update every consumer, and coordinate history/PR/fork/cache cleanup
+with repository owners and GitHub Support. Preserve only non-secret evidence.
+Never restore the exposed value as a rollback.
+
+After an emergency rotation outside Terraform, reconcile the protected remote
+state and generate a fresh reviewed plan before any subsequent apply. Never
+apply an old saved plan: it can restore compromised values. Confirm the plan
+will not revert the repaired authentication or log-ingestion configuration.
+
 ## Prerequisites
 
 - Python 3.11+

@@ -20,5 +20,12 @@ test.py
 logs
 
 deploy
+**/.terraform
+**/*.tfstate*
+**/*.tfplan*
+**/tfplan
+**/tfplan.*
+**/*.tfvars
+**/*.tfvars.json
 *.md
 !CHANGELOG.md

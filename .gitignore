@@ -49,11 +49,11 @@ output/
 *.tsbuildinfo
 
 # Terraform
-deploy/terraform/.terraform/
-deploy/terraform/*.tfstate
-deploy/terraform/*.tfstate.backup
-deploy/terraform/*.tfplan
-deploy/terraform/tfplan
-deploy/terraform/tfplan.*
+**/.terraform/
+*.tfstate*
+*.tfplan*
+tfplan
+tfplan.*
+*.tfvars
+*.tfvars.json
 deploy/terraform/.terraform.lock.hcl
-deploy/terraform/terraform.tfvars
