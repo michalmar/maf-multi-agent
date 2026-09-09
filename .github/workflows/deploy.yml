@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -45,7 +47,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Reject credential-bearing Terraform artifacts
-        run: python scripts/check_repository_artifacts.py
+        run: python scripts/check_repository_artifacts.py --history
 
       - name: Install backend deps
         run: cd backend && uv sync --frozen

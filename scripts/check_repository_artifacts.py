@@ -1,4 +1,4 @@
-"""Reject credential-bearing Terraform artifacts in the Git index, without printing contents."""
+"""Reject credential-bearing Terraform artifacts without printing their contents."""
 
 import argparse
 import io
@@ -46,11 +46,19 @@ def artifact_reason(name: str, content: bytes) -> str | None:
     return None
 
 
-def check_index(repo: Path) -> list[tuple[str, str]]:
-    entries = subprocess.run(
-        ["git", "ls-files", "--stage", "-z"],
+def git_output(repo: Path, *args: str) -> bytes:
+    return subprocess.run(
+        ["git", *args],
         cwd=repo, check=True, stdout=subprocess.PIPE,
     ).stdout
+
+
+def blob_reason(repo: Path, name: str, object_id: bytes) -> str | None:
+    return artifact_reason(name, git_output(repo, "cat-file", "blob", object_id.decode("ascii")))
+
+
+def check_index(repo: Path) -> list[tuple[str, str]]:
+    entries = git_output(repo, "ls-files", "--stage", "-z")
     findings = []
     for entry in entries.split(b"\0"):
         if not entry:
@@ -61,22 +69,48 @@ def check_index(repo: Path) -> list[tuple[str, str]]:
         if stage != b"0" or mode == b"160000":
             findings.append((name, "unmerged entry or submodule cannot be scanned"))
             continue
-        content = subprocess.run(
-            ["git", "cat-file", "blob", object_id.decode("ascii")],
-            cwd=repo, check=True, stdout=subprocess.PIPE,
-        ).stdout
-        reason = artifact_reason(name, content)
+        reason = blob_reason(repo, name, object_id)
         if reason:
             findings.append((name, reason))
+    return findings
+
+
+def check_history(repo: Path) -> list[tuple[str, str]]:
+    if git_output(repo, "rev-parse", "--is-shallow-repository").strip() == b"true":
+        return [("HEAD", "history scan requires a full checkout (fetch-depth: 0)")]
+    findings = []
+    seen = set()
+    for commit in git_output(repo, "rev-list", "HEAD").splitlines():
+        entries = git_output(repo, "ls-tree", "-r", "-z", commit.decode("ascii"))
+        for entry in entries.split(b"\0"):
+            if not entry:
+                continue
+            metadata, raw_path = entry.split(b"\t", 1)
+            _, object_type, object_id = metadata.split()
+            identity = (raw_path, object_id)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            name = raw_path.decode("utf-8", errors="surrogateescape")
+            reason = (
+                blob_reason(repo, name, object_id)
+                if object_type == b"blob" else "submodule cannot be scanned"
+            )
+            if reason:
+                findings.append((f"{commit.decode('ascii')}:{name}", reason))
     return findings
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--history", action="store_true", help="Also scan every commit reachable from HEAD.")
     args = parser.parse_args()
     findings = check_index(args.repo)
-    print(json.dumps({"scope": "git-index", "findings": findings}, ensure_ascii=True))
+    if args.history:
+        findings.extend(check_history(args.repo))
+    scope = "git-index-and-HEAD-history" if args.history else "git-index"
+    print(json.dumps({"scope": scope, "findings": findings}, ensure_ascii=True))
     return 1 if findings else 0
 
 

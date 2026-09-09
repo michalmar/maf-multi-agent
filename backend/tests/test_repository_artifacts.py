@@ -14,6 +14,7 @@ CHECKER = REPO_ROOT / "scripts" / "check_repository_artifacts.py"
 MODULE = runpy.run_path(str(CHECKER))
 artifact_reason = MODULE["artifact_reason"]
 check_index = MODULE["check_index"]
+check_history = MODULE["check_history"]
 
 
 @pytest.mark.parametrize("name", [
@@ -99,3 +100,48 @@ def test_cli_succeeds_for_clean_index(tmp_path):
 
 def test_current_repository_index_has_no_terraform_artifacts():
     assert check_index(REPO_ROOT) == []
+
+
+def commit_fixture(repo, message):
+    subprocess.run(
+        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+         "commit", "--quiet", "-m", message],
+        cwd=repo, check=True,
+    )
+
+
+def test_history_catches_artifact_deleted_before_branch_tip(tmp_path):
+    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    (tmp_path / "tfplan").write_bytes(b"synthetic fixture")
+    subprocess.run(["git", "add", "tfplan"], cwd=tmp_path, check=True)
+    commit_fixture(tmp_path, "Add synthetic artifact")
+    subprocess.run(["git", "rm", "--quiet", "tfplan"], cwd=tmp_path, check=True)
+    commit_fixture(tmp_path, "Remove synthetic artifact")
+
+    assert check_index(tmp_path) == []
+    findings = check_history(tmp_path)
+    assert len(findings) == 1
+    assert findings[0][0].endswith(":tfplan")
+    assert findings[0][1] == "Terraform state or saved plan"
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo", str(tmp_path), "--history"],
+        check=False, capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "synthetic fixture" not in result.stdout + result.stderr
+
+
+def test_history_requires_complete_checkout(tmp_path):
+    source = tmp_path / "source"
+    subprocess.run(["git", "init", "--quiet", str(source)], check=True)
+    (source / "main.tf").write_text("# synthetic source\n")
+    subprocess.run(["git", "add", "main.tf"], cwd=source, check=True)
+    commit_fixture(source, "Add source")
+    assert check_history(source) == []
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "--quiet", "--depth=1", source.as_uri(), str(shallow)], check=True,
+    )
+    assert check_history(shallow) == [
+        ("HEAD", "history scan requires a full checkout (fetch-depth: 0)")
+    ]

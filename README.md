@@ -57,13 +57,16 @@ marks them `sensitive`. Never commit or upload state, saved plans, populated
 remote backend; keep local artifacts private and out of build contexts. Example
 variable files must end in `.example` and contain placeholders only.
 
-Before pushing, run `python scripts/check_repository_artifacts.py` from the
-repository root. This checks the Git index (including staged contents), not Git
-history or untracked files. CI runs the same check on pull requests and before
-deployment. It detects Terraform artifact filenames, renamed plan ZIPs, and
-state/plan JSON; it is not a general-purpose secret scanner. Keep GitHub secret
+Before pushing, run `python scripts/check_repository_artifacts.py --history` from
+the repository root with a full (non-shallow) checkout. This checks the Git index
+(including staged contents) and all commits reachable from HEAD, catching files
+added and subsequently deleted in a branch. It does not scan untracked files,
+other refs, remote caches or forks. CI runs the same check on pull requests and
+before deployment. It detects Terraform artifact filenames, renamed plan ZIPs,
+and state/plan JSON; it is not a general-purpose secret scanner. Keep GitHub secret
 scanning and push protection enabled, and require the repository-hygiene check
-in branch protection.
+in branch protection. Run the check locally before publishing: post-push CI
+cannot prevent the initial public exposure.
 
 For a confirmed exposure, invalidate the exposed credentials first according to
 the incident owner's instructions. Removing the current file does not remove
